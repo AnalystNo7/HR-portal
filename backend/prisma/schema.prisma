@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id             String           @id @default(uuid())
+  personnelNumber String          @unique @map("personnel_number")
+  lastName       String           @map("last_name")
+  firstName      String           @map("first_name")
+  middleName     String?          @map("middle_name")
+  email          String           @unique
+  position       String
+  department     String
+  hireDate       DateTime?        @map("hire_date")
+  photoUrl       String?          @map("photo_url")
+  managerId      String?          @map("manager_id")
+  manager        Employee?        @relation("ManagerSubordinates", fields: [managerId], references: [id])
+  subordinates   Employee[]       @relation("ManagerSubordinates")
+  workExperiences WorkExperience[]
+  educations     Education[]
+  appeals        Appeal[]         @relation("AuthorAppeals")
+  appealComments AppealComment[]
+  keycloakId     String?          @unique @map("keycloak_id")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@map("employees")
+}
+
+model WorkExperience {
+  id          String    @id @default(uuid())
+  employeeId  String    @map("employee_id")
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company     String
+  position    String
+  startDate   DateTime  @map("start_date")
+  endDate     DateTime? @map("end_date")
+  isCurrent   Boolean   @default(false) @map("is_current")
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("work_experiences")
+}
+
+model Education {
+  id            String   @id @default(uuid())
+  employeeId    String   @map("employee_id")
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  institution   String
+  specialization String?
+  level         String
+  yearCompleted Int?     @map("year_completed")
+  type          EducationType @default(BASIC)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("educations")
+}
+
+enum EducationType {
+  BASIC
+  ADDITIONAL
+}
+
+model Appeal {
+  id          String         @id @default(uuid())
+  number      Int            @default(autoincrement())
+  direction   String
+  subject     String
+  text        String
+  status      AppealStatus   @default(NEW)
+  isAnonymous Boolean        @default(false) @map("is_anonymous")
+  authorId    String?        @map("author_id")
+  author      Employee?      @relation("AuthorAppeals", fields: [authorId], references: [id])
+  comments    AppealComment[]
+  files       AppealFile[]
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@map("appeals")
+}
+
+enum AppealStatus {
+  NEW
+  IN_PROGRESS
+  NEEDS_CLARIFICATION
+  RESOLVED
+  CLOSED
+}
+
+model AppealComment {
+  id        String   @id @default(uuid())
+  appealId  String   @map("appeal_id")
+  appeal    Appeal   @relation(fields: [appealId], references: [id], onDelete: Cascade)
+  authorId  String   @map("author_id")
+  author    Employee @relation(fields: [authorId], references: [id])
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("appeal_comments")
+}
+
+model AppealFile {
+  id         String   @id @default(uuid())
+  appealId   String   @map("appeal_id")
+  appeal     Appeal   @relation(fields: [appealId], references: [id], onDelete: Cascade)
+  fileName   String   @map("file_name")
+  fileKey    String   @map("file_key")
+  fileSize   Int      @map("file_size")
+  mimeType   String   @map("mime_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("appeal_files")
+}

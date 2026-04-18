@@ -1,0 +1,20 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "HR-портал | Газпром ЦПС",
+  description: "HR-портал для сотрудников Газпром ЦПС",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="ru">
+      <body style={{ margin: 0 }}>
+        {children}
+      </body>
+    </html>
+  );
+}

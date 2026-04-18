@@ -1,0 +1,24 @@
+node_modules/
+.env
+.env.local
+.DS_Store
+*.pem
+npm-debug.log*
+
+# Frontend
+frontend/.next/
+frontend/out/
+frontend/.vercel
+
+# Backend
+backend/dist/
+backend/generated/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker
+*.log
