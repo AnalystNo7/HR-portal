@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Typography, Card, Empty, Tabs } from 'antd';
+import EmployeeTable from '@/components/EmployeeTable';
 
 const { Title } = Typography;
 
@@ -14,11 +15,7 @@ export default function HrPage() {
           {
             key: 'employees',
             label: 'Все сотрудники',
-            children: (
-              <Card style={{ borderRadius: 12 }}>
-                <Empty description="Таблица сотрудников будет реализована в следующей итерации" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-              </Card>
-            ),
+            children: <EmployeeTable />,
           },
           {
             key: 'appeals',
