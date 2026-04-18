@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata } from 'next';
+import AntdProvider from './AntdProvider';
 
 export const metadata: Metadata = {
-  title: "HR-портал | Газпром ЦПС",
-  description: "HR-портал для сотрудников Газпром ЦПС",
+  title: 'HR-портал | Газпром ЦПС',
+  description: 'HR-портал для сотрудников Газпром ЦПС',
 };
 
 export default function RootLayout({
@@ -13,7 +14,7 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body style={{ margin: 0 }}>
-        {children}
+        <AntdProvider>{children}</AntdProvider>
       </body>
     </html>
   );
