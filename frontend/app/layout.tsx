@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, PT_Sans_Narrow } from 'next/font/google';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { AppShell } from '@/components/layout/AppShell';
 
 import './styles/tokens.css';
 import './styles/shell.css';
@@ -34,7 +35,9 @@ export default function RootLayout({
   return (
     <html lang="ru" className={`${inter.variable} ${ptSansNarrow.variable}`} data-density="comfortable">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <AppShell>{children}</AppShell>
+        </AuthProvider>
       </body>
     </html>
   );
