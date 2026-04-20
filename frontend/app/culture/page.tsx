@@ -1,5 +1,8 @@
-'use client';
-import PlaceholderPage from '@/components/PlaceholderPage';
-export default function CulturePage() {
-  return <PlaceholderPage title="Корпоративная культура" />;
+export default function Page() {
+  return (
+    <div style={{ padding: 40 }}>
+      <h1>culture</h1>
+      <p className="muted">Будет переписан в следующих итерациях.</p>
+    </div>
+  );
 }

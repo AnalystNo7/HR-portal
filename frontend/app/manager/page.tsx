@@ -1,24 +1,8 @@
-'use client';
-
-import React from 'react';
-import { Typography, Tabs } from 'antd';
-import EmployeeTable from '@/components/EmployeeTable';
-
-const { Title } = Typography;
-
-export default function ManagerPage() {
+export default function Page() {
   return (
-    <div>
-      <Title level={3} style={{ marginTop: 0 }}>Кабинет руководителя</Title>
-      <Tabs
-        items={[
-          {
-            key: 'employees',
-            label: 'Сотрудники',
-            children: <EmployeeTable managerId="1" />,
-          },
-        ]}
-      />
+    <div style={{ padding: 40 }}>
+      <h1>manager</h1>
+      <p className="muted">Будет переписан в следующих итерациях.</p>
     </div>
   );
 }

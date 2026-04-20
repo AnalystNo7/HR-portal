@@ -1,5 +1,8 @@
-'use client';
-import PlaceholderPage from '@/components/PlaceholderPage';
-export default function SurveysPage() {
-  return <PlaceholderPage title="Опросы" />;
+export default function Page() {
+  return (
+    <div style={{ padding: 40 }}>
+      <h1>surveys</h1>
+      <p className="muted">Будет переписан в следующих итерациях.</p>
+    </div>
+  );
 }
