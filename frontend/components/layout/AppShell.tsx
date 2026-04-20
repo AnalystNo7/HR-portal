@@ -5,10 +5,11 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { RightRail } from './RightRail';
 import { ToastProvider } from '@/components/primitives';
+import { FeedbackModal } from '@/components/FeedbackModal';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { sidebarCollapsed } = useAuth();
+  const { sidebarCollapsed, feedbackOpen, setFeedbackOpen } = useAuth();
 
   return (
     <ToastProvider>
@@ -18,6 +19,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="main">{children}</main>
         <RightRail />
       </div>
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </ToastProvider>
   );
 }
