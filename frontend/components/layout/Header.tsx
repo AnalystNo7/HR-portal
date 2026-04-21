@@ -3,7 +3,7 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import { Icon } from '@/components/primitives';
-import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { useAuth, UserRole, isMockAuth } from '@/contexts/AuthContext';
 import { NAV_LABELS } from './Sidebar';
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -14,9 +14,10 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 export function Header() {
   const pathname = usePathname();
-  const { role, setRole, setFeedbackOpen, user } = useAuth();
+  const { role, setRole, setFeedbackOpen, logout, user } = useAuth();
   const avInitials = user ? `${user.lastName[0] ?? ''}${user.firstName[0] ?? ''}`.toUpperCase() : '';
   const avTitle = user ? `${user.lastName} ${user.firstName}` : '';
+  const mock = isMockAuth();
 
   const sectionTitle = NAV_LABELS[pathname] || 'Портал';
   const showCrumb = pathname !== '/';
@@ -51,13 +52,27 @@ export function Header() {
         Обратная связь
       </button>
 
-      <div className="hdr-role" title="Демо: переключение роли">
-        {(Object.keys(ROLE_LABELS) as UserRole[]).map(k => (
-          <button key={k} data-active={role === k} onClick={() => setRole(k)}>
-            {ROLE_LABELS[k]}
+      {mock ? (
+        <div className="hdr-role" title="Демо: переключение роли">
+          {(Object.keys(ROLE_LABELS) as UserRole[]).map(k => (
+            <button key={k} data-active={role === k} onClick={() => setRole(k)}>
+              {ROLE_LABELS[k]}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="pill pill-blue" style={{ fontSize: 11 }}>{ROLE_LABELS[role]}</span>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={logout}
+            title="Выход"
+            style={{ padding: '0 8px' }}
+          >
+            <Icon name="logout" size={16} />
           </button>
-        ))}
-      </div>
+        </div>
+      )}
 
       <button className="hdr-avatar" title={avTitle}>{avInitials}</button>
     </header>

@@ -22,8 +22,26 @@ export class MeService {
       where: { personnelNumber },
     });
     if (!employee) {
-      throw new NotFoundException(`No employee mapped for role "${role}" (${personnelNumber})`);
+      throw new NotFoundException(`No employee mapped for role "${role}"`);
     }
+    return { ...employee, role };
+  }
+
+  async getByRoleAndEmail(role: Role, email: string) {
+    let employee = await this.prisma.employee.findUnique({
+      where: { email },
+    });
+
+    if (!employee) {
+      employee = await this.prisma.employee.findUnique({
+        where: { personnelNumber: ROLE_TO_PERSONNEL[role] },
+      });
+    }
+
+    if (!employee) {
+      throw new NotFoundException(`Employee not found for email "${email}" or role "${role}"`);
+    }
+
     return { ...employee, role };
   }
 }
