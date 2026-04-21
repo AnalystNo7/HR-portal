@@ -14,7 +14,9 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 export function Header() {
   const pathname = usePathname();
-  const { role, setRole, setFeedbackOpen } = useAuth();
+  const { role, setRole, setFeedbackOpen, user } = useAuth();
+  const avInitials = user ? `${user.lastName[0] ?? ''}${user.firstName[0] ?? ''}`.toUpperCase() : '';
+  const avTitle = user ? `${user.lastName} ${user.firstName}` : '';
 
   const sectionTitle = NAV_LABELS[pathname] || 'Портал';
   const showCrumb = pathname !== '/';
@@ -57,7 +59,7 @@ export function Header() {
         ))}
       </div>
 
-      <button className="hdr-avatar" title="А. Морозов">АМ</button>
+      <button className="hdr-avatar" title={avTitle}>{avInitials}</button>
     </header>
   );
 }

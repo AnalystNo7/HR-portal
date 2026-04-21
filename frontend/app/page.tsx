@@ -44,7 +44,7 @@ export default function HomePage() {
     <div>
       <section className="home-hello">
         <div className="flex-1">
-          <h1>Привет, {user.firstName}!</h1>
+          <h1>Привет{user ? `, ${user.firstName}` : ''}!</h1>
           <p>
             Добро пожаловать в Портал Газпром ЦПС. Здесь можно работать с личным кабинетом,
             посмотреть карьерный трек, задать вопрос HR или изучить корпоративную культуру.

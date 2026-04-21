@@ -24,13 +24,15 @@ export default function CareerPage() {
   const { user } = useAuth();
   const [lvl, setLvl] = useState<Level | null>(null);
 
+  const fullName = user ? `${user.lastName} ${user.firstName} ${user.middleName ?? ''}`.trim() : '';
+
   return (
     <div>
       <div className="profile-head" style={{ marginBottom: 24 }}>
-        <Avatar name={`${user.firstName} ${user.lastName}`} size="lg" />
+        <Avatar name={fullName} size="lg" />
         <div className="names">
-          <h1>{user.lastName} {user.firstName} {user.middleName}</h1>
-          <div className="role">{user.position} · {user.department} · ООО «Газпром ЦПС»</div>
+          <h1>{fullName || 'Загрузка...'}</h1>
+          <div className="role">{user?.position ?? ''} · {user?.department ?? ''} · ООО «Газпром ЦПС»</div>
           <div className="meta">
             <span>Семья ролей: <b>ИТ-разработка</b></span>
             <span>Текущий уровень: <b>Senior (L4)</b></span>

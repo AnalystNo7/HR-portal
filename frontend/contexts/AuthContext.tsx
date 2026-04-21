@@ -1,22 +1,14 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { getMe, Me } from '@/lib/api';
 
 export type UserRole = 'employee' | 'manager' | 'hr';
 
-interface User {
-  id: string;
-  firstName: string;
-  lastName: string;
-  middleName: string;
-  email: string;
-  position: string;
-  department: string;
-  role: UserRole;
-}
-
 interface AuthState {
-  user: User;
+  user: Me | null;
+  loading: boolean;
+  error: string | null;
   role: UserRole;
   sidebarCollapsed: boolean;
   density: 'compact' | 'comfortable' | 'spacious';
@@ -28,46 +20,20 @@ interface AuthContextType extends AuthState {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setDensity: (density: AuthState['density']) => void;
   setFeedbackOpen: (open: boolean) => void;
+  reloadUser: () => Promise<void>;
 }
 
 const STORAGE_KEY = 'gpc-portal-state-v2';
 
-const mockUsers: Record<UserRole, User> = {
-  employee: {
-    id: '1',
-    firstName: 'Александр',
-    lastName: 'Морозов',
-    middleName: 'Викторович',
-    email: 'morozov.av@gazpromcps.ru',
-    position: 'Ведущий инженер',
-    department: 'Блок ИТ / Разработка',
-    role: 'employee',
-  },
-  manager: {
-    id: '2',
-    firstName: 'Александр',
-    lastName: 'Морозов',
-    middleName: 'Викторович',
-    email: 'morozov.av@gazpromcps.ru',
-    position: 'Ведущий инженер',
-    department: 'Блок ИТ / Разработка',
-    role: 'manager',
-  },
-  hr: {
-    id: '3',
-    firstName: 'Александр',
-    lastName: 'Морозов',
-    middleName: 'Викторович',
-    email: 'morozov.av@gazpromcps.ru',
-    position: 'Ведущий инженер',
-    department: 'Блок ИТ / Разработка',
-    role: 'hr',
-  },
-};
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function loadState(): Partial<AuthState> {
+type PersistedState = {
+  role?: UserRole;
+  sidebarCollapsed?: boolean;
+  density?: AuthState['density'];
+};
+
+function loadState(): PersistedState {
   if (typeof window === 'undefined') return {};
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
@@ -76,35 +42,54 @@ function loadState(): Partial<AuthState> {
   }
 }
 
-function saveState(state: Partial<AuthState>) {
+function saveState(state: PersistedState) {
   if (typeof window === 'undefined') return;
-  const { feedbackOpen, ...persist } = state as AuthState;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(persist));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(() => {
     const saved = loadState();
-    const role = (saved.role as UserRole) || 'hr';
     return {
-      user: mockUsers[role],
-      role,
+      user: null,
+      loading: true,
+      error: null,
+      role: saved.role ?? 'hr',
       sidebarCollapsed: saved.sidebarCollapsed ?? false,
       density: saved.density ?? 'comfortable',
       feedbackOpen: false,
     };
   });
 
+  const loadUser = useCallback(async (role: UserRole) => {
+    setState(s => ({ ...s, loading: true, error: null }));
+    try {
+      const me = await getMe(role);
+      setState(s => ({ ...s, user: me, loading: false }));
+    } catch (e) {
+      setState(s => ({ ...s, loading: false, error: (e as Error).message }));
+    }
+  }, []);
+
   useEffect(() => {
-    saveState(state);
-  }, [state]);
+    loadUser(state.role);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.role]);
+
+  useEffect(() => {
+    saveState({
+      role: state.role,
+      sidebarCollapsed: state.sidebarCollapsed,
+      density: state.density,
+    });
+  }, [state.role, state.sidebarCollapsed, state.density]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-density', state.density);
   }, [state.density]);
 
   const setRole = useCallback((role: UserRole) => {
-    setState(s => ({ ...s, role, user: mockUsers[role] }));
+    setState(s => ({ ...s, role }));
   }, []);
 
   const setSidebarCollapsed = useCallback((sidebarCollapsed: boolean) => {
@@ -119,8 +104,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState(s => ({ ...s, feedbackOpen }));
   }, []);
 
+  const reloadUser = useCallback(() => loadUser(state.role), [loadUser, state.role]);
+
   return (
-    <AuthContext.Provider value={{ ...state, setRole, setSidebarCollapsed, setDensity, setFeedbackOpen }}>
+    <AuthContext.Provider
+      value={{
+        ...state,
+        setRole,
+        setSidebarCollapsed,
+        setDensity,
+        setFeedbackOpen,
+        reloadUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

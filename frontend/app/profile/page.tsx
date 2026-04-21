@@ -1,9 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Icon, Modal, Avatar, useToast } from '@/components/primitives';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Icon, Modal, useToast } from '@/components/primitives';
 import { PersonProfile, PeopleTalk, EmptyCube, Vacation } from '@/components/illustrations/Illustrations';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  listWorkExperiences,
+  createWorkExperience,
+  updateWorkExperience,
+  deleteWorkExperience,
+  listEducations,
+  createEducation,
+  updateEducation,
+  deleteEducation,
+  WorkExperience,
+  WorkExperienceInput,
+  Education,
+  EducationInput,
+} from '@/lib/api';
 
 type SubTab = 'profile' | 'comp' | 'review' | 'vacation' | 'requests';
 
@@ -18,9 +32,13 @@ const TABS: { id: SubTab; label: string }[] = [
 export default function ProfilePage() {
   const { user } = useAuth();
   const [tab, setTab] = useState<SubTab>('profile');
-  const [edit, setEdit] = useState(false);
   const [vacOpen, setVacOpen] = useState(false);
-  const toast = useToast();
+
+  if (!user) {
+    return <div className="card card-pad">Загрузка профиля...</div>;
+  }
+
+  const fullName = `${user.lastName} ${user.firstName} ${user.middleName ?? ''}`.trim();
 
   return (
     <div>
@@ -31,37 +49,24 @@ export default function ProfilePage() {
       </div>
 
       <div className="profile-head">
-        <div className="photo av-blue" style={{ fontSize: 24, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {user.lastName[0]}{user.firstName[0]}
+        <div
+          className="photo av-blue"
+          style={{ fontSize: 24, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          {(user.lastName[0] ?? '') + (user.firstName[0] ?? '')}
         </div>
         <div className="names">
-          <h1>{user.lastName} {user.firstName} {user.middleName}</h1>
+          <h1>{fullName}</h1>
           <div className="role">{user.position} · {user.department} · ООО «Газпром ЦПС»</div>
           <div className="meta">
-            <span>Руководитель: <b>Петров О. Н.</b></span>
-            <span>В компании: <b>3 года 4 мес.</b></span>
-            <span>Санкт-Петербург</span>
+            <span>E-mail: <b>{user.email}</b></span>
+            <span>Табельный: <b>{user.personnelNumber}</b></span>
+            {user.hireDate && <span>С: <b>{new Date(user.hireDate).toLocaleDateString('ru-RU')}</b></span>}
           </div>
-        </div>
-        <div>
-          {tab === 'profile' && (
-            edit ? (
-              <>
-                <button className="btn btn-secondary" onClick={() => setEdit(false)}>Отмена</button>{' '}
-                <button className="btn btn-primary" onClick={() => { setEdit(false); toast('Профиль сохранён'); }}>
-                  <Icon name="check" size={16} /> Сохранить
-                </button>
-              </>
-            ) : (
-              <button className="btn btn-secondary" onClick={() => setEdit(true)}>
-                <Icon name="edit" size={16} /> Редактировать
-              </button>
-            )
-          )}
         </div>
       </div>
 
-      {tab === 'profile' && <ProfileTab edit={edit} />}
+      {tab === 'profile' && <ProfileTab employeeId={user.id} />}
       {tab === 'comp' && <CompetenciesTab />}
       {tab === 'review' && <ReviewTab />}
       {tab === 'vacation' && <VacationTab onRequest={() => setVacOpen(true)} />}
@@ -96,7 +101,67 @@ function Section({ title, children, onAdd }: { title: string; children: React.Re
   );
 }
 
-function ProfileTab({ edit }: { edit: boolean }) {
+function ProfileTab({ employeeId }: { employeeId: string }) {
+  const [experiences, setExperiences] = useState<WorkExperience[]>([]);
+  const [educations, setEducations] = useState<Education[]>([]);
+  const [loadingExp, setLoadingExp] = useState(true);
+  const [loadingEdu, setLoadingEdu] = useState(true);
+  const [errorExp, setErrorExp] = useState<string | null>(null);
+  const [errorEdu, setErrorEdu] = useState<string | null>(null);
+
+  const [wxModal, setWxModal] = useState<{ mode: 'create' | 'edit'; item?: WorkExperience } | null>(null);
+  const [eduModal, setEduModal] = useState<{ mode: 'create' | 'edit'; item?: Education } | null>(null);
+
+  const toast = useToast();
+
+  const loadExp = useCallback(async () => {
+    setLoadingExp(true);
+    setErrorExp(null);
+    try {
+      setExperiences(await listWorkExperiences(employeeId));
+    } catch (e) {
+      setErrorExp((e as Error).message);
+    } finally {
+      setLoadingExp(false);
+    }
+  }, [employeeId]);
+
+  const loadEdu = useCallback(async () => {
+    setLoadingEdu(true);
+    setErrorEdu(null);
+    try {
+      setEducations(await listEducations(employeeId));
+    } catch (e) {
+      setErrorEdu((e as Error).message);
+    } finally {
+      setLoadingEdu(false);
+    }
+  }, [employeeId]);
+
+  useEffect(() => { loadExp(); loadEdu(); }, [loadExp, loadEdu]);
+
+  const handleDeleteExp = async (id: string) => {
+    if (!confirm('Удалить запись об опыте работы?')) return;
+    try {
+      await deleteWorkExperience(employeeId, id);
+      toast('Удалено');
+      loadExp();
+    } catch (e) {
+      toast(`Ошибка: ${(e as Error).message}`);
+    }
+  };
+
+  const handleDeleteEdu = async (id: string) => {
+    if (!confirm('Удалить запись об образовании?')) return;
+    try {
+      await deleteEducation(employeeId, id);
+      toast('Удалено');
+      loadEdu();
+    } catch (e) {
+      toast(`Ошибка: ${(e as Error).message}`);
+    }
+  };
+
   return (
     <div>
       <div className="profile-callouts">
@@ -104,8 +169,7 @@ function ProfileTab({ edit }: { edit: boolean }) {
           <div className="ill"><PersonProfile w={160} /></div>
           <div className="b-body">
             <h3>Заполните профиль полностью</h3>
-            <p>Полный профиль помогает коллегам найти вас по навыкам, а HR — подобрать релевантные проекты и обучение. Заполнено на 72%.</p>
-            <button className="btn btn-primary btn-sm" style={{ marginTop: 10 }}>Продолжить заполнение</button>
+            <p>Полный профиль помогает коллегам найти вас по навыкам, а HR — подобрать релевантные проекты и обучение.</p>
           </div>
         </div>
         <div className="banner warm">
@@ -118,119 +182,333 @@ function ProfileTab({ edit }: { edit: boolean }) {
         </div>
       </div>
 
-      <Section title="Основные данные" onAdd={edit ? () => {} : undefined}>
-        {edit ? (
-          <div className="grid-2">
-            <div className="field"><label>Фамилия</label><input className="inp" defaultValue="Морозов" /></div>
-            <div className="field"><label>Имя</label><input className="inp" defaultValue="Александр" /></div>
-            <div className="field"><label>Отчество</label><input className="inp" defaultValue="Викторович" /></div>
-            <div className="field"><label>Дата рождения</label><input className="inp" type="date" defaultValue="1990-06-14" /></div>
-            <div className="field"><label>Город</label><input className="inp" defaultValue="Санкт-Петербург" /></div>
-            <div className="field"><label>Табельный номер</label><input className="inp" defaultValue="ЦПС-01274" readOnly /></div>
+      <Section title="Опыт работы" onAdd={() => setWxModal({ mode: 'create' })}>
+        {loadingExp && <div className="muted small">Загрузка...</div>}
+        {errorExp && <div className="pill pill-red">Ошибка: {errorExp}</div>}
+        {!loadingExp && experiences.length === 0 && !errorExp && (
+          <div className="empty">
+            <div className="ill"><EmptyCube w={80} /></div>
+            <h3>Опыт работы ещё не добавлен</h3>
+            <p style={{ fontSize: 12.5 }}>Расскажите о предыдущих местах работы и проектах.</p>
           </div>
-        ) : (
-          <dl className="kv-list">
-            <dt>ФИО</dt><dd>Морозов Александр Викторович</dd>
-            <dt>Дата рождения</dt><dd>14 июня 1990</dd>
-            <dt>Город</dt><dd>Санкт-Петербург</dd>
-            <dt>Табельный номер</dt><dd>ЦПС-01274</dd>
-            <dt>Подразделение</dt><dd>Блок ИТ / Отдел разработки</dd>
-            <dt>Семья и уровень</dt><dd>ИТ-разработка · Senior (L4)</dd>
-          </dl>
         )}
+        {experiences.map(exp => (
+          <div key={exp.id} className="item-row">
+            <div className="time">
+              {formatDate(exp.startDate)} – {exp.isCurrent ? 'настоящее' : formatDate(exp.endDate)}
+            </div>
+            <div className="body">
+              <b>{exp.company} · {exp.position}</b>
+              {exp.description && <p>{exp.description}</p>}
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setWxModal({ mode: 'edit', item: exp })}>
+                <Icon name="edit" size={14} />
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => handleDeleteExp(exp.id)}>
+                <Icon name="trash" size={14} />
+              </button>
+            </div>
+          </div>
+        ))}
       </Section>
 
-      <Section title="Контакты" onAdd={edit ? () => {} : undefined}>
-        {edit ? (
-          <div className="grid-2">
-            <div className="field"><label>Рабочий e-mail</label><input className="inp" defaultValue="morozov.av@gazpromcps.ru" readOnly /></div>
-            <div className="field"><label>Личный e-mail</label><input className="inp" defaultValue="a.morozov@example.com" /></div>
-            <div className="field"><label>Мобильный</label><input className="inp" defaultValue="+7 (921) 555-42-18" /></div>
-            <div className="field"><label>Внутренний номер</label><input className="inp" defaultValue="4218" /></div>
+      <Section title="Образование" onAdd={() => setEduModal({ mode: 'create' })}>
+        {loadingEdu && <div className="muted small">Загрузка...</div>}
+        {errorEdu && <div className="pill pill-red">Ошибка: {errorEdu}</div>}
+        {!loadingEdu && educations.length === 0 && !errorEdu && (
+          <div className="empty">
+            <div className="ill"><EmptyCube w={80} /></div>
+            <h3>Образование ещё не добавлено</h3>
+            <p style={{ fontSize: 12.5 }}>Добавьте учебные заведения и курсы.</p>
           </div>
-        ) : (
-          <dl className="kv-list">
-            <dt>Рабочий e-mail</dt><dd>morozov.av@gazpromcps.ru</dd>
-            <dt>Мобильный</dt><dd>+7 (921) 555-42-18</dd>
-            <dt>Внутренний</dt><dd>4218</dd>
-            <dt>Telegram</dt><dd>@a_morozov</dd>
-          </dl>
         )}
-      </Section>
-
-      <Section title="О себе">
-        {edit ? (
-          <textarea className="ta" rows={4} defaultValue="Занимаюсь архитектурой бэкенда корпоративных сервисов. Люблю велосипед и походы." />
-        ) : (
-          <p style={{ fontSize: 13.5, color: 'var(--gpc-gray-700)' }}>
-            Занимаюсь архитектурой бэкенда корпоративных сервисов. Люблю велосипед и походы.
-          </p>
-        )}
-      </Section>
-
-      <Section title="Образование" onAdd={() => {}}>
-        <div className="item-row">
-          <div className="time">2008 – 2013</div>
-          <div className="body">
-            <b>СПбГПУ · Институт компьютерных наук и технологий</b>
-            <p>Магистр, «Программная инженерия»</p>
+        {educations.map(edu => (
+          <div key={edu.id} className="item-row">
+            <div className="time">{edu.yearCompleted ?? '—'}</div>
+            <div className="body">
+              <b>{edu.institution}{edu.specialization ? ` · ${edu.specialization}` : ''}</b>
+              <p>{edu.level}{edu.type === 'ADDITIONAL' ? ' · доп. образование' : ''}</p>
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setEduModal({ mode: 'edit', item: edu })}>
+                <Icon name="edit" size={14} />
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => handleDeleteEdu(edu.id)}>
+                <Icon name="trash" size={14} />
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="item-row">
-          <div className="time">2019</div>
-          <div className="body">
-            <b>Stanford Online · Architecting on AWS</b>
-            <p>Сертификация</p>
-          </div>
-        </div>
+        ))}
       </Section>
 
-      <Section title="Опыт работы" onAdd={() => {}}>
-        <div className="item-row">
-          <div className="time">2022 – настоящее</div>
-          <div className="body">
-            <b>Газпром ЦПС · Ведущий инженер</b>
-            <p>Архитектура корпоративной интеграционной платформы</p>
-          </div>
-        </div>
-        <div className="item-row">
-          <div className="time">2017 – 2022</div>
-          <div className="body">
-            <b>«ИнтеграТех» · Senior backend engineer</b>
-            <p>Разработка высоконагруженных сервисов</p>
-          </div>
-        </div>
-        <div className="item-row">
-          <div className="time">2013 – 2017</div>
-          <div className="body">
-            <b>«Софтлаб» · Backend-разработчик</b>
-          </div>
-        </div>
-      </Section>
+      <WorkExperienceModal
+        state={wxModal}
+        employeeId={employeeId}
+        onClose={() => setWxModal(null)}
+        onSaved={() => { setWxModal(null); loadExp(); toast('Сохранено'); }}
+      />
 
-      <Section title="Языки" onAdd={() => {}}>
-        <dl className="kv-list">
-          <dt>Русский</dt><dd>Родной</dd>
-          <dt>Английский</dt><dd>B2 (Upper-Intermediate)</dd>
-        </dl>
-      </Section>
-
-      <Section title="Навыки" onAdd={() => {}}>
-        <div>
-          {['Java', 'Kotlin', 'Spring', 'PostgreSQL', 'Kubernetes', 'Kafka', 'Системная архитектура', 'Code Review', 'Менторство'].map((s, i) => (
-            <span key={i} className="skill-chip" data-level={i < 3 ? '3' : '1'}>{s}</span>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Сертификаты" onAdd={() => {}}>
-        <div className="empty">
-          <div className="ill"><EmptyCube w={80} /></div>
-          <h3>Сертификаты ещё не добавлены</h3>
-          <p style={{ fontSize: 12.5 }}>Добавьте подтверждения курсов, сертификации и профессиональных достижений.</p>
-        </div>
-      </Section>
+      <EducationModal
+        state={eduModal}
+        employeeId={employeeId}
+        onClose={() => setEduModal(null)}
+        onSaved={() => { setEduModal(null); loadEdu(); toast('Сохранено'); }}
+      />
     </div>
+  );
+}
+
+function formatDate(date: string | null | undefined) {
+  if (!date) return '—';
+  return new Date(date).toLocaleDateString('ru-RU', { year: 'numeric', month: 'short' });
+}
+
+function toInputDate(iso: string | null | undefined): string {
+  if (!iso) return '';
+  return new Date(iso).toISOString().slice(0, 10);
+}
+
+function WorkExperienceModal({
+  state,
+  employeeId,
+  onClose,
+  onSaved,
+}: {
+  state: { mode: 'create' | 'edit'; item?: WorkExperience } | null;
+  employeeId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<WorkExperienceInput>({ company: '', position: '', startDate: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (state?.mode === 'edit' && state.item) {
+      setForm({
+        company: state.item.company,
+        position: state.item.position,
+        startDate: toInputDate(state.item.startDate),
+        endDate: toInputDate(state.item.endDate),
+        isCurrent: state.item.isCurrent,
+        description: state.item.description ?? '',
+      });
+    } else if (state?.mode === 'create') {
+      setForm({ company: '', position: '', startDate: '', endDate: '', isCurrent: false, description: '' });
+    }
+    setError(null);
+  }, [state]);
+
+  const handleSave = async () => {
+    if (!form.company.trim() || !form.position.trim() || !form.startDate) {
+      setError('Заполните обязательные поля');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const payload: WorkExperienceInput = {
+        company: form.company,
+        position: form.position,
+        startDate: form.startDate,
+        endDate: form.isCurrent ? null : (form.endDate || null),
+        isCurrent: !!form.isCurrent,
+        description: form.description || null,
+      };
+      if (state?.mode === 'edit' && state.item) {
+        await updateWorkExperience(employeeId, state.item.id, payload);
+      } else {
+        await createWorkExperience(employeeId, payload);
+      }
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={!!state}
+      onClose={onClose}
+      title={state?.mode === 'edit' ? 'Редактировать место работы' : 'Добавить место работы'}
+      size="md"
+      footer={
+        <>
+          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Отмена</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Сохранение...' : 'Сохранить'}
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label>Компания *</label>
+        <input className="inp" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} />
+      </div>
+      <div className="field" style={{ marginTop: 12 }}>
+        <label>Должность *</label>
+        <input className="inp" value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} />
+      </div>
+      <div className="grid-2" style={{ marginTop: 12 }}>
+        <div className="field">
+          <label>Дата начала *</label>
+          <input className="inp" type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} />
+        </div>
+        <div className="field">
+          <label>Дата окончания</label>
+          <input
+            className="inp"
+            type="date"
+            value={form.endDate ?? ''}
+            disabled={!!form.isCurrent}
+            onChange={e => setForm({ ...form, endDate: e.target.value })}
+          />
+        </div>
+      </div>
+      <label className="chk" style={{ marginTop: 12 }}>
+        <input
+          type="checkbox"
+          checked={!!form.isCurrent}
+          onChange={e => setForm({ ...form, isCurrent: e.target.checked })}
+        />
+        По настоящее время
+      </label>
+      <div className="field" style={{ marginTop: 12 }}>
+        <label>Описание</label>
+        <textarea
+          className="ta"
+          rows={3}
+          value={form.description ?? ''}
+          onChange={e => setForm({ ...form, description: e.target.value })}
+        />
+      </div>
+      {error && <div className="pill pill-red" style={{ marginTop: 12 }}>{error}</div>}
+    </Modal>
+  );
+}
+
+function EducationModal({
+  state,
+  employeeId,
+  onClose,
+  onSaved,
+}: {
+  state: { mode: 'create' | 'edit'; item?: Education } | null;
+  employeeId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<EducationInput>({ institution: '', level: '', type: 'BASIC' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (state?.mode === 'edit' && state.item) {
+      setForm({
+        institution: state.item.institution,
+        specialization: state.item.specialization ?? '',
+        level: state.item.level,
+        yearCompleted: state.item.yearCompleted,
+        type: state.item.type,
+      });
+    } else if (state?.mode === 'create') {
+      setForm({ institution: '', specialization: '', level: '', yearCompleted: null, type: 'BASIC' });
+    }
+    setError(null);
+  }, [state]);
+
+  const handleSave = async () => {
+    if (!form.institution.trim() || !form.level.trim()) {
+      setError('Заполните обязательные поля');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const payload: EducationInput = {
+        institution: form.institution,
+        specialization: form.specialization || null,
+        level: form.level,
+        yearCompleted: form.yearCompleted || null,
+        type: form.type ?? 'BASIC',
+      };
+      if (state?.mode === 'edit' && state.item) {
+        await updateEducation(employeeId, state.item.id, payload);
+      } else {
+        await createEducation(employeeId, payload);
+      }
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={!!state}
+      onClose={onClose}
+      title={state?.mode === 'edit' ? 'Редактировать образование' : 'Добавить образование'}
+      size="md"
+      footer={
+        <>
+          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Отмена</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Сохранение...' : 'Сохранить'}
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label>Учебное заведение *</label>
+        <input className="inp" value={form.institution} onChange={e => setForm({ ...form, institution: e.target.value })} />
+      </div>
+      <div className="field" style={{ marginTop: 12 }}>
+        <label>Специальность</label>
+        <input
+          className="inp"
+          value={form.specialization ?? ''}
+          onChange={e => setForm({ ...form, specialization: e.target.value })}
+        />
+      </div>
+      <div className="grid-2" style={{ marginTop: 12 }}>
+        <div className="field">
+          <label>Уровень *</label>
+          <input
+            className="inp"
+            placeholder="Бакалавр / Магистр / Курсы..."
+            value={form.level}
+            onChange={e => setForm({ ...form, level: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label>Год окончания</label>
+          <input
+            className="inp"
+            type="number"
+            placeholder="2023"
+            value={form.yearCompleted ?? ''}
+            onChange={e => setForm({ ...form, yearCompleted: e.target.value ? Number(e.target.value) : null })}
+          />
+        </div>
+      </div>
+      <div className="field" style={{ marginTop: 12 }}>
+        <label>Тип</label>
+        <select
+          className="sel"
+          value={form.type}
+          onChange={e => setForm({ ...form, type: e.target.value as EducationInput['type'] })}
+        >
+          <option value="BASIC">Основное</option>
+          <option value="ADDITIONAL">Дополнительное</option>
+        </select>
+      </div>
+      {error && <div className="pill pill-red" style={{ marginTop: 12 }}>{error}</div>}
+    </Modal>
   );
 }
 
@@ -239,11 +517,12 @@ function CompetenciesTab() {
     <div className="card" style={{ marginTop: 16, padding: 40 }}>
       <div className="empty">
         <div className="ill"><EmptyCube w={120} /></div>
-        <h3 style={{ fontFamily: 'var(--font-head)', fontSize: 22, color: 'var(--gpc-blue-800)' }}>Матрица компетенций</h3>
+        <h3 style={{ fontFamily: 'var(--font-head)', fontSize: 22, color: 'var(--gpc-blue-800)' }}>
+          Матрица компетенций
+        </h3>
         <p style={{ maxWidth: 480, margin: '8px auto' }}>
           Модуль самооценки по семьям ролей и уровням. Запуск — III квартал 2025.
         </p>
-        <button className="btn btn-secondary" style={{ marginTop: 12 }}>Подписаться на уведомление о запуске</button>
       </div>
     </div>
   );
@@ -258,10 +537,6 @@ function ReviewTab() {
         <p style={{ maxWidth: 420, margin: '6px auto' }}>
           Следующая оценка — <b>октябрь 2025</b>. Руководитель получит уведомление за 2 недели до старта.
         </p>
-        <div style={{ marginTop: 12, display: 'inline-flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <span className="pill pill-blue pill-dot">Октябрь 2025 · плановая</span>
-          <span className="pill pill-gray">Оценка 360°</span>
-        </div>
       </div>
     </div>
   );
@@ -274,42 +549,13 @@ function VacationTab({ onRequest }: { onRequest: () => void }) {
         <div className="ill"><Vacation w={200} /></div>
         <div className="b-body">
           <h3>Остаток отпуска: 18 дней</h3>
-          <p>14 дней основного отпуска и 4 дня накопленных с прошлого года. Запланируйте отпуск заранее, чтобы согласовать с руководителем.</p>
+          <p>14 дней основного отпуска и 4 дня накопленных с прошлого года.</p>
           <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
             <button className="btn btn-primary btn-sm" onClick={onRequest}>
               <Icon name="plus" size={14} /> Заявка на отпуск
             </button>
-            <button className="btn btn-secondary btn-sm">
-              <Icon name="calendar" size={14} /> Мой график
-            </button>
           </div>
         </div>
-      </div>
-
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="card-head"><h3>Ближайшие отсутствия</h3></div>
-        <table className="tbl">
-          <thead>
-            <tr><th>Тип</th><th>С</th><th>По</th><th>Дней</th><th>Статус</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Ежегодный</td><td>12.08.2025</td><td>25.08.2025</td><td className="num">14</td>
-              <td><span className="pill pill-green pill-dot">Согласован</span></td>
-              <td><button className="btn btn-ghost btn-sm">Детали</button></td>
-            </tr>
-            <tr>
-              <td>За свой счёт</td><td>03.11.2025</td><td>05.11.2025</td><td className="num">3</td>
-              <td><span className="pill pill-yellow pill-dot">На согласовании</span></td>
-              <td><button className="btn btn-ghost btn-sm">Детали</button></td>
-            </tr>
-            <tr>
-              <td>Ежегодный</td><td>22.12.2024</td><td>31.12.2024</td><td className="num">10</td>
-              <td><span className="pill pill-gray pill-dot">Прошёл</span></td>
-              <td><button className="btn btn-ghost btn-sm">Детали</button></td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
   );
@@ -377,13 +623,6 @@ function VacationModal({ open, onClose }: { open: boolean; onClose: () => void }
         <Icon name="info" size={18} />
         <div>Выбрано <b>{days} дней</b>. Остаток после отпуска: <b>{Math.max(0, 18 - days)} дней</b>.</div>
       </div>
-      <div className="field" style={{ marginTop: 14 }}>
-        <label>Комментарий для руководителя (необязательно)</label>
-        <textarea className="ta" rows={3} placeholder="Например, передача проекта коллеге..." />
-      </div>
-      <label className="chk" style={{ marginTop: 12 }}>
-        <input type="checkbox" /> Заменяющий сотрудник согласован
-      </label>
     </Modal>
   );
 }

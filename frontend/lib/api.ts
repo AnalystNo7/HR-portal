@@ -62,6 +62,14 @@ export function getDepartments() {
   return fetchApi<string[]>('/employees/departments');
 }
 
+export interface Me extends Employee {
+  role: 'employee' | 'manager' | 'hr';
+}
+
+export function getMe(role: 'employee' | 'manager' | 'hr') {
+  return fetchApi<Me>(`/me?role=${role}`);
+}
+
 export function getEmployeeById(id: string) {
   return fetchApi<Employee & {
     workExperiences: WorkExperience[];
