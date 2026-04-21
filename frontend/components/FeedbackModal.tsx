@@ -2,14 +2,16 @@
 
 import React, { useState } from 'react';
 import { Modal, Icon, useToast } from '@/components/primitives';
+import { useAuth } from '@/contexts/AuthContext';
+import { createAppeal } from '@/lib/api';
 
 const DIRECTIONS = [
-  { id: 'hr', label: 'HR и кадры', hint: 'Справки, трудовая, отпуска, ДМС' },
-  { id: 'it', label: 'ИТ-поддержка', hint: 'Оборудование, доступы, аккаунты' },
-  { id: 'admin', label: 'АХО и офис', hint: 'Пропуска, офисное пространство' },
-  { id: 'finance', label: 'Финансы и ЗП', hint: 'Расчётные листки, командировки' },
-  { id: 'legal', label: 'Юридическая служба', hint: 'Договоры, NDA, правовые вопросы' },
-  { id: 'security', label: 'Служба безопасности', hint: 'Пропуска, информационная безопасность' },
+  { id: 'HR и кадры', label: 'HR и кадры', hint: 'Справки, трудовая, отпуска, ДМС' },
+  { id: 'ИТ-поддержка', label: 'ИТ-поддержка', hint: 'Оборудование, доступы, аккаунты' },
+  { id: 'АХО и офис', label: 'АХО и офис', hint: 'Пропуска, офисное пространство' },
+  { id: 'Финансы и ЗП', label: 'Финансы и ЗП', hint: 'Расчётные листки, командировки' },
+  { id: 'Юридическая служба', label: 'Юридическая служба', hint: 'Договоры, NDA, правовые вопросы' },
+  { id: 'Служба безопасности', label: 'Служба безопасности', hint: 'Пропуска, информационная безопасность' },
 ];
 
 interface FeedbackModalProps {
@@ -18,15 +20,46 @@ interface FeedbackModalProps {
 }
 
 export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
-  const [dir, setDir] = useState('');
+  const [direction, setDirection] = useState('');
+  const [subject, setSubject] = useState('');
+  const [text, setText] = useState('');
   const [anon, setAnon] = useState(false);
-  const [wantReply, setWantReply] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const toast = useToast();
-  const selectedDir = DIRECTIONS.find(d => d.id === dir);
+  const { user } = useAuth();
+  const selectedDir = DIRECTIONS.find(d => d.id === direction);
 
-  const handleSend = () => {
-    onClose();
-    toast('Обращение отправлено');
+  const handleSend = async () => {
+    if (!direction) {
+      setError('Выберите направление');
+      return;
+    }
+    if (!subject.trim() || !text.trim()) {
+      setError('Заполните тему и текст обращения');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await createAppeal({
+        direction,
+        subject,
+        text,
+        isAnonymous: anon,
+        authorId: anon ? null : user?.id ?? null,
+      });
+      setDirection('');
+      setSubject('');
+      setText('');
+      setAnon(false);
+      onClose();
+      toast('Обращение отправлено');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -41,19 +74,17 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
             <input type="checkbox" checked={anon} onChange={e => setAnon(e.target.checked)} />
             Отправить анонимно
           </label>
-          <label className="chk" style={{ marginRight: 12 }}>
-            <input type="checkbox" checked={wantReply} onChange={e => setWantReply(e.target.checked)} />
-            Хочу получить ответ
-          </label>
-          <button className="btn btn-secondary" onClick={onClose}>Закрыть</button>
-          <button className="btn btn-primary" onClick={handleSend}>Отправить</button>
+          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Закрыть</button>
+          <button className="btn btn-primary" onClick={handleSend} disabled={saving}>
+            {saving ? 'Отправка...' : 'Отправить'}
+          </button>
         </>
       }
     >
       <div className="grid-2">
         <div className="field">
           <label>Направление <span style={{ color: 'var(--err)' }}>*</span></label>
-          <select className="sel" value={dir} onChange={e => setDir(e.target.value)}>
+          <select className="sel" value={direction} onChange={e => setDirection(e.target.value)}>
             <option value="">Выберите направление</option>
             {DIRECTIONS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
           </select>
@@ -75,44 +106,47 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
           )}
         </div>
         <div className="field">
-          <label>Подразделение</label>
-          <select className="sel" defaultValue="it">
-            <option value="it">Блок ИТ / Отдел разработки</option>
-            <option value="qa">Блок ИТ / Отдел тестирования</option>
-            <option value="cap">Блок капитального строительства</option>
-            <option value="hr">HR-департамент</option>
-          </select>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <h4 style={{ fontFamily: 'var(--font-head)', fontSize: 17 }}>Вопросы</h4>
-          <button className="btn btn-ghost btn-sm">
-            <Icon name="plus" size={14} /> Добавить вопрос
-          </button>
-        </div>
-
-        <div className="card" style={{ padding: 16, marginBottom: 10 }}>
-          <div className="field">
-            <label>Вопрос 1</label>
-            <input className="inp" defaultValue="Опишите ваш вопрос или предложение" />
-          </div>
-          <div className="field" style={{ marginTop: 12 }}>
-            <textarea className="ta" rows={3} placeholder="Текст вашего ответа..." />
-          </div>
-        </div>
-
-        <div className="dropzone">
-          <Icon name="upload" size={20} />
-          <div>
-            Перетащите файлы или <b style={{ color: 'var(--gpc-blue)' }}>выберите с диска</b>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--gpc-gray-400)' }}>
-            PDF, DOCX, JPG · до 10 МБ
+          <label>Автор</label>
+          <div className="inp" style={{ display: 'flex', alignItems: 'center', background: 'var(--gpc-gray-50)' }}>
+            {anon ? 'Анонимно' : (user ? `${user.lastName} ${user.firstName}` : '—')}
           </div>
         </div>
       </div>
+
+      <div className="field" style={{ marginTop: 16 }}>
+        <label>Тема <span style={{ color: 'var(--err)' }}>*</span></label>
+        <input
+          className="inp"
+          value={subject}
+          onChange={e => setSubject(e.target.value)}
+          placeholder="Коротко о сути обращения"
+        />
+      </div>
+
+      <div className="field" style={{ marginTop: 12 }}>
+        <label>Текст обращения <span style={{ color: 'var(--err)' }}>*</span></label>
+        <textarea
+          className="ta"
+          rows={5}
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Опишите подробно ваш вопрос или предложение..."
+        />
+      </div>
+
+      <div className="dropzone" style={{ marginTop: 16 }}>
+        <Icon name="upload" size={20} />
+        <div>
+          Перетащите файлы или <b style={{ color: 'var(--gpc-blue)' }}>выберите с диска</b>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--gpc-gray-400)' }}>
+          Прикрепление файлов появится в следующей итерации (интеграция MinIO)
+        </div>
+      </div>
+
+      {error && (
+        <div className="pill pill-red" style={{ marginTop: 16, display: 'inline-flex' }}>{error}</div>
+      )}
     </Modal>
   );
 }
