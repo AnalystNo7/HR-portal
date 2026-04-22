@@ -1,5 +1,17 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Delete, Query } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
+
+interface CreateEmployeeDto {
+  personnelNumber: string;
+  lastName: string;
+  firstName: string;
+  middleName?: string;
+  email: string;
+  position: string;
+  department: string;
+  hireDate?: string;
+  managerId?: string;
+}
 
 @Controller('employees')
 export class EmployeesController {
@@ -34,5 +46,20 @@ export class EmployeesController {
   @Get(':id')
   findById(@Param('id') id: string) {
     return this.employeesService.findById(id);
+  }
+
+  @Post()
+  create(@Body() dto: CreateEmployeeDto) {
+    return this.employeesService.create(dto);
+  }
+
+  @Put(':id')
+  update(@Param('id') id: string, @Body() dto: Partial<CreateEmployeeDto>) {
+    return this.employeesService.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.employeesService.remove(id);
   }
 }

@@ -83,4 +83,63 @@ export class EmployeesService {
     });
     return rows.map((r) => r.department);
   }
+
+  create(data: {
+    personnelNumber: string;
+    lastName: string;
+    firstName: string;
+    middleName?: string;
+    email: string;
+    position: string;
+    department: string;
+    hireDate?: string;
+    managerId?: string;
+  }) {
+    return this.prisma.employee.create({
+      data: {
+        personnelNumber: data.personnelNumber,
+        lastName: data.lastName,
+        firstName: data.firstName,
+        middleName: data.middleName ?? null,
+        email: data.email,
+        position: data.position,
+        department: data.department,
+        hireDate: data.hireDate ? new Date(data.hireDate) : null,
+        managerId: data.managerId ?? null,
+      },
+    });
+  }
+
+  async update(id: string, data: Partial<{
+    personnelNumber: string;
+    lastName: string;
+    firstName: string;
+    middleName: string;
+    email: string;
+    position: string;
+    department: string;
+    hireDate: string;
+    managerId: string;
+  }>) {
+    const updateData: Record<string, unknown> = {};
+    if (data.personnelNumber !== undefined) updateData.personnelNumber = data.personnelNumber;
+    if (data.lastName !== undefined) updateData.lastName = data.lastName;
+    if (data.firstName !== undefined) updateData.firstName = data.firstName;
+    if (data.middleName !== undefined) updateData.middleName = data.middleName;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.position !== undefined) updateData.position = data.position;
+    if (data.department !== undefined) updateData.department = data.department;
+    if (data.hireDate !== undefined) updateData.hireDate = new Date(data.hireDate);
+    if (data.managerId !== undefined) updateData.managerId = data.managerId;
+
+    return this.prisma.employee.update({
+      where: { id },
+      data: updateData,
+    });
+  }
+
+  async remove(id: string) {
+    await this.prisma.employee.delete({ where: { id } });
+    return { success: true };
+  }
 }
