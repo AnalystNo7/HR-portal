@@ -31,7 +31,7 @@ services:
       JAVA_OPTS_APPEND: "-Xmx512m -Xms256m"
     command: start-dev --import-realm
     ports:
-      - "8080:8080"
+      - "8180:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     depends_on:
@@ -51,7 +51,7 @@ services:
       KEYCLOAK_REALM: hr-portal
       KEYCLOAK_CLIENT_ID: hr-portal-app
     ports:
-      - "4000:4000"
+      - "4100:4000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +76,7 @@ services:
       NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: hr-portal-app
       NEXT_PUBLIC_AUTH_MODE: keycloak
     ports:
-      - "3001:3001"
+      - "3101:3001"
     depends_on:
       - backend
     restart: unless-stopped

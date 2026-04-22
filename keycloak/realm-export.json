@@ -36,11 +36,15 @@
       "implicitFlowEnabled": false,
       "redirectUris": [
         "http://localhost:3001/*",
-        "http://localhost/*"
+        "http://localhost/*",
+        "http://92.53.124.249:3101/*",
+        "http://92.53.124.249/*"
       ],
       "webOrigins": [
         "http://localhost:3001",
-        "http://localhost"
+        "http://localhost",
+        "http://92.53.124.249:3101",
+        "http://92.53.124.249"
       ],
       "protocol": "openid-connect",
       "defaultClientScopes": [
