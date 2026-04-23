@@ -64,14 +64,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_KEYCLOAK_URL: ${NEXT_PUBLIC_KEYCLOAK_URL}
+        NEXT_PUBLIC_API_URL: http://92.53.124.249:4100/api
+        NEXT_PUBLIC_KEYCLOAK_URL: http://92.53.124.249:8180
         NEXT_PUBLIC_KEYCLOAK_REALM: hr-portal
         NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: hr-portal-app
         NEXT_PUBLIC_AUTH_MODE: keycloak
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-      NEXT_PUBLIC_KEYCLOAK_URL: ${NEXT_PUBLIC_KEYCLOAK_URL}
+      NEXT_PUBLIC_API_URL: http://92.53.124.249:4100/api
+      NEXT_PUBLIC_KEYCLOAK_URL: http://92.53.124.249:8180
       NEXT_PUBLIC_KEYCLOAK_REALM: hr-portal
       NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: hr-portal-app
       NEXT_PUBLIC_AUTH_MODE: keycloak
