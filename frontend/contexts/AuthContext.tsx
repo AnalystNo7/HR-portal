@@ -89,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     kc.init({
       onLoad: 'login-required',
       checkLoginIframe: false,
+      enableLogging: true,
     }).then(async (authenticated) => {
       if (!authenticated) {
         setState(s => ({ ...s, loading: false, authenticated: false }));
