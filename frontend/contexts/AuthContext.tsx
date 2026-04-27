@@ -104,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const roles = getRolesFromToken(kc);
       const role = pickHighestRole(roles);
+      console.log('[AUTH] Token roles:', roles, 'Highest:', role, 'Token:', kc.tokenParsed);
 
       setState(s => ({ ...s, authenticated: true, role, roles }));
 
