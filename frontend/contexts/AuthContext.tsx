@@ -51,6 +51,7 @@ function savePersisted(s: PersistedState) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const kcRef = useRef<Keycloak | null>(null);
+  const initedRef = useRef(false);
   const [state, setState] = useState<AuthState>(() => {
     const saved = loadPersisted();
     return {
@@ -84,6 +85,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState(s => ({ ...s, authenticated: true }));
       return;
     }
+
+    if (initedRef.current) return;
+    initedRef.current = true;
 
     const kc = getKeycloak();
     kcRef.current = kc;
