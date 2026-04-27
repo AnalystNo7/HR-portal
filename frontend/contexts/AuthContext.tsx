@@ -92,9 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handleAuthenticated = async () => {
       const roles = getRolesFromToken(kc);
       const role = pickHighestRole(roles);
-      console.log('[AUTH] Token roles:', JSON.stringify(roles), 'Highest:', role);
-      console.log('[AUTH] realm_roles:', kc.tokenParsed?.realm_roles);
-      console.log('[AUTH] realm_access:', JSON.stringify(kc.tokenParsed?.realm_access));
 
       setState(s => ({ ...s, authenticated: true, role, roles }));
 
