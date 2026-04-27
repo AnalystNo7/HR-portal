@@ -15,6 +15,7 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   role: UserRole;
+  roles: UserRole[];
   authenticated: boolean;
   sidebarCollapsed: boolean;
   density: 'compact' | 'comfortable' | 'spacious';
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading: true,
       error: null,
       role: saved.role ?? 'hr',
+      roles: [saved.role ?? 'hr'],
       authenticated: false,
       sidebarCollapsed: saved.sidebarCollapsed ?? false,
       density: saved.density ?? 'comfortable',
@@ -99,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const roles = getRolesFromToken(kc);
       const role = pickHighestRole(roles);
 
-      setState(s => ({ ...s, authenticated: true, role }));
+      setState(s => ({ ...s, authenticated: true, role, roles }));
 
       try {
         const me = await getMe(role);
@@ -142,7 +144,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.density]);
 
   const setRole = useCallback((role: UserRole) => {
-    setState(s => ({ ...s, role }));
+    const mockRoles: Record<UserRole, UserRole[]> = {
+      employee: ['employee'],
+      manager: ['employee', 'manager'],
+      hr: ['employee', 'hr'],
+    };
+    setState(s => ({ ...s, role, roles: mockRoles[role] }));
   }, []);
 
   const setSidebarCollapsed = useCallback((v: boolean) => {

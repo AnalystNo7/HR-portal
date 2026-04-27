@@ -76,12 +76,39 @@ const NAV_LABELS: Record<string, string> = {
 
 export { NAV_LABELS };
 
+function mergeNavForRoles(roles: UserRole[]): NavSection[] {
+  const seen = new Set<string>();
+  const sections: NavSection[] = [];
+  const order: UserRole[] = ['employee', 'manager', 'hr'];
+  const sorted = order.filter(r => roles.includes(r));
+
+  for (const role of sorted) {
+    for (const section of NAV[role] || []) {
+      const newItems = section.items.filter(item => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+      if (newItems.length === 0) continue;
+
+      const existing = sections.find(s => s.group === section.group);
+      if (existing) {
+        existing.items.push(...newItems);
+      } else {
+        sections.push({ group: section.group, items: [...newItems] });
+      }
+    }
+  }
+
+  return sections;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { role, sidebarCollapsed, setSidebarCollapsed } = useAuth();
+  const { roles, sidebarCollapsed, setSidebarCollapsed } = useAuth();
 
-  const nav = NAV[role] || NAV.employee;
+  const nav = mergeNavForRoles(roles);
 
   const isCurrent = (id: string) => {
     if (id === '/') return pathname === '/';
