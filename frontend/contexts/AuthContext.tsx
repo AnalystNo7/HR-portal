@@ -86,25 +86,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (kcInited) return;
-    kcInited = true;
-
     const kc = getKeycloak();
     kcRef.current = kc;
 
-    kc.init({
-      onLoad: 'login-required',
-      checkLoginIframe: false,
-      enableLogging: true,
-    }).then(async (authenticated) => {
-      if (!authenticated) {
-        setState(s => ({ ...s, loading: false, authenticated: false }));
-        return;
-      }
-
+    const handleAuthenticated = async () => {
       const roles = getRolesFromToken(kc);
       const role = pickHighestRole(roles);
-      console.log('[AUTH] Token roles:', roles, 'Highest:', role, 'Token:', kc.tokenParsed);
+      console.log('[AUTH] Token roles:', JSON.stringify(roles), 'Highest:', role);
+      console.log('[AUTH] realm_roles:', kc.tokenParsed?.realm_roles);
+      console.log('[AUTH] realm_access:', JSON.stringify(kc.tokenParsed?.realm_access));
 
       setState(s => ({ ...s, authenticated: true, role, roles }));
 
@@ -114,6 +104,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         setState(s => ({ ...s, loading: false, error: (e as Error).message }));
       }
+    };
+
+    if (kc.authenticated) {
+      handleAuthenticated();
+      return;
+    }
+
+    if (kcInited) return;
+    kcInited = true;
+
+    kc.init({
+      onLoad: 'login-required',
+      checkLoginIframe: false,
+    }).then(async (authenticated) => {
+      if (!authenticated) {
+        setState(s => ({ ...s, loading: false, authenticated: false }));
+        return;
+      }
+      await handleAuthenticated();
     }).catch((err) => {
       console.error('Keycloak init failed:', err);
       setState(s => ({
