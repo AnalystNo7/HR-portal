@@ -9,6 +9,7 @@ export type { UserRole } from '@/lib/keycloak';
 
 const AUTH_MODE = process.env.NEXT_PUBLIC_AUTH_MODE || 'keycloak';
 const STORAGE_KEY = 'gpc-portal-state-v2';
+let kcInited = false;
 
 interface AuthState {
   user: Me | null;
@@ -51,7 +52,6 @@ function savePersisted(s: PersistedState) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const kcRef = useRef<Keycloak | null>(null);
-  const initedRef = useRef(false);
   const [state, setState] = useState<AuthState>(() => {
     const saved = loadPersisted();
     return {
@@ -86,8 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (initedRef.current) return;
-    initedRef.current = true;
+    if (kcInited) return;
+    kcInited = true;
 
     const kc = getKeycloak();
     kcRef.current = kc;
