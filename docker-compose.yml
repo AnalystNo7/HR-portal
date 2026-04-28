@@ -22,8 +22,9 @@ services:
       KC_DB_USERNAME: ${POSTGRES_USER:-hrportal}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-hrportal}
       KC_DB_SCHEMA: keycloak
-      KC_HOSTNAME_URL: https://auth.sitehrportal.ru
-      KC_HOSTNAME_ADMIN_URL: https://auth.sitehrportal.ru
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_HOSTNAME_URL: https://sitehrportal.ru/auth
+      KC_HOSTNAME_ADMIN_URL: https://sitehrportal.ru/auth
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
@@ -66,14 +67,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: https://api.sitehrportal.ru/api
-        NEXT_PUBLIC_KEYCLOAK_URL: https://auth.sitehrportal.ru
+        NEXT_PUBLIC_API_URL: https://sitehrportal.ru/api
+        NEXT_PUBLIC_KEYCLOAK_URL: https://sitehrportal.ru/auth
         NEXT_PUBLIC_KEYCLOAK_REALM: hr-portal
         NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: hr-portal-app
         NEXT_PUBLIC_AUTH_MODE: keycloak
     environment:
-      NEXT_PUBLIC_API_URL: https://api.sitehrportal.ru/api
-      NEXT_PUBLIC_KEYCLOAK_URL: https://auth.sitehrportal.ru
+      NEXT_PUBLIC_API_URL: https://sitehrportal.ru/api
+      NEXT_PUBLIC_KEYCLOAK_URL: https://sitehrportal.ru/auth
       NEXT_PUBLIC_KEYCLOAK_REALM: hr-portal
       NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: hr-portal-app
       NEXT_PUBLIC_AUTH_MODE: keycloak
