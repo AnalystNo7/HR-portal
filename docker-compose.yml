@@ -22,7 +22,6 @@ services:
       KC_DB_USERNAME: ${POSTGRES_USER:-hrportal}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-hrportal}
       KC_DB_SCHEMA: keycloak
-      KC_HOSTNAME: auth.sitehrportal.ru
       KC_HOSTNAME_URL: https://auth.sitehrportal.ru
       KC_HOSTNAME_ADMIN_URL: https://auth.sitehrportal.ru
       KC_HOSTNAME_STRICT: "false"
