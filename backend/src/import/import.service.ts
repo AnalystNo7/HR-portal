@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as ExcelJS from 'exceljs';
 
-interface ParsedRow {
+export interface ParsedRow {
   rowNum: number;
   personnelNumber: string;
   lastName: string;
@@ -16,7 +16,7 @@ interface ParsedRow {
   errors: string[];
 }
 
-interface ImportResult {
+export interface ImportResult {
   total: number;
   created: number;
   updated: number;
