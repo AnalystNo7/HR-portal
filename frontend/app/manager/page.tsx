@@ -148,13 +148,13 @@ function TeamTab({
                       <div className={`av av-${avColorFor(fullName)}`}>{initials(fullName)}</div>
                       <div>
                         <div style={{ fontWeight: 600 }}>{fullName}</div>
-                        <div className="small muted">{p.position}</div>
+                        <div className="small muted">{p.position?.name ?? ''}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="small">{p.department}</td>
+                  <td className="small">{p.department?.name ?? ''}</td>
                   <td>
-                    <a href="#" className="job-link" onClick={e => { e.preventDefault(); onOpenPos(p); }}>{p.position}</a>
+                    <a href="#" className="job-link" onClick={e => { e.preventDefault(); onOpenPos(p); }}>{p.position?.name ?? ''}</a>
                   </td>
                   <td className="small">{p.email}</td>
                   <td className="small"><b>{p.personnelNumber}</b></td>
@@ -260,8 +260,8 @@ function PositionModal({ open, onClose, person }: { open: boolean; onClose: () =
       <div style={{ display: 'flex', gap: 16, alignItems: 'center', paddingBottom: 16, borderBottom: '1px solid var(--line)' }}>
         <Avatar name={fullName} size="lg" />
         <div>
-          <h3 style={{ fontFamily: 'var(--font-head)', fontSize: 18 }}>{person.position}</h3>
-          <div className="muted small">{person.department}</div>
+          <h3 style={{ fontFamily: 'var(--font-head)', fontSize: 18 }}>{person.position?.name ?? ''}</h3>
+          <div className="muted small">{person.department?.name ?? ''}</div>
           <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
             <span className="pill pill-blue">Табельный: {person.personnelNumber}</span>
             <span className="pill pill-gray">{person.email}</span>

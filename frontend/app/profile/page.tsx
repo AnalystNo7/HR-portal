@@ -57,7 +57,7 @@ export default function ProfilePage() {
         </div>
         <div className="names">
           <h1>{fullName}</h1>
-          <div className="role">{user.position} · {user.department} · ООО «Газпром ЦПС»</div>
+          <div className="role">{user.position?.name ?? ''} · {user.department?.name ?? ''} · ООО «Газпром ЦПС»</div>
           <div className="meta">
             <span>E-mail: <b>{user.email}</b></span>
             <span>Табельный: <b>{user.personnelNumber}</b></span>

@@ -131,12 +131,40 @@ export class ImportService {
 
     const validRows = rows.filter(r => r.errors.length === 0);
 
+    // Resolve department/position strings to FK ids
+    const deptNames = [...new Set(validRows.map(r => r.department))];
+    const deptMap: Record<string, string> = {};
+    for (const name of deptNames) {
+      if (!name) continue;
+      const dept = await this.prisma.department.upsert({
+        where: { name },
+        update: {},
+        create: { name },
+      });
+      deptMap[name] = dept.id;
+    }
+
+    const posNames = [...new Set(validRows.map(r => r.position))];
+    const posMap: Record<string, string> = {};
+    for (const name of posNames) {
+      if (!name) continue;
+      const pos = await this.prisma.position.upsert({
+        where: { name },
+        update: {},
+        create: { name },
+      });
+      posMap[name] = pos.id;
+    }
+
     // Pass 1: Upsert employees
     for (const row of validRows) {
       try {
         const existing = await this.prisma.employee.findUnique({
           where: { personnelNumber: row.personnelNumber },
         });
+
+        const departmentId = deptMap[row.department];
+        const positionId = posMap[row.position];
 
         await this.prisma.employee.upsert({
           where: { personnelNumber: row.personnelNumber },
@@ -145,8 +173,8 @@ export class ImportService {
             firstName: row.firstName,
             middleName: row.middleName,
             email: row.email,
-            position: row.position,
-            department: row.department,
+            departmentId,
+            positionId,
             hireDate: row.hireDate,
           },
           create: {
@@ -155,8 +183,8 @@ export class ImportService {
             firstName: row.firstName,
             middleName: row.middleName,
             email: row.email,
-            position: row.position,
-            department: row.department,
+            departmentId,
+            positionId,
             hireDate: row.hireDate,
           },
         });

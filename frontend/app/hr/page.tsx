@@ -133,12 +133,12 @@ function HRAllTab() {
                       <div className={`av av-${avColorFor(fullName)}`}>{initials(fullName)}</div>
                       <div>
                         <div style={{ fontWeight: 600 }}>{fullName}</div>
-                        <div className="small muted">{p.position}</div>
+                        <div className="small muted">{p.position?.name ?? ''}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="small">{p.department}</td>
-                  <td><a href="#" className="job-link" onClick={e => e.preventDefault()}>{p.position}</a></td>
+                  <td className="small">{p.department?.name ?? ''}</td>
+                  <td><a href="#" className="job-link" onClick={e => e.preventDefault()}>{p.position?.name ?? ''}</a></td>
                   <td className="small">{p.email}</td>
                   <td className="small"><b>{p.personnelNumber}</b></td>
                   <td><button className="btn btn-ghost btn-sm"><Icon name="dots" size={16} /></button></td>

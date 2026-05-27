@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Param, Post, Put, Delete, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Delete, Query, UseGuards } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
+import { KeycloakAuthGuard } from '../auth/auth.guard';
+import { RolesGuard, Roles } from '../auth/roles.guard';
 
 interface CreateEmployeeDto {
   personnelNumber: string;
@@ -7,8 +9,8 @@ interface CreateEmployeeDto {
   firstName: string;
   middleName?: string;
   email: string;
-  position: string;
-  department: string;
+  departmentId: string;
+  positionId: string;
   hireDate?: string;
   managerId?: string;
 }
@@ -23,6 +25,7 @@ export class EmployeesController {
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('department') department?: string,
+    @Query('departmentId') departmentId?: string,
     @Query('managerId') managerId?: string,
     @Query('sortField') sortField?: string,
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
@@ -32,6 +35,7 @@ export class EmployeesController {
       limit: limit ? parseInt(limit, 10) : undefined,
       search,
       department,
+      departmentId,
       managerId,
       sortField,
       sortOrder,
@@ -49,16 +53,22 @@ export class EmployeesController {
   }
 
   @Post()
+  @UseGuards(KeycloakAuthGuard, RolesGuard)
+  @Roles('admin')
   create(@Body() dto: CreateEmployeeDto) {
     return this.employeesService.create(dto);
   }
 
   @Put(':id')
+  @UseGuards(KeycloakAuthGuard, RolesGuard)
+  @Roles('admin')
   update(@Param('id') id: string, @Body() dto: Partial<CreateEmployeeDto>) {
     return this.employeesService.update(id, dto);
   }
 
   @Delete(':id')
+  @UseGuards(KeycloakAuthGuard, RolesGuard)
+  @Roles('admin')
   remove(@Param('id') id: string) {
     return this.employeesService.remove(id);
   }

@@ -32,7 +32,7 @@ export default function CareerPage() {
         <Avatar name={fullName} size="lg" />
         <div className="names">
           <h1>{fullName || 'Загрузка...'}</h1>
-          <div className="role">{user?.position ?? ''} · {user?.department ?? ''} · ООО «Газпром ЦПС»</div>
+          <div className="role">{user?.position?.name ?? ''} · {user?.department?.name ?? ''} · ООО «Газпром ЦПС»</div>
           <div className="meta">
             <span>Семья ролей: <b>ИТ-разработка</b></span>
             <span>Текущий уровень: <b>Senior (L4)</b></span>

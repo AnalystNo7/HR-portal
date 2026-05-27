@@ -27,6 +27,16 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   return res.json();
 }
 
+export interface Department {
+  id: string;
+  name: string;
+}
+
+export interface Position {
+  id: string;
+  name: string;
+}
+
 export interface Employee {
   id: string;
   personnelNumber: string;
@@ -34,8 +44,10 @@ export interface Employee {
   firstName: string;
   middleName: string | null;
   email: string;
-  position: string;
-  department: string;
+  departmentId: string;
+  positionId: string;
+  department: Department;
+  position: Position;
   hireDate: string | null;
   managerId: string | null;
   photoUrl: string | null;
@@ -290,4 +302,90 @@ export function previewImport(file: File) {
 
 export function executeImport(file: File) {
   return uploadFile<ImportResult>('/import/execute', file);
+}
+
+// Employee CRUD
+
+export interface CreateEmployeeInput {
+  personnelNumber: string;
+  lastName: string;
+  firstName: string;
+  middleName?: string;
+  email: string;
+  departmentId: string;
+  positionId: string;
+  hireDate?: string;
+  managerId?: string;
+}
+
+export function createEmployee(dto: CreateEmployeeInput) {
+  return fetchApi<Employee>('/employees', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  });
+}
+
+export function updateEmployee(id: string, dto: Partial<CreateEmployeeInput>) {
+  return fetchApi<Employee>(`/employees/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  });
+}
+
+export function deleteEmployee(id: string) {
+  return fetchApi<{ success: boolean }>(`/employees/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// Departments CRUD
+
+export function getDepartmentsList() {
+  return fetchApi<Department[]>('/departments');
+}
+
+export function createDepartment(dto: { name: string }) {
+  return fetchApi<Department>('/departments', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  });
+}
+
+export function updateDepartment(id: string, dto: { name: string }) {
+  return fetchApi<Department>(`/departments/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  });
+}
+
+export function deleteDepartment(id: string) {
+  return fetchApi<{ success: boolean }>(`/departments/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// Positions CRUD
+
+export function getPositionsList() {
+  return fetchApi<Position[]>('/positions');
+}
+
+export function createPosition(dto: { name: string }) {
+  return fetchApi<Position>('/positions', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  });
+}
+
+export function updatePosition(id: string, dto: { name: string }) {
+  return fetchApi<Position>(`/positions/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  });
+}
+
+export function deletePosition(id: string) {
+  return fetchApi<{ success: boolean }>(`/positions/${id}`, {
+    method: 'DELETE',
+  });
 }

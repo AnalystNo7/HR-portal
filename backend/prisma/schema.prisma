@@ -7,6 +7,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Department {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  employees Employee[]
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@map("departments")
+}
+
+model Position {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  employees Employee[]
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@map("positions")
+}
+
 model Employee {
   id             String           @id @default(uuid())
   personnelNumber String          @unique @map("personnel_number")
@@ -14,8 +34,10 @@ model Employee {
   firstName      String           @map("first_name")
   middleName     String?          @map("middle_name")
   email          String           @unique
-  position       String
-  department     String
+  positionId     String           @map("position_id")
+  position       Position         @relation(fields: [positionId], references: [id])
+  departmentId   String           @map("department_id")
+  department     Department       @relation(fields: [departmentId], references: [id])
   hireDate       DateTime?        @map("hire_date")
   photoUrl       String?          @map("photo_url")
   managerId      String?          @map("manager_id")

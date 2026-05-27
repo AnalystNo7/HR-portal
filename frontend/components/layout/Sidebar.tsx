@@ -65,7 +65,10 @@ const NAV: Record<UserRole, NavSection[]> = {
       { id: '/profile', label: 'Личный кабинет', icon: 'user' },
     ]},
     { group: 'Администрирование', items: [
-      { id: '/admin/import', label: 'Импорт сотрудников', icon: 'upload' },
+      { id: '/admin/employees', label: 'Сотрудники', icon: 'users' },
+      { id: '/admin/departments', label: 'Подразделения', icon: 'building' },
+      { id: '/admin/positions', label: 'Должности', icon: 'briefcase' },
+      { id: '/admin/import', label: 'Импорт', icon: 'upload' },
     ]},
   ],
 };
@@ -81,6 +84,9 @@ const NAV_LABELS: Record<string, string> = {
   '/hr': 'Все сотрудники',
   '/hr-vacancies': 'Отклики на вакансии',
   '/hr-surveys': 'Опросы и рассылки',
+  '/admin/employees': 'Сотрудники',
+  '/admin/departments': 'Подразделения',
+  '/admin/positions': 'Должности',
   '/admin/import': 'Импорт сотрудников',
 };
 

@@ -7,6 +7,7 @@ export interface EmployeeListQuery {
   limit?: number;
   search?: string;
   department?: string;
+  departmentId?: string;
   managerId?: string;
   sortField?: string;
   sortOrder?: 'asc' | 'desc';
@@ -22,6 +23,7 @@ export class EmployeesService {
       limit = 10,
       search,
       department,
+      departmentId,
       managerId,
       sortField = 'lastName',
       sortOrder = 'asc',
@@ -35,11 +37,12 @@ export class EmployeesService {
         { firstName: { contains: search, mode: 'insensitive' } },
         { middleName: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
-        { position: { contains: search, mode: 'insensitive' } },
+        { position: { name: { contains: search, mode: 'insensitive' } } },
       ];
     }
 
-    if (department) where.department = department;
+    if (department) where.department = { name: department };
+    if (departmentId) where.departmentId = departmentId;
     if (managerId) where.managerId = managerId;
 
     const orderBy: Prisma.EmployeeOrderByWithRelationInput = {
@@ -52,6 +55,7 @@ export class EmployeesService {
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
+        include: { department: true, position: true },
       }),
       this.prisma.employee.count({ where }),
     ]);
@@ -69,6 +73,8 @@ export class EmployeesService {
     return this.prisma.employee.findUnique({
       where: { id },
       include: {
+        department: true,
+        position: true,
         workExperiences: { orderBy: { startDate: 'desc' } },
         educations: { orderBy: { yearCompleted: 'desc' } },
       },
@@ -76,12 +82,10 @@ export class EmployeesService {
   }
 
   async getDepartments(): Promise<string[]> {
-    const rows = await this.prisma.employee.findMany({
-      select: { department: true },
-      distinct: ['department'],
-      orderBy: { department: 'asc' },
+    const rows = await this.prisma.department.findMany({
+      orderBy: { name: 'asc' },
     });
-    return rows.map((r) => r.department);
+    return rows.map((r) => r.name);
   }
 
   create(data: {
@@ -90,8 +94,8 @@ export class EmployeesService {
     firstName: string;
     middleName?: string;
     email: string;
-    position: string;
-    department: string;
+    departmentId: string;
+    positionId: string;
     hireDate?: string;
     managerId?: string;
   }) {
@@ -102,11 +106,12 @@ export class EmployeesService {
         firstName: data.firstName,
         middleName: data.middleName ?? null,
         email: data.email,
-        position: data.position,
-        department: data.department,
+        departmentId: data.departmentId,
+        positionId: data.positionId,
         hireDate: data.hireDate ? new Date(data.hireDate) : null,
         managerId: data.managerId ?? null,
       },
+      include: { department: true, position: true },
     });
   }
 
@@ -116,8 +121,8 @@ export class EmployeesService {
     firstName: string;
     middleName: string;
     email: string;
-    position: string;
-    department: string;
+    departmentId: string;
+    positionId: string;
     hireDate: string;
     managerId: string;
   }>) {
@@ -127,14 +132,15 @@ export class EmployeesService {
     if (data.firstName !== undefined) updateData.firstName = data.firstName;
     if (data.middleName !== undefined) updateData.middleName = data.middleName;
     if (data.email !== undefined) updateData.email = data.email;
-    if (data.position !== undefined) updateData.position = data.position;
-    if (data.department !== undefined) updateData.department = data.department;
+    if (data.departmentId !== undefined) updateData.departmentId = data.departmentId;
+    if (data.positionId !== undefined) updateData.positionId = data.positionId;
     if (data.hireDate !== undefined) updateData.hireDate = new Date(data.hireDate);
     if (data.managerId !== undefined) updateData.managerId = data.managerId;
 
     return this.prisma.employee.update({
       where: { id },
       data: updateData,
+      include: { department: true, position: true },
     });
   }
 

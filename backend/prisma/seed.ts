@@ -42,13 +42,53 @@ const managerMap: Record<string, string> = {
 };
 
 async function main() {
-  console.log('Seed: upsert employees...');
+  console.log('Seed: upsert departments...');
+  const deptNames = [...new Set(employees.map(e => e.department))];
+  const deptMap: Record<string, string> = {};
+  for (const name of deptNames) {
+    const dept = await prisma.department.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+    deptMap[name] = dept.id;
+  }
 
+  console.log('Seed: upsert positions...');
+  const posNames = [...new Set(employees.map(e => e.position))];
+  const posMap: Record<string, string> = {};
+  for (const name of posNames) {
+    const pos = await prisma.position.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+    posMap[name] = pos.id;
+  }
+
+  console.log('Seed: upsert employees...');
   for (const e of employees) {
     await prisma.employee.upsert({
       where: { personnelNumber: e.personnelNumber },
-      update: e,
-      create: e,
+      update: {
+        lastName: e.lastName,
+        firstName: e.firstName,
+        middleName: e.middleName,
+        email: e.email,
+        departmentId: deptMap[e.department],
+        positionId: posMap[e.position],
+        hireDate: e.hireDate,
+      },
+      create: {
+        personnelNumber: e.personnelNumber,
+        lastName: e.lastName,
+        firstName: e.firstName,
+        middleName: e.middleName,
+        email: e.email,
+        departmentId: deptMap[e.department],
+        positionId: posMap[e.position],
+        hireDate: e.hireDate,
+      },
     });
   }
 
