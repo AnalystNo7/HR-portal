@@ -53,7 +53,7 @@ export class KeycloakStrategy extends PassportStrategy(Strategy, 'keycloak') {
       username: payload.preferred_username,
       firstName: payload.given_name,
       lastName: payload.family_name,
-      roles: roles.filter(r => ['employee', 'manager', 'hr'].includes(r)),
+      roles: roles.filter(r => ['employee', 'manager', 'hr', 'admin'].includes(r)),
     };
   }
 }

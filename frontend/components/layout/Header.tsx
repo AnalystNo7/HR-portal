@@ -10,6 +10,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   employee: 'Сотрудник',
   manager: 'Руководитель',
   hr: 'HR',
+  admin: 'Администратор',
 };
 
 export function Header() {

@@ -59,6 +59,15 @@ const NAV: Record<UserRole, NavSection[]> = {
       { id: '/career', label: 'Карьера', icon: 'compass' },
     ]},
   ],
+  admin: [
+    { group: 'Основное', items: [
+      { id: '/', label: 'Главная', icon: 'home' },
+      { id: '/profile', label: 'Личный кабинет', icon: 'user' },
+    ]},
+    { group: 'Администрирование', items: [
+      { id: '/admin/import', label: 'Импорт сотрудников', icon: 'upload' },
+    ]},
+  ],
 };
 
 const NAV_LABELS: Record<string, string> = {
@@ -72,6 +81,7 @@ const NAV_LABELS: Record<string, string> = {
   '/hr': 'Все сотрудники',
   '/hr-vacancies': 'Отклики на вакансии',
   '/hr-surveys': 'Опросы и рассылки',
+  '/admin/import': 'Импорт сотрудников',
 };
 
 export { NAV_LABELS };
@@ -79,7 +89,7 @@ export { NAV_LABELS };
 function mergeNavForRoles(roles: UserRole[]): NavSection[] {
   const seen = new Set<string>();
   const sections: NavSection[] = [];
-  const order: UserRole[] = ['employee', 'manager', 'hr'];
+  const order: UserRole[] = ['employee', 'manager', 'hr', 'admin'];
   const sorted = order.filter(r => roles.includes(r));
 
   for (const role of sorted) {

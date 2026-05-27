@@ -6,9 +6,10 @@ import { EmployeesModule } from './employees/employees.module';
 import { ProfileModule } from './profile/profile.module';
 import { AppealsModule } from './appeals/appeals.module';
 import { MeModule } from './me/me.module';
+import { ImportModule } from './import/import.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, EmployeesModule, ProfileModule, AppealsModule, MeModule],
+  imports: [PrismaModule, AuthModule, EmployeesModule, ProfileModule, AppealsModule, MeModule, ImportModule],
   controllers: [AppController],
 })
 export class AppModule {}

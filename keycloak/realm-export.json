@@ -22,6 +22,10 @@
       {
         "name": "hr",
         "description": "HR specialist"
+      },
+      {
+        "name": "admin",
+        "description": "System administrator"
       }
     ]
   },
@@ -120,6 +124,21 @@
         }
       ],
       "realmRoles": ["hr", "employee"]
+    },
+    {
+      "username": "admin1",
+      "enabled": true,
+      "email": "admin1@gazprom-cps.ru",
+      "firstName": "Админ",
+      "lastName": "Системный",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["admin", "employee"]
     }
   ]
 }

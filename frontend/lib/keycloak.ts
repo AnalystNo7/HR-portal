@@ -22,7 +22,7 @@ export function getToken(): string | undefined {
   return keycloakInstance?.token;
 }
 
-export type UserRole = 'employee' | 'manager' | 'hr';
+export type UserRole = 'employee' | 'manager' | 'hr' | 'admin';
 
 export function getRolesFromToken(kc: Keycloak): UserRole[] {
   const parsed = kc.tokenParsed as Record<string, unknown> | undefined;
@@ -32,11 +32,12 @@ export function getRolesFromToken(kc: Keycloak): UserRole[] {
     (parsed.realm_access as { roles: string[] })?.roles || [];
 
   return realmRoles.filter((r): r is UserRole =>
-    ['employee', 'manager', 'hr'].includes(r)
+    ['employee', 'manager', 'hr', 'admin'].includes(r)
   );
 }
 
 export function pickHighestRole(roles: UserRole[]): UserRole {
+  if (roles.includes('admin')) return 'admin';
   if (roles.includes('hr')) return 'hr';
   if (roles.includes('manager')) return 'manager';
   return 'employee';

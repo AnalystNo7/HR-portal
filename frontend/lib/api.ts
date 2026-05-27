@@ -72,10 +72,10 @@ export function getDepartments() {
 }
 
 export interface Me extends Employee {
-  role: 'employee' | 'manager' | 'hr';
+  role: 'employee' | 'manager' | 'hr' | 'admin';
 }
 
-export function getMe(role: 'employee' | 'manager' | 'hr') {
+export function getMe(role: 'employee' | 'manager' | 'hr' | 'admin') {
   return fetchApi<Me>(`/me?role=${role}`);
 }
 
@@ -236,4 +236,58 @@ export function addAppealComment(id: string, dto: { authorId: string; text: stri
     method: 'POST',
     body: JSON.stringify(dto),
   });
+}
+
+// Import
+
+export interface ImportPreviewRow {
+  rowNum: number;
+  personnelNumber: string;
+  lastName: string;
+  firstName: string;
+  middleName: string | null;
+  email: string;
+  position: string;
+  department: string;
+  hireDate: string | null;
+  managerFio: string | null;
+  errors: string[];
+}
+
+export interface ImportResult {
+  total: number;
+  created: number;
+  updated: number;
+  errors: { row: number; personnelNumber: string; error: string }[];
+  managerLinked: number;
+  managerNotFound: { row: number; personnelNumber: string; managerFio: string }[];
+  keycloakCreated: number;
+  keycloakSkipped: number;
+  keycloakErrors: { personnelNumber: string; error: string }[];
+}
+
+function uploadFile<T>(path: string, file: File): Promise<T> {
+  const token = typeof window !== 'undefined' ? getToken() : undefined;
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  }).then(async res => {
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`API error: ${res.status} ${res.statusText}. ${body}`);
+    }
+    return res.json();
+  });
+}
+
+export function previewImport(file: File) {
+  return uploadFile<ImportPreviewRow[]>('/import/preview', file);
+}
+
+export function executeImport(file: File) {
+  return uploadFile<ImportResult>('/import/execute', file);
 }
