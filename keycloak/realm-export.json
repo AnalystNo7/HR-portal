@@ -138,7 +138,7 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["admin", "employee"]
+      "realmRoles": ["admin"]
     }
   ]
 }

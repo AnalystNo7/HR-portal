@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       employee: ['employee'],
       manager: ['employee', 'manager'],
       hr: ['employee', 'hr'],
-      admin: ['employee', 'admin'],
+      admin: ['admin'],
     };
     setState(s => ({ ...s, role, roles: mockRoles[role] }));
   }, []);

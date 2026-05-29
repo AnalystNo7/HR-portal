@@ -37,8 +37,13 @@ const POLL_QS = [
 
 export default function HomePage() {
   const router = useRouter();
-  const { user, setFeedbackOpen } = useAuth();
+  const { user, role, setFeedbackOpen } = useAuth();
   const [pollOpen, setPollOpen] = useState(false);
+
+  if (role === 'admin') {
+    router.push('/admin/employees');
+    return null;
+  }
 
   return (
     <div>

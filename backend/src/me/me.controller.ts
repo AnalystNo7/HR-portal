@@ -17,7 +17,7 @@ export class MeController {
       return this.meService.getByRoleAndEmail(role, authUser.email);
     }
 
-    const validRoles: Role[] = ['employee', 'manager', 'hr'];
+    const validRoles: Role[] = ['employee', 'manager', 'hr', 'admin'];
     const r = (roleParam ?? 'employee') as Role;
     if (!validRoles.includes(r)) {
       return this.meService.getByRole(r);
@@ -26,6 +26,7 @@ export class MeController {
   }
 
   private pickHighestRole(roles: string[]): Role {
+    if (roles.includes('admin')) return 'admin';
     if (roles.includes('hr')) return 'hr';
     if (roles.includes('manager')) return 'manager';
     return 'employee';

@@ -42,16 +42,20 @@ export function Header() {
 
       <div className="hdr-spacer" />
 
-      <div className="hdr-engagement" title="Уровень вовлечённости">
-        <span>Вовлечённость</span>
-        <b>60%</b>
-        <div className="bar"><i style={{ width: '60%' }} /></div>
-      </div>
+      {role !== 'admin' && (
+        <div className="hdr-engagement" title="Уровень вовлечённости">
+          <span>Вовлечённость</span>
+          <b>60%</b>
+          <div className="bar"><i style={{ width: '60%' }} /></div>
+        </div>
+      )}
 
-      <button className="hdr-cta" onClick={() => setFeedbackOpen(true)}>
-        <Icon name="bulb" size={16} />
-        Обратная связь
-      </button>
+      {role !== 'admin' && (
+        <button className="hdr-cta" onClick={() => setFeedbackOpen(true)}>
+          <Icon name="bulb" size={16} />
+          Обратная связь
+        </button>
+      )}
 
       {mock ? (
         <div className="hdr-role" title="Демо: переключение роли">

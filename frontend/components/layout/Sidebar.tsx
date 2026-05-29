@@ -60,10 +60,6 @@ const NAV: Record<UserRole, NavSection[]> = {
     ]},
   ],
   admin: [
-    { group: 'Основное', items: [
-      { id: '/', label: 'Главная', icon: 'home' },
-      { id: '/profile', label: 'Личный кабинет', icon: 'user' },
-    ]},
     { group: 'Администрирование', items: [
       { id: '/admin/employees', label: 'Сотрудники', icon: 'users' },
       { id: '/admin/departments', label: 'Подразделения', icon: 'building' },
