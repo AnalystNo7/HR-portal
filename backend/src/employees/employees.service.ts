@@ -155,7 +155,12 @@ export class EmployeesService {
     const employee = await this.prisma.employee.findUnique({ where: { id } });
     if (!employee) throw new NotFoundException('Сотрудник не найден');
 
-    const password = dto.password?.trim() || employee.personnelNumber;
+    // Пароль по умолчанию — только цифры из табельного номера (ЗЦЗЦ-00685 → 00685)
+    const defaultPassword = employee.personnelNumber.replace(/\D/g, '');
+    const password = dto.password?.trim() || defaultPassword;
+    if (!password) {
+      throw new BadRequestException('Не удалось определить пароль: в табельном номере нет цифр');
+    }
     const token = await this.getKeycloakAdminToken();
 
     if (!employee.keycloakId) {

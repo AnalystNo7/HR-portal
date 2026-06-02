@@ -296,7 +296,7 @@ export default function AdminEmployeesPage() {
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <button className="btn btn-secondary" disabled={credSaving} onClick={() => handleResetPassword(true)}>
-            Сбросить на табельный номер
+            Сбросить на цифры табельного {credTarget && `(${credTarget.personnelNumber.replace(/\D/g, '') || '—'})`}
           </button>
           <div style={{ display: 'flex', gap: 8 }}>
             <input className="inp" style={{ flex: 1 }} placeholder="Новый пароль..." value={credPassword} onChange={e => setCredPassword(e.target.value)} />
