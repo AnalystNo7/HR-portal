@@ -47,6 +47,7 @@ const PATHS: Record<string, string> = {
   paperclip: "M14 4 L6 12 A4 4 0 0 0 12 18 L20 10 A3 3 0 0 0 16 6 L9 13 A2 2 0 0 0 11 15 L17 9",
   info: "M12 21 A9 9 0 1 0 12 3 A9 9 0 0 0 12 21 M12 11 V17 M12 7 L12 8",
   warning: "M12 3 L22 20 H2 Z M12 10 V14 M12 17 V18",
+  key: "M21 2 L19 4 M19 4 L21 6 L18 9 L16 7 M19 4 L12.35 10.65 M12.35 10.65 A5.5 5.5 0 1 0 13.35 11.65 L12.35 10.65 M8.5 16 A1.5 1.5 0 1 1 8.5 13 A1.5 1.5 0 0 1 8.5 16",
 };
 
 const CIRCLE_ICONS = ['dots', 'drag'];

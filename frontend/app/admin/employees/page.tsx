@@ -6,7 +6,7 @@ import { Modal } from '@/components/primitives';
 import { useToast } from '@/components/primitives';
 import {
   getEmployees, getDepartmentsList, getPositionsList,
-  createEmployee, updateEmployee, deleteEmployee,
+  createEmployee, updateEmployee, deleteEmployee, resetEmployeePassword,
   Employee, Department, Position, PaginatedResult, CreateEmployeeInput,
 } from '@/lib/api';
 
@@ -25,6 +25,10 @@ export default function AdminEmployeesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [credTarget, setCredTarget] = useState<Employee | null>(null);
+  const [credPassword, setCredPassword] = useState('');
+  const [credSaving, setCredSaving] = useState(false);
+  const [credError, setCredError] = useState<string | null>(null);
   const toast = useToast();
 
   const [form, setForm] = useState<CreateEmployeeInput>({
@@ -117,6 +121,23 @@ export default function AdminEmployeesPage() {
     }
   };
 
+  const handleResetPassword = async (useDefault: boolean) => {
+    if (!credTarget) return;
+    setCredSaving(true);
+    setCredError(null);
+    try {
+      const res = await resetEmployeePassword(credTarget.id, useDefault ? undefined : credPassword);
+      toast(res.created ? 'Аккаунт создан, пароль установлен' : 'Пароль обновлён');
+      setCredTarget(null);
+      setCredPassword('');
+      load();
+    } catch (e) {
+      setCredError((e as Error).message);
+    } finally {
+      setCredSaving(false);
+    }
+  };
+
   const setField = (key: keyof CreateEmployeeInput, value: string) => {
     setForm(f => ({ ...f, [key]: value }));
   };
@@ -170,6 +191,7 @@ export default function AdminEmployeesPage() {
                   <td className="small">{p.email}</td>
                   <td className="small"><b>{p.personnelNumber}</b></td>
                   <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="btn btn-ghost btn-sm" title="Управление паролем" onClick={() => { setCredTarget(p); setCredPassword(''); setCredError(null); }}><Icon name="key" size={14} /></button>
                     <button className="btn btn-ghost btn-sm" onClick={() => openEdit(p)}><Icon name="edit" size={14} /></button>
                     <button className="btn btn-ghost btn-sm" onClick={() => setDeleteTarget(p)}><Icon name="trash" size={14} /></button>
                   </td>
@@ -254,6 +276,35 @@ export default function AdminEmployeesPage() {
       >
         {error && <div style={{ marginBottom: 12, padding: 8, background: 'var(--gpc-red-50, #fef2f2)', border: '1px solid var(--gpc-red-200, #fca5a5)', borderRadius: 6, color: 'var(--gpc-red-700, #b91c1c)', fontSize: 13 }}>{error}</div>}
         <p>Вы уверены, что хотите удалить сотрудника <b>{deleteTarget?.lastName} {deleteTarget?.firstName}</b>?</p>
+      </Modal>
+
+      {/* Credentials Modal */}
+      <Modal
+        open={!!credTarget}
+        onClose={() => setCredTarget(null)}
+        title="Управление паролем"
+        footer={null}
+      >
+        {credError && <div style={{ marginBottom: 12, padding: 8, background: 'var(--gpc-red-50, #fef2f2)', border: '1px solid var(--gpc-red-200, #fca5a5)', borderRadius: 6, color: 'var(--gpc-red-700, #b91c1c)', fontSize: 13 }}>{credError}</div>}
+        {credTarget && !credTarget.keycloakId && (
+          <div style={{ marginBottom: 12, padding: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 6, color: '#a16207', fontSize: 13 }}>
+            У сотрудника нет аккаунта Keycloak. Аккаунт будет создан автоматически.
+          </div>
+        )}
+        <p style={{ fontWeight: 600, marginBottom: 12 }}>
+          {credTarget?.lastName} {credTarget?.firstName} ({credTarget?.personnelNumber})
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <button className="btn btn-secondary" disabled={credSaving} onClick={() => handleResetPassword(true)}>
+            Сбросить на табельный номер
+          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input className="inp" style={{ flex: 1 }} placeholder="Новый пароль..." value={credPassword} onChange={e => setCredPassword(e.target.value)} />
+            <button className="btn btn-primary" disabled={credSaving || !credPassword} onClick={() => handleResetPassword(false)}>
+              {credSaving ? 'Сохранение...' : 'Установить'}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

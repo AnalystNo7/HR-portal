@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -15,6 +15,8 @@ export interface EmployeeListQuery {
 
 @Injectable()
 export class EmployeesService {
+  private readonly logger = new Logger(EmployeesService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async findAll(query: EmployeeListQuery) {
@@ -147,5 +149,123 @@ export class EmployeesService {
   async remove(id: string) {
     await this.prisma.employee.delete({ where: { id } });
     return { success: true };
+  }
+
+  async resetKeycloakPassword(id: string, dto: { password?: string }) {
+    const employee = await this.prisma.employee.findUnique({ where: { id } });
+    if (!employee) throw new NotFoundException('Сотрудник не найден');
+
+    const password = dto.password?.trim() || employee.personnelNumber;
+    const token = await this.getKeycloakAdminToken();
+
+    if (!employee.keycloakId) {
+      const kcId = await this.createKeycloakUser(employee, password, token);
+      await this.prisma.employee.update({ where: { id }, data: { keycloakId: kcId } });
+      return { created: true, keycloakId: kcId };
+    }
+
+    await this.setKeycloakPassword(employee.keycloakId, password, token);
+    return { created: false };
+  }
+
+  private async getKeycloakAdminToken(): Promise<string> {
+    const keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+    const adminUser = process.env.KEYCLOAK_ADMIN || 'admin';
+    const adminPass = process.env.KEYCLOAK_ADMIN_PASSWORD || 'admin';
+
+    try {
+      const res = await fetch(`${keycloakUrl}/realms/master/protocol/openid-connect/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'password',
+          client_id: 'admin-cli',
+          username: adminUser,
+          password: adminPass,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return data.access_token;
+    } catch (e: any) {
+      this.logger.error(`Keycloak admin auth failed: ${e.message}`);
+      throw new BadRequestException(`Не удалось авторизоваться в Keycloak: ${e.message}`);
+    }
+  }
+
+  private async createKeycloakUser(
+    employee: { email: string; firstName: string; lastName: string; personnelNumber: string },
+    password: string,
+    token: string,
+  ): Promise<string> {
+    const keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+    const realm = process.env.KEYCLOAK_REALM || 'hr-portal';
+    const baseUrl = `${keycloakUrl}/admin/realms/${realm}/users`;
+
+    const createRes = await fetch(baseUrl, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: employee.email,
+        email: employee.email,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        enabled: true,
+        credentials: [{ type: 'password', value: password, temporary: true }],
+      }),
+    });
+
+    if (createRes.status !== 201 && createRes.status !== 409) {
+      const body = await createRes.text().catch(() => '');
+      throw new BadRequestException(`Ошибка создания пользователя Keycloak: HTTP ${createRes.status} ${body}`);
+    }
+
+    const searchRes = await fetch(`${baseUrl}?email=${encodeURIComponent(employee.email)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!searchRes.ok) throw new BadRequestException('Не удалось найти пользователя в Keycloak');
+    const users = await searchRes.json();
+    if (users.length === 0) throw new BadRequestException('Пользователь не найден после создания');
+    const kcUserId = users[0].id;
+
+    if (createRes.status === 409) {
+      await this.setKeycloakPassword(kcUserId, password, token);
+    }
+
+    try {
+      const roleRes = await fetch(`${keycloakUrl}/admin/realms/${realm}/roles/employee`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (roleRes.ok) {
+        const employeeRole = await roleRes.json();
+        await fetch(`${keycloakUrl}/admin/realms/${realm}/users/${kcUserId}/role-mappings/realm`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify([employeeRole]),
+        });
+      }
+    } catch {
+      this.logger.warn('Could not assign employee role');
+    }
+
+    return kcUserId;
+  }
+
+  private async setKeycloakPassword(keycloakId: string, password: string, token: string) {
+    const keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+    const realm = process.env.KEYCLOAK_REALM || 'hr-portal';
+
+    const res = await fetch(
+      `${keycloakUrl}/admin/realms/${realm}/users/${keycloakId}/reset-password`,
+      {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'password', value: password, temporary: true }),
+      },
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new BadRequestException(`Ошибка сброса пароля: HTTP ${res.status} ${body}`);
+    }
   }
 }

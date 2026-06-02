@@ -72,4 +72,11 @@ export class EmployeesController {
   remove(@Param('id') id: string) {
     return this.employeesService.remove(id);
   }
+
+  @Post(':id/reset-password')
+  @UseGuards(KeycloakAuthGuard, RolesGuard)
+  @Roles('admin')
+  resetPassword(@Param('id') id: string, @Body() dto: { password?: string }) {
+    return this.employeesService.resetKeycloakPassword(id, dto);
+  }
 }

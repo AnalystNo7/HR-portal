@@ -51,6 +51,7 @@ export interface Employee {
   hireDate: string | null;
   managerId: string | null;
   photoUrl: string | null;
+  keycloakId: string | null;
 }
 
 export interface PaginatedResult<T> {
@@ -335,6 +336,13 @@ export function updateEmployee(id: string, dto: Partial<CreateEmployeeInput>) {
 export function deleteEmployee(id: string) {
   return fetchApi<{ success: boolean }>(`/employees/${id}`, {
     method: 'DELETE',
+  });
+}
+
+export function resetEmployeePassword(id: string, password?: string) {
+  return fetchApi<{ created: boolean; keycloakId?: string }>(`/employees/${id}/reset-password`, {
+    method: 'POST',
+    body: JSON.stringify(password ? { password } : {}),
   });
 }
 
