@@ -301,6 +301,8 @@ export class ImportService {
 
     for (const row of rows) {
       try {
+        const defaultPassword = row.personnelNumber.replace(/\D/g, '') || row.personnelNumber;
+
         // Create user
         const createRes = await fetch(baseUrl, {
           method: 'POST',
@@ -316,28 +318,33 @@ export class ImportService {
             enabled: true,
             credentials: [{
               type: 'password',
-              value: row.personnelNumber,
+              value: defaultPassword,
               temporary: true,
             }],
           }),
         });
 
         if (createRes.status === 409) {
-          result.keycloakSkipped++;
-
-          // Still link keycloakId if not linked
+          // Link keycloakId and reset password for existing user
           const searchRes = await fetch(`${baseUrl}?email=${encodeURIComponent(row.email)}`, {
             headers: { Authorization: `Bearer ${adminToken}` },
           });
           if (searchRes.ok) {
             const users = await searchRes.json();
             if (users.length > 0) {
+              const kcUserId = users[0].id;
               await this.prisma.employee.update({
                 where: { personnelNumber: row.personnelNumber },
-                data: { keycloakId: users[0].id },
+                data: { keycloakId: kcUserId },
+              });
+              await fetch(`${keycloakUrl}/admin/realms/${realm}/users/${kcUserId}/reset-password`, {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'password', value: defaultPassword, temporary: true }),
               });
             }
           }
+          result.keycloakSkipped++;
           continue;
         }
 
