@@ -26,6 +26,7 @@ export default function AdminEmployeesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  const [deleteAccount, setDeleteAccount] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [credTarget, setCredTarget] = useState<Employee | null>(null);
@@ -128,7 +129,7 @@ export default function AdminEmployeesPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await deleteEmployee(deleteTarget.id);
+      await deleteEmployee(deleteTarget.id, deleteAccount);
       toast('Сотрудник удалён');
       setDeleteTarget(null);
       load();
@@ -264,7 +265,7 @@ export default function AdminEmployeesPage() {
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button className="btn btn-ghost btn-sm" title="Управление паролем" onClick={() => { setCredTarget(p); setCredPassword(''); setCredError(null); }}><Icon name="key" size={14} /></button>
                     <button className="btn btn-ghost btn-sm" onClick={() => openEdit(p)}><Icon name="edit" size={14} /></button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setDeleteTarget(p)}><Icon name="trash" size={14} /></button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => { setDeleteTarget(p); setDeleteAccount(true); setError(null); }}><Icon name="trash" size={14} /></button>
                   </td>
                 </tr>
               );
@@ -347,6 +348,10 @@ export default function AdminEmployeesPage() {
       >
         {error && <div style={{ marginBottom: 12, padding: 8, background: 'var(--gpc-red-50, #fef2f2)', border: '1px solid var(--gpc-red-200, #fca5a5)', borderRadius: 6, color: 'var(--gpc-red-700, #b91c1c)', fontSize: 13 }}>{error}</div>}
         <p>Вы уверены, что хотите удалить сотрудника <b>{deleteTarget?.lastName} {deleteTarget?.firstName}</b>?</p>
+        <label className="chk" style={{ marginTop: 12 }}>
+          <input type="checkbox" checked={deleteAccount} onChange={e => setDeleteAccount(e.target.checked)} />
+          Также удалить учётную запись Keycloak
+        </label>
       </Modal>
 
       {/* Credentials Modal */}

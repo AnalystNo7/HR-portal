@@ -76,8 +76,8 @@ export class EmployeesController {
   @Delete(':id')
   @UseGuards(KeycloakAuthGuard, RolesGuard)
   @Roles('admin')
-  remove(@Param('id') id: string) {
-    return this.employeesService.remove(id);
+  remove(@Param('id') id: string, @Query('deleteKeycloak') deleteKeycloak?: string) {
+    return this.employeesService.remove(id, deleteKeycloak === 'true');
   }
 
   @Post(':id/reset-password')

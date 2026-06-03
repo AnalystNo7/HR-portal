@@ -326,8 +326,8 @@ export class ImportService {
     for (const row of rows) {
       try {
         const defaultPassword = row.personnelNumber.replace(/\D/g, '') || row.personnelNumber;
-        // Логин (username) = цифры табельного номера; email сохраняем отдельно.
-        const username = defaultPassword;
+        // Логин (username) = email; пароль = цифры табельного.
+        const username = row.email;
 
         // Create user
         const createRes = await fetch(baseUrl, {

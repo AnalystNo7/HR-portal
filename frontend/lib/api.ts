@@ -359,8 +359,8 @@ export function updateEmployee(id: string, dto: Partial<CreateEmployeeInput>) {
   });
 }
 
-export function deleteEmployee(id: string) {
-  return fetchApi<{ success: boolean }>(`/employees/${id}`, {
+export function deleteEmployee(id: string, deleteKeycloak: boolean) {
+  return fetchApi<{ success: boolean }>(`/employees/${id}?deleteKeycloak=${deleteKeycloak}`, {
     method: 'DELETE',
   });
 }

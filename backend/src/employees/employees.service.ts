@@ -135,7 +135,7 @@ export class EmployeesService {
     // можно выдать позже через reset-password.
     try {
       const password = employee.personnelNumber.replace(/\D/g, '') || employee.personnelNumber;
-      this.logger.log(`Создаём учётку Keycloak: username=${password}, email=${employee.email}, KEYCLOAK_URL=${process.env.KEYCLOAK_URL || 'http://localhost:8080 (default)'}`);
+      this.logger.log(`Создаём учётку Keycloak: username=${employee.email}, email=${employee.email}, KEYCLOAK_URL=${process.env.KEYCLOAK_URL || 'http://localhost:8080 (default)'}`);
       const token = await this.getKeycloakAdminToken();
       const kcId = await this.createKeycloakUser(employee, password, token);
       employee = await this.prisma.employee.update({
@@ -193,17 +193,45 @@ export class EmployeesService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string, deleteKeycloak = false) {
+    const employee = await this.prisma.employee.findUnique({ where: { id } });
+    if (!employee) throw new NotFoundException('Сотрудник не найден');
+
+    // Best-effort: ошибка Keycloak не мешает удалению из БД.
+    if (deleteKeycloak && employee.keycloakId) {
+      try {
+        const token = await this.getKeycloakAdminToken();
+        await this.deleteKeycloakUser(employee.keycloakId, token);
+        this.logger.log(`Учётка Keycloak удалена: ${employee.keycloakId}`);
+      } catch (e: any) {
+        this.logger.error(`Не удалось удалить учётку Keycloak ${employee.keycloakId}: ${e.message}`);
+      }
+    }
+
     await this.prisma.employee.delete({ where: { id } });
     return { success: true };
+  }
+
+  private async deleteKeycloakUser(keycloakId: string, token: string) {
+    const keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+    const realm = process.env.KEYCLOAK_REALM || 'hr-portal';
+    const res = await fetch(`${keycloakUrl}/admin/realms/${realm}/users/${keycloakId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // 404 — пользователя уже нет, считаем успехом.
+    if (!res.ok && res.status !== 404) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status} ${body}`);
+    }
   }
 
   async resetKeycloakPassword(id: string, dto: { password?: string }) {
     const employee = await this.prisma.employee.findUnique({ where: { id } });
     if (!employee) throw new NotFoundException('Сотрудник не найден');
 
-    // Пароль по умолчанию — только цифры из табельного номера (ЗЦЗЦ-00685 → 00685)
-    const username = employee.personnelNumber.replace(/\D/g, '') || employee.personnelNumber;
+    // Логин (username) = email; пароль по умолчанию — цифры табельного (ЗЦЗЦ-00685 → 00685)
+    const username = employee.email;
     const password = dto.password?.trim() || employee.personnelNumber.replace(/\D/g, '');
     if (!password) {
       throw new BadRequestException('Не удалось определить пароль: в табельном номере нет цифр');
@@ -384,8 +412,8 @@ export class EmployeesService {
     const realm = process.env.KEYCLOAK_REALM || 'hr-portal';
     const baseUrl = `${keycloakUrl}/admin/realms/${realm}/users`;
 
-    // Логин (username) = цифры табельного номера; email сохраняем отдельно.
-    const username = employee.personnelNumber.replace(/\D/g, '') || employee.personnelNumber;
+    // Логин (username) = email; пароль = цифры табельного.
+    const username = employee.email;
 
     const createRes = await fetch(baseUrl, {
       method: 'POST',
