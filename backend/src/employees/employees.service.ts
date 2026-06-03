@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -98,7 +98,7 @@ export class EmployeesService {
     return rows.map((r) => r.name);
   }
 
-  create(data: {
+  async create(data: {
     personnelNumber: string;
     lastName: string;
     firstName: string;
@@ -109,20 +109,33 @@ export class EmployeesService {
     hireDate?: string;
     managerId?: string;
   }) {
-    return this.prisma.employee.create({
-      data: {
-        personnelNumber: data.personnelNumber,
-        lastName: data.lastName,
-        firstName: data.firstName,
-        middleName: data.middleName ?? null,
-        email: data.email,
-        departmentId: data.departmentId,
-        positionId: data.positionId,
-        hireDate: data.hireDate ? new Date(data.hireDate) : null,
-        managerId: data.managerId ?? null,
-      },
-      include: { department: true, position: true },
-    });
+    try {
+      return await this.prisma.employee.create({
+        data: {
+          personnelNumber: data.personnelNumber,
+          lastName: data.lastName,
+          firstName: data.firstName,
+          middleName: data.middleName ?? null,
+          email: data.email,
+          departmentId: data.departmentId,
+          positionId: data.positionId,
+          hireDate: data.hireDate ? new Date(data.hireDate) : null,
+          managerId: data.managerId ?? null,
+        },
+        include: { department: true, position: true },
+      });
+    } catch (e: any) {
+      throw this.mapUniqueError(e);
+    }
+  }
+
+  private mapUniqueError(e: any): any {
+    if (e?.code !== 'P2002') return e;
+    const target = (e.meta?.target as string[] | string | undefined);
+    const t = Array.isArray(target) ? target.join(',') : (target ?? '');
+    if (t.includes('personnel')) return new ConflictException('Сотрудник с таким табельным номером уже существует');
+    if (t.includes('email')) return new ConflictException('Сотрудник с таким email уже существует');
+    return new ConflictException('Сотрудник с таким табельным номером или email уже существует');
   }
 
   async update(id: string, data: Partial<{
@@ -147,11 +160,15 @@ export class EmployeesService {
     if (data.hireDate !== undefined) updateData.hireDate = new Date(data.hireDate);
     if (data.managerId !== undefined) updateData.managerId = data.managerId;
 
-    return this.prisma.employee.update({
-      where: { id },
-      data: updateData,
-      include: { department: true, position: true },
-    });
+    try {
+      return await this.prisma.employee.update({
+        where: { id },
+        data: updateData,
+        include: { department: true, position: true },
+      });
+    } catch (e: any) {
+      throw this.mapUniqueError(e);
+    }
   }
 
   async remove(id: string) {

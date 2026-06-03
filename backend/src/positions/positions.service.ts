@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -13,12 +13,22 @@ export class PositionsService {
     return this.prisma.position.findUnique({ where: { id } });
   }
 
-  create(data: { name: string }) {
-    return this.prisma.position.create({ data });
+  async create(data: { name: string }) {
+    try {
+      return await this.prisma.position.create({ data });
+    } catch (e: any) {
+      if (e.code === 'P2002') throw new ConflictException('Должность с таким названием уже существует');
+      throw e;
+    }
   }
 
-  update(id: string, data: { name: string }) {
-    return this.prisma.position.update({ where: { id }, data });
+  async update(id: string, data: { name: string }) {
+    try {
+      return await this.prisma.position.update({ where: { id }, data });
+    } catch (e: any) {
+      if (e.code === 'P2002') throw new ConflictException('Должность с таким названием уже существует');
+      throw e;
+    }
   }
 
   async remove(id: string) {

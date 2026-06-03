@@ -20,7 +20,12 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`API error: ${res.status} ${res.statusText}. ${body}`);
+    let message = body;
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed?.message) message = Array.isArray(parsed.message) ? parsed.message.join('; ') : parsed.message;
+    } catch { /* not JSON, keep raw body */ }
+    throw new Error(message || `${res.status} ${res.statusText}`);
   }
 
   if (res.status === 204) return undefined as T;
