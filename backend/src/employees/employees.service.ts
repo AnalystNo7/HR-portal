@@ -203,21 +203,59 @@ export class EmployeesService {
     if (!employee) throw new NotFoundException('Сотрудник не найден');
 
     // Пароль по умолчанию — только цифры из табельного номера (ЗЦЗЦ-00685 → 00685)
-    const defaultPassword = employee.personnelNumber.replace(/\D/g, '');
-    const password = dto.password?.trim() || defaultPassword;
+    const username = employee.personnelNumber.replace(/\D/g, '') || employee.personnelNumber;
+    const password = dto.password?.trim() || employee.personnelNumber.replace(/\D/g, '');
     if (!password) {
       throw new BadRequestException('Не удалось определить пароль: в табельном номере нет цифр');
     }
+    this.logger.log(`reset-password: ${employee.personnelNumber} (username=${username}), keycloakId=${employee.keycloakId ?? 'нет'}, KEYCLOAK_URL=${process.env.KEYCLOAK_URL || 'http://localhost:8080 (default)'}`);
     const token = await this.getKeycloakAdminToken();
 
-    if (!employee.keycloakId) {
+    // Если в БД есть keycloakId, но в Keycloak такого пользователя уже нет
+    // (например, удалили вручную) — считаем, что учётки нет, и создаём заново.
+    const hasLiveAccount = employee.keycloakId
+      ? await this.keycloakUserExists(employee.keycloakId, token)
+      : false;
+
+    if (!hasLiveAccount) {
       const kcId = await this.createKeycloakUser(employee, password, token);
       await this.prisma.employee.update({ where: { id }, data: { keycloakId: kcId } });
+      this.logger.log(`Учётка Keycloak создана: keycloakId=${kcId}`);
       return { created: true, keycloakId: kcId };
     }
 
-    await this.setKeycloakPassword(employee.keycloakId, password, token);
+    // Учётка существует: приводим username к цифрам табельного и ставим пароль.
+    await this.ensureKeycloakUsername(employee.keycloakId!, username, token);
+    await this.setKeycloakPassword(employee.keycloakId!, password, token);
+    this.logger.log(`Пароль обновлён, username синхронизирован: keycloakId=${employee.keycloakId}`);
     return { created: false };
+  }
+
+  private async keycloakUserExists(keycloakId: string, token: string): Promise<boolean> {
+    const keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+    const realm = process.env.KEYCLOAK_REALM || 'hr-portal';
+    const res = await fetch(`${keycloakUrl}/admin/realms/${realm}/users/${keycloakId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.ok;
+  }
+
+  private async ensureKeycloakUsername(keycloakId: string, username: string, token: string) {
+    const keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+    const realm = process.env.KEYCLOAK_REALM || 'hr-portal';
+    const base = `${keycloakUrl}/admin/realms/${realm}/users/${keycloakId}`;
+
+    const getRes = await fetch(base, { headers: { Authorization: `Bearer ${token}` } });
+    if (!getRes.ok) return;
+    const user = await getRes.json();
+    if ((user.username ?? '').toLowerCase() === username.toLowerCase()) return;
+
+    await fetch(base, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...user, username }),
+    });
+    this.logger.log(`username обновлён на ${username} (keycloakId=${keycloakId})`);
   }
 
   // Detected managers (employees referenced by others' managerFio) with their
