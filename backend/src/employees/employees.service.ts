@@ -13,6 +13,10 @@ export interface EmployeeListQuery {
   sortOrder?: 'asc' | 'desc';
 }
 
+function normalizeFio(fio: string): string {
+  return fio.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 @Injectable()
 export class EmployeesService {
   private readonly logger = new Logger(EmployeesService.name);
@@ -171,6 +175,98 @@ export class EmployeesService {
 
     await this.setKeycloakPassword(employee.keycloakId, password, token);
     return { created: false };
+  }
+
+  // Detected managers (employees referenced by others' managerFio) with their
+  // candidate subordinates. Optionally narrowed to a single manager (window A).
+  async getManagerMapping(managerId?: string) {
+    const employees = await this.prisma.employee.findMany({
+      include: { department: true, position: true },
+    });
+
+    const byFio = new Map<string, typeof employees>();
+    for (const e of employees) {
+      const key = normalizeFio(`${e.lastName} ${e.firstName} ${e.middleName ?? ''}`);
+      const list = byFio.get(key) ?? [];
+      list.push(e);
+      byFio.set(key, list);
+    }
+
+    const entries = new Map<string, { manager: (typeof employees)[number]; candidates: { employee: (typeof employees)[number]; checked: boolean }[] }>();
+    for (const sub of employees) {
+      if (!sub.managerFio) continue;
+      const managers = byFio.get(normalizeFio(sub.managerFio)) ?? [];
+      for (const m of managers) {
+        if (m.id === sub.id) continue;
+        if (managerId && m.id !== managerId) continue;
+        let entry = entries.get(m.id);
+        if (!entry) {
+          entry = { manager: m, candidates: [] };
+          entries.set(m.id, entry);
+        }
+        entry.candidates.push({ employee: sub, checked: sub.managerId === m.id });
+      }
+    }
+
+    return Array.from(entries.values());
+  }
+
+  // Apply manager↔subordinate links: set managerId for checked, unlink the rest,
+  // assign the Keycloak "manager" role to managers that gain subordinates.
+  async applyManagerMapping(entries: { managerId: string; subordinateIds: string[] }[]) {
+    let token: string | null = null;
+
+    for (const { managerId, subordinateIds } of entries) {
+      if (subordinateIds.length > 0) {
+        await this.prisma.employee.updateMany({
+          where: { id: { in: subordinateIds } },
+          data: { managerId },
+        });
+      }
+
+      // Unlink employees previously under this manager but now unchecked
+      const unlinkWhere = subordinateIds.length
+        ? { managerId, id: { notIn: subordinateIds } }
+        : { managerId };
+      await this.prisma.employee.updateMany({
+        where: unlinkWhere,
+        data: { managerId: null },
+      });
+
+      if (subordinateIds.length > 0) {
+        const manager = await this.prisma.employee.findUnique({
+          where: { id: managerId },
+          select: { keycloakId: true },
+        });
+        if (manager?.keycloakId) {
+          try {
+            if (!token) token = await this.getKeycloakAdminToken();
+            await this.assignRealmRole(manager.keycloakId, 'manager', token);
+          } catch (e: any) {
+            this.logger.warn(`Could not assign manager role: ${e.message}`);
+          }
+        }
+      }
+    }
+
+    return { success: true };
+  }
+
+  private async assignRealmRole(keycloakId: string, roleName: string, token: string) {
+    const keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+    const realm = process.env.KEYCLOAK_REALM || 'hr-portal';
+
+    const roleRes = await fetch(`${keycloakUrl}/admin/realms/${realm}/roles/${roleName}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!roleRes.ok) throw new Error(`Роль ${roleName} не найдена: HTTP ${roleRes.status}`);
+    const role = await roleRes.json();
+
+    await fetch(`${keycloakUrl}/admin/realms/${realm}/users/${keycloakId}/role-mappings/realm`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify([role]),
+    });
   }
 
   private async getKeycloakAdminToken(): Promise<string> {

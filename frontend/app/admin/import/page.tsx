@@ -5,11 +5,15 @@ import { Icon } from '@/components/primitives';
 import {
   previewImport,
   executeImport,
+  getManagerMapping,
+  applyManagerMapping,
   ImportPreviewRow,
   ImportResult,
+  ManagerMappingEntry,
 } from '@/lib/api';
+import { ManagerMappingCard, initialSelection, selectionToEntries } from '@/components/ManagerMapping';
 
-type Phase = 'upload' | 'preview' | 'importing' | 'result';
+type Phase = 'upload' | 'preview' | 'importing' | 'mapping' | 'result';
 
 export default function AdminImportPage() {
   const [phase, setPhase] = useState<Phase>('upload');
@@ -19,6 +23,9 @@ export default function AdminImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [mapping, setMapping] = useState<ManagerMappingEntry[]>([]);
+  const [selection, setSelection] = useState<Record<string, Set<string>>>({});
+  const [savingMapping, setSavingMapping] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (f: File) => {
@@ -50,12 +57,41 @@ export default function AdminImportPage() {
     try {
       const res = await executeImport(file);
       setResult(res);
-      setPhase('result');
+      const entries = await getManagerMapping();
+      if (entries.length > 0) {
+        setMapping(entries);
+        setSelection(initialSelection(entries));
+        setPhase('mapping');
+      } else {
+        setPhase('result');
+      }
     } catch (e) {
       setError((e as Error).message);
       setPhase('preview');
     }
   }, [file]);
+
+  const toggleCandidate = useCallback((managerId: string, subordinateId: string) => {
+    setSelection(prev => {
+      const set = new Set(prev[managerId] ?? []);
+      if (set.has(subordinateId)) set.delete(subordinateId);
+      else set.add(subordinateId);
+      return { ...prev, [managerId]: set };
+    });
+  }, []);
+
+  const handleSaveMapping = useCallback(async () => {
+    setSavingMapping(true);
+    setError(null);
+    try {
+      await applyManagerMapping(selectionToEntries(mapping, selection));
+      setPhase('result');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSavingMapping(false);
+    }
+  }, [mapping, selection]);
 
   const reset = useCallback(() => {
     setPhase('upload');
@@ -63,6 +99,8 @@ export default function AdminImportPage() {
     setRows([]);
     setResult(null);
     setError(null);
+    setMapping([]);
+    setSelection({});
   }, []);
 
   const validCount = rows.filter(r => r.errors.length === 0).length;
@@ -199,6 +237,35 @@ export default function AdminImportPage() {
         </div>
       )}
 
+      {/* Mapping phase */}
+      {phase === 'mapping' && (
+        <div>
+          <div className="mgr-toolbar" style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 13 }}>
+              <b>Привязка руководителей</b>
+              <span className="muted" style={{ marginLeft: 8 }}>
+                Выявлено руководителей: {mapping.length}. Проверьте подчинённых и сохраните.
+              </span>
+            </div>
+            <div className="flex-1" />
+            <button className="btn btn-secondary btn-sm" onClick={() => setPhase('result')} disabled={savingMapping}>
+              Пропустить
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={handleSaveMapping} disabled={savingMapping}>
+              <Icon name="check" size={14} /> {savingMapping ? 'Сохранение...' : 'Сохранить связи'}
+            </button>
+          </div>
+          {mapping.map(entry => (
+            <ManagerMappingCard
+              key={entry.manager.id}
+              entry={entry}
+              selected={selection[entry.manager.id] ?? new Set()}
+              onToggle={(subId) => toggleCandidate(entry.manager.id, subId)}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Result phase */}
       {phase === 'result' && result && (
         <div>
@@ -209,6 +276,7 @@ export default function AdminImportPage() {
               <StatCard label="Создано" value={result.created} color="green" />
               <StatCard label="Обновлено" value={result.updated} color="blue" />
               <StatCard label="Руководители привязаны" value={result.managerLinked} color="blue" />
+              <StatCard label="Назначена роль руководителя" value={result.managersRoleAssigned} color="green" />
               <StatCard label="Keycloak создано" value={result.keycloakCreated} color="green" />
               <StatCard label="Keycloak пропущено" value={result.keycloakSkipped} color="orange" />
             </div>
@@ -227,6 +295,14 @@ export default function AdminImportPage() {
               title={`Руководитель не найден (${result.managerNotFound.length})`}
               color="orange"
               items={result.managerNotFound.map(e => `Строка ${e.row} (${e.personnelNumber}): ${e.managerFio}`)}
+            />
+          )}
+
+          {result.managerAmbiguous.length > 0 && (
+            <ResultSection
+              title={`Неоднозначное ФИО руководителя (${result.managerAmbiguous.length})`}
+              color="orange"
+              items={result.managerAmbiguous.map(e => `Строка ${e.row} (${e.personnelNumber}): ${e.managerFio}`)}
             />
           )}
 

@@ -7,8 +7,10 @@ import { useToast } from '@/components/primitives';
 import {
   getEmployees, getDepartmentsList, getPositionsList,
   createEmployee, updateEmployee, deleteEmployee, resetEmployeePassword,
-  Employee, Department, Position, PaginatedResult, CreateEmployeeInput,
+  getManagerMapping, applyManagerMapping,
+  Employee, Department, Position, PaginatedResult, CreateEmployeeInput, ManagerMappingEntry,
 } from '@/lib/api';
+import { ManagerMappingCard } from '@/components/ManagerMapping';
 
 export default function AdminEmployeesPage() {
   const [data, setData] = useState<PaginatedResult<Employee> | null>(null);
@@ -29,6 +31,9 @@ export default function AdminEmployeesPage() {
   const [credPassword, setCredPassword] = useState('');
   const [credSaving, setCredSaving] = useState(false);
   const [credError, setCredError] = useState<string | null>(null);
+  const [mapEntry, setMapEntry] = useState<ManagerMappingEntry | null>(null);
+  const [mapSelection, setMapSelection] = useState<Set<string>>(new Set());
+  const [mapSaving, setMapSaving] = useState(false);
   const toast = useToast();
 
   const [form, setForm] = useState<CreateEmployeeInput>({
@@ -95,11 +100,20 @@ export default function AdminEmployeesPage() {
       if (editing) {
         await updateEmployee(editing.id, dto);
         toast('Данные обновлены');
+        setModalOpen(false);
       } else {
-        await createEmployee(dto);
+        const created = await createEmployee(dto);
         toast('Сотрудник создан');
+        setModalOpen(false);
+        // Окно A: если новый сотрудник сам является руководителем — предложить привязать подчинённых
+        try {
+          const entries = await getManagerMapping(created.id);
+          if (entries.length > 0) {
+            setMapEntry(entries[0]);
+            setMapSelection(new Set(entries[0].candidates.filter(c => c.checked).map(c => c.employee.id)));
+          }
+        } catch { /* мэппинг необязателен */ }
       }
-      setModalOpen(false);
       load();
       getEmployees({ limit: 1000 }).then(r => setAllEmployees(r.data)).catch(() => {});
     } catch (e) {
@@ -136,6 +150,30 @@ export default function AdminEmployeesPage() {
     } finally {
       setCredSaving(false);
     }
+  };
+
+  const handleSaveMapping = async () => {
+    if (!mapEntry) return;
+    setMapSaving(true);
+    try {
+      await applyManagerMapping([{ managerId: mapEntry.manager.id, subordinateIds: Array.from(mapSelection) }]);
+      toast('Подчинённые сохранены');
+      setMapEntry(null);
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setMapSaving(false);
+    }
+  };
+
+  const toggleMapCandidate = (subId: string) => {
+    setMapSelection(prev => {
+      const set = new Set(prev);
+      if (set.has(subId)) set.delete(subId);
+      else set.add(subId);
+      return set;
+    });
   };
 
   const setField = (key: keyof CreateEmployeeInput, value: string) => {
@@ -305,6 +343,29 @@ export default function AdminEmployeesPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Window A: this employee is a manager — assign subordinates */}
+      <Modal
+        open={!!mapEntry}
+        onClose={() => setMapEntry(null)}
+        title="Сотрудник является руководителем"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setMapEntry(null)} disabled={mapSaving}>Отмена</button>
+            <button className="btn btn-primary" onClick={handleSaveMapping} disabled={mapSaving}>
+              {mapSaving ? 'Сохранение...' : 'Сохранить'}
+            </button>
+          </>
+        }
+      >
+        {mapEntry && (
+          <ManagerMappingCard
+            entry={mapEntry}
+            selected={mapSelection}
+            onToggle={toggleMapCandidate}
+          />
+        )}
       </Modal>
     </div>
   );

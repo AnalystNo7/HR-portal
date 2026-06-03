@@ -50,6 +50,7 @@ export interface Employee {
   position: Position;
   hireDate: string | null;
   managerId: string | null;
+  managerFio: string | null;
   photoUrl: string | null;
   keycloakId: string | null;
 }
@@ -274,9 +275,28 @@ export interface ImportResult {
   errors: { row: number; personnelNumber: string; error: string }[];
   managerLinked: number;
   managerNotFound: { row: number; personnelNumber: string; managerFio: string }[];
+  managerAmbiguous: { row: number; personnelNumber: string; managerFio: string }[];
+  managersRoleAssigned: number;
   keycloakCreated: number;
   keycloakSkipped: number;
   keycloakErrors: { personnelNumber: string; error: string }[];
+}
+
+export interface ManagerMappingEntry {
+  manager: Employee;
+  candidates: { employee: Employee; checked: boolean }[];
+}
+
+export function getManagerMapping(managerId?: string) {
+  const q = managerId ? `?managerId=${managerId}` : '';
+  return fetchApi<ManagerMappingEntry[]>(`/employees/manager-mapping${q}`);
+}
+
+export function applyManagerMapping(entries: { managerId: string; subordinateIds: string[] }[]) {
+  return fetchApi<{ success: boolean }>('/employees/manager-mapping', {
+    method: 'POST',
+    body: JSON.stringify({ entries }),
+  });
 }
 
 function uploadFile<T>(path: string, file: File): Promise<T> {

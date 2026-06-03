@@ -23,9 +23,15 @@ export interface ImportResult {
   errors: { row: number; personnelNumber: string; error: string }[];
   managerLinked: number;
   managerNotFound: { row: number; personnelNumber: string; managerFio: string }[];
+  managerAmbiguous: { row: number; personnelNumber: string; managerFio: string }[];
+  managersRoleAssigned: number;
   keycloakCreated: number;
   keycloakSkipped: number;
   keycloakErrors: { personnelNumber: string; error: string }[];
+}
+
+function normalizeFio(fio: string): string {
+  return fio.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 @Injectable()
@@ -124,6 +130,8 @@ export class ImportService {
       errors: [],
       managerLinked: 0,
       managerNotFound: [],
+      managerAmbiguous: [],
+      managersRoleAssigned: 0,
       keycloakCreated: 0,
       keycloakSkipped: 0,
       keycloakErrors: [],
@@ -176,6 +184,7 @@ export class ImportService {
             departmentId,
             positionId,
             hireDate: row.hireDate,
+            managerFio: row.managerFio,
           },
           create: {
             personnelNumber: row.personnelNumber,
@@ -186,6 +195,7 @@ export class ImportService {
             departmentId,
             positionId,
             hireDate: row.hireDate,
+            managerFio: row.managerFio,
           },
         });
 
@@ -213,26 +223,37 @@ export class ImportService {
       }
     }
 
-    // Pass 2: Link managers
+    // Pass 2: Link managers by FIO, resolved to a unique employee record
+    const allEmployees = await this.prisma.employee.findMany({
+      select: { id: true, lastName: true, firstName: true, middleName: true },
+    });
+    const byFio = new Map<string, { id: string }[]>();
+    for (const e of allEmployees) {
+      const key = normalizeFio(`${e.lastName} ${e.firstName} ${e.middleName ?? ''}`);
+      const list = byFio.get(key) ?? [];
+      list.push({ id: e.id });
+      byFio.set(key, list);
+    }
+
+    const headIds = new Set<string>();
     for (const row of validRows) {
       if (!row.managerFio) continue;
 
-      const parts = row.managerFio.split(/\s+/);
-      const mLast = parts[0] || '';
-      const mFirst = parts[1] || '';
-      const mMiddle = parts[2] || undefined;
+      const matches = byFio.get(normalizeFio(row.managerFio)) ?? [];
 
-      const where: any = { lastName: mLast, firstName: mFirst };
-      if (mMiddle) where.middleName = mMiddle;
-
-      const manager = await this.prisma.employee.findFirst({ where });
-
-      if (manager) {
+      if (matches.length === 1) {
         await this.prisma.employee.update({
           where: { personnelNumber: row.personnelNumber },
-          data: { managerId: manager.id },
+          data: { managerId: matches[0].id },
         });
+        headIds.add(matches[0].id);
         result.managerLinked++;
+      } else if (matches.length > 1) {
+        result.managerAmbiguous.push({
+          row: row.rowNum,
+          personnelNumber: row.personnelNumber,
+          managerFio: row.managerFio,
+        });
       } else {
         result.managerNotFound.push({
           row: row.rowNum,
@@ -244,6 +265,9 @@ export class ImportService {
 
     // Pass 3: Create Keycloak users
     await this.createKeycloakUsers(validRows, result);
+
+    // Pass 4: Assign "manager" role to employees who have subordinates
+    await this.assignManagerRoles(headIds, result);
 
     return result;
   }
@@ -394,6 +418,78 @@ export class ImportService {
         result.keycloakCreated++;
       } catch (e: any) {
         result.keycloakErrors.push({ personnelNumber: row.personnelNumber, error: e.message });
+      }
+    }
+  }
+
+  private async assignManagerRoles(headIds: Set<string>, result: ImportResult): Promise<void> {
+    if (headIds.size === 0) return;
+
+    const keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+    const realm = process.env.KEYCLOAK_REALM || 'hr-portal';
+    const adminUser = process.env.KEYCLOAK_ADMIN || 'admin';
+    const adminPass = process.env.KEYCLOAK_ADMIN_PASSWORD || 'admin';
+
+    let adminToken: string;
+    try {
+      const tokenRes = await fetch(
+        `${keycloakUrl}/realms/master/protocol/openid-connect/token`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'password',
+            client_id: 'admin-cli',
+            username: adminUser,
+            password: adminPass,
+          }),
+        },
+      );
+      if (!tokenRes.ok) {
+        result.keycloakErrors.push({ personnelNumber: '*', error: `Не удалось авторизоваться в Keycloak: ${tokenRes.status}` });
+        return;
+      }
+      adminToken = (await tokenRes.json()).access_token;
+    } catch (e: any) {
+      result.keycloakErrors.push({ personnelNumber: '*', error: `Keycloak недоступен: ${e.message}` });
+      return;
+    }
+
+    // Get manager role representation
+    let managerRole: any;
+    try {
+      const roleRes = await fetch(`${keycloakUrl}/admin/realms/${realm}/roles/manager`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      if (!roleRes.ok) {
+        result.keycloakErrors.push({ personnelNumber: '*', error: `Роль manager не найдена в Keycloak: ${roleRes.status}` });
+        return;
+      }
+      managerRole = await roleRes.json();
+    } catch (e: any) {
+      result.keycloakErrors.push({ personnelNumber: '*', error: `Не удалось получить роль manager: ${e.message}` });
+      return;
+    }
+
+    for (const headId of headIds) {
+      try {
+        const head = await this.prisma.employee.findUnique({
+          where: { id: headId },
+          select: { keycloakId: true, personnelNumber: true },
+        });
+        if (!head?.keycloakId) continue;
+
+        await fetch(
+          `${keycloakUrl}/admin/realms/${realm}/users/${head.keycloakId}/role-mappings/realm`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify([managerRole]),
+          },
+        );
+        result.managersRoleAssigned++;
+      } catch (e: any) {
+        result.keycloakErrors.push({ personnelNumber: '*', error: `Роль manager: ${e.message}` });
       }
     }
   }

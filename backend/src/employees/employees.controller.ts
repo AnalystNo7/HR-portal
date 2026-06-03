@@ -47,6 +47,13 @@ export class EmployeesController {
     return this.employeesService.getDepartments();
   }
 
+  @Get('manager-mapping')
+  @UseGuards(KeycloakAuthGuard, RolesGuard)
+  @Roles('admin')
+  getManagerMapping(@Query('managerId') managerId?: string) {
+    return this.employeesService.getManagerMapping(managerId);
+  }
+
   @Get(':id')
   findById(@Param('id') id: string) {
     return this.employeesService.findById(id);
@@ -78,5 +85,12 @@ export class EmployeesController {
   @Roles('admin')
   resetPassword(@Param('id') id: string, @Body() dto: { password?: string }) {
     return this.employeesService.resetKeycloakPassword(id, dto);
+  }
+
+  @Post('manager-mapping')
+  @UseGuards(KeycloakAuthGuard, RolesGuard)
+  @Roles('admin')
+  applyManagerMapping(@Body() dto: { entries: { managerId: string; subordinateIds: string[] }[] }) {
+    return this.employeesService.applyManagerMapping(dto.entries);
   }
 }

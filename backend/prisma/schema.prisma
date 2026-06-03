@@ -43,6 +43,7 @@ model Employee {
   managerId      String?          @map("manager_id")
   manager        Employee?        @relation("ManagerSubordinates", fields: [managerId], references: [id])
   subordinates   Employee[]       @relation("ManagerSubordinates")
+  managerFio     String?          @map("manager_fio")
   workExperiences WorkExperience[]
   educations     Education[]
   appeals        Appeal[]         @relation("AuthorAppeals")
