@@ -344,11 +344,14 @@ export class EmployeesService {
     const realm = process.env.KEYCLOAK_REALM || 'hr-portal';
     const baseUrl = `${keycloakUrl}/admin/realms/${realm}/users`;
 
+    // Логин (username) = цифры табельного номера; email сохраняем отдельно.
+    const username = employee.personnelNumber.replace(/\D/g, '') || employee.personnelNumber;
+
     const createRes = await fetch(baseUrl, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: employee.email,
+        username,
         email: employee.email,
         firstName: employee.firstName,
         lastName: employee.lastName,

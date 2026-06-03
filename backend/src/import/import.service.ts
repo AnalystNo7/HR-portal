@@ -326,6 +326,8 @@ export class ImportService {
     for (const row of rows) {
       try {
         const defaultPassword = row.personnelNumber.replace(/\D/g, '') || row.personnelNumber;
+        // Логин (username) = цифры табельного номера; email сохраняем отдельно.
+        const username = defaultPassword;
 
         // Create user
         const createRes = await fetch(baseUrl, {
@@ -335,7 +337,7 @@ export class ImportService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            username: row.email,
+            username,
             email: row.email,
             firstName: row.firstName,
             lastName: row.lastName,
