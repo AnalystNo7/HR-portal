@@ -51,6 +51,7 @@ export interface Employee {
   hireDate: string | null;
   managerId: string | null;
   managerFio: string | null;
+  manager?: { id: string; lastName: string; firstName: string; middleName: string | null } | null;
   photoUrl: string | null;
   keycloakId: string | null;
 }

@@ -61,7 +61,11 @@ export class EmployeesService {
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
-        include: { department: true, position: true },
+        include: {
+          department: true,
+          position: true,
+          manager: { select: { id: true, lastName: true, firstName: true, middleName: true } },
+        },
       }),
       this.prisma.employee.count({ where }),
     ]);

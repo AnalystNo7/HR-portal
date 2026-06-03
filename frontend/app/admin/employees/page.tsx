@@ -20,6 +20,7 @@ export default function AdminEmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
+  const [teamFilter, setTeamFilter] = useState<{ id: string; name: string } | null>(null);
   const [page, setPage] = useState(1);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -48,6 +49,7 @@ export default function AdminEmployeesPage() {
         page, limit: 25,
         search: search || undefined,
         department: deptFilter || undefined,
+        managerId: teamFilter?.id || undefined,
       });
       setData(result);
     } catch {
@@ -55,7 +57,7 @@ export default function AdminEmployeesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, deptFilter]);
+  }, [page, search, deptFilter, teamFilter]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -193,6 +195,18 @@ export default function AdminEmployeesPage() {
           <option value="">Все подразделения</option>
           {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
         </select>
+        {teamFilter && (
+          <span className="pill pill-blue" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            Команда: {teamFilter.name}
+            <button
+              onClick={() => { setTeamFilter(null); setPage(1); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex' }}
+              aria-label="Сбросить фильтр по команде"
+            >
+              <Icon name="close" size={12} />
+            </button>
+          </span>
+        )}
         <div className="flex-1" />
         <button className="btn btn-primary btn-sm" onClick={openCreate}><Icon name="plus" size={14} /> Новый сотрудник</button>
       </div>
@@ -204,13 +218,14 @@ export default function AdminEmployeesPage() {
               <th>Сотрудник</th>
               <th>Подразделение</th>
               <th>Должность</th>
+              <th>Руководитель</th>
               <th>E-mail</th>
               <th>Табельный</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Загрузка...</td></tr>}
+            {loading && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Загрузка...</td></tr>}
             {!loading && data?.data.map(p => {
               const fullName = `${p.lastName} ${p.firstName} ${p.middleName ?? ''}`.trim();
               return (
@@ -226,6 +241,24 @@ export default function AdminEmployeesPage() {
                   </td>
                   <td className="small">{p.department?.name ?? ''}</td>
                   <td className="small">{p.position?.name ?? ''}</td>
+                  <td className="small">
+                    {p.manager ? (
+                      <a
+                        href="#"
+                        className="job-link"
+                        onClick={e => {
+                          e.preventDefault();
+                          const mFio = `${p.manager!.lastName} ${p.manager!.firstName} ${p.manager!.middleName ?? ''}`.trim();
+                          setTeamFilter({ id: p.manager!.id, name: mFio });
+                          setPage(1);
+                        }}
+                      >
+                        {`${p.manager.lastName} ${p.manager.firstName} ${p.manager.middleName ?? ''}`.trim()}
+                      </a>
+                    ) : p.managerFio ? (
+                      <span className="muted">{p.managerFio} (не привязан)</span>
+                    ) : '—'}
+                  </td>
                   <td className="small">{p.email}</td>
                   <td className="small"><b>{p.personnelNumber}</b></td>
                   <td style={{ whiteSpace: 'nowrap' }}>
@@ -237,7 +270,7 @@ export default function AdminEmployeesPage() {
               );
             })}
             {!loading && data && data.data.length === 0 && (
-              <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Ничего не найдено</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Ничего не найдено</td></tr>
             )}
           </tbody>
         </table>
