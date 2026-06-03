@@ -48,12 +48,12 @@ export function ManagerMappingCard({
   );
 }
 
-// Builds the initial selection map (managerId -> set of pre-checked subordinate ids)
-// from the `checked` flags returned by the backend.
+// Builds the initial selection map (managerId -> set of pre-checked subordinate ids).
+// По умолчанию отмечаем всех кандидатов (админ снимает лишних).
 export function initialSelection(entries: ManagerMappingEntry[]): Record<string, Set<string>> {
   const sel: Record<string, Set<string>> = {};
   for (const e of entries) {
-    sel[e.manager.id] = new Set(e.candidates.filter(c => c.checked).map(c => c.employee.id));
+    sel[e.manager.id] = new Set(e.candidates.map(c => c.employee.id));
   }
   return sel;
 }

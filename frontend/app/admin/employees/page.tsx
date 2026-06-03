@@ -113,7 +113,8 @@ export default function AdminEmployeesPage() {
           const entries = await getManagerMapping(created.id);
           if (entries.length > 0) {
             setMapEntry(entries[0]);
-            setMapSelection(new Set(entries[0].candidates.filter(c => c.checked).map(c => c.employee.id)));
+            // По умолчанию отмечаем всех кандидатов (админ снимает лишних).
+            setMapSelection(new Set(entries[0].candidates.map(c => c.employee.id)));
           }
         } catch { /* мэппинг необязателен */ }
       }
