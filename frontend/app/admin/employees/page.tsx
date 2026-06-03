@@ -256,7 +256,7 @@ export default function AdminEmployeesPage() {
                         {`${p.manager.lastName} ${p.manager.firstName} ${p.manager.middleName ?? ''}`.trim()}
                       </a>
                     ) : p.managerFio ? (
-                      <span className="muted">{p.managerFio} (не привязан)</span>
+                      <span className="muted" title="Руководитель не привязан">{p.managerFio}</span>
                     ) : '—'}
                   </td>
                   <td className="small">{p.email}</td>
