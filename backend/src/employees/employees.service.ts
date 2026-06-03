@@ -135,6 +135,7 @@ export class EmployeesService {
     // можно выдать позже через reset-password.
     try {
       const password = employee.personnelNumber.replace(/\D/g, '') || employee.personnelNumber;
+      this.logger.log(`Создаём учётку Keycloak: username=${password}, email=${employee.email}, KEYCLOAK_URL=${process.env.KEYCLOAK_URL || 'http://localhost:8080 (default)'}`);
       const token = await this.getKeycloakAdminToken();
       const kcId = await this.createKeycloakUser(employee, password, token);
       employee = await this.prisma.employee.update({
@@ -142,8 +143,9 @@ export class EmployeesService {
         data: { keycloakId: kcId },
         include: { department: true, position: true },
       });
+      this.logger.log(`Учётка Keycloak создана: keycloakId=${kcId}`);
     } catch (e: any) {
-      this.logger.warn(`Не удалось создать учётную запись Keycloak для ${employee.personnelNumber}: ${e.message}`);
+      this.logger.error(`НЕ удалось создать учётную запись Keycloak для ${employee.personnelNumber}: ${e.message}`, e.stack);
     }
 
     return employee;
