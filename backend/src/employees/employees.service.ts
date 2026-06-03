@@ -109,8 +109,9 @@ export class EmployeesService {
     hireDate?: string;
     managerId?: string;
   }) {
+    let employee;
     try {
-      return await this.prisma.employee.create({
+      employee = await this.prisma.employee.create({
         data: {
           personnelNumber: data.personnelNumber,
           lastName: data.lastName,
@@ -127,6 +128,25 @@ export class EmployeesService {
     } catch (e: any) {
       throw this.mapUniqueError(e);
     }
+
+    // Заводим учётную запись в Keycloak, чтобы сотрудник мог войти
+    // (логин = email, временный пароль = цифры табельного номера, роль employee).
+    // Best-effort: если Keycloak недоступен, сотрудник всё равно создан, доступ
+    // можно выдать позже через reset-password.
+    try {
+      const password = employee.personnelNumber.replace(/\D/g, '') || employee.personnelNumber;
+      const token = await this.getKeycloakAdminToken();
+      const kcId = await this.createKeycloakUser(employee, password, token);
+      employee = await this.prisma.employee.update({
+        where: { id: employee.id },
+        data: { keycloakId: kcId },
+        include: { department: true, position: true },
+      });
+    } catch (e: any) {
+      this.logger.warn(`Не удалось создать учётную запись Keycloak для ${employee.personnelNumber}: ${e.message}`);
+    }
+
+    return employee;
   }
 
   private mapUniqueError(e: any): any {
