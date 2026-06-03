@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Icon, Avatar, Modal, initials, avColorFor } from '@/components/primitives';
 import { EmptyCube } from '@/components/illustrations/Illustrations';
-import { getEmployees, Employee, PaginatedResult } from '@/lib/api';
+import { getEmployees, getMe, Employee } from '@/lib/api';
 
 type Tab = 'team' | 'review' | 'ipr' | 'learn' | 'status';
 
@@ -19,7 +19,6 @@ export default function ManagerPage() {
   const [tab, setTab] = useState<Tab>('team');
   const [posOpen, setPosOpen] = useState<Employee | null>(null);
   const [team, setTeam] = useState<Employee[]>([]);
-  const [managerId, setManagerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,20 +26,10 @@ export default function ManagerPage() {
     setLoading(true);
     setError(null);
     try {
-      // Берём первого сотрудника с подчинёнными как "руководителя" (демо)
-      // В реальности managerId будет из auth
-      const all = await getEmployees({ limit: 100 });
-      const managers = new Set<string>();
-      all.data.forEach((e) => e.managerId && managers.add(e.managerId));
-      const firstManagerId = Array.from(managers)[0];
-      setManagerId(firstManagerId ?? null);
-
-      if (firstManagerId) {
-        const subs = await getEmployees({ managerId: firstManagerId, limit: 100 });
-        setTeam(subs.data);
-      } else {
-        setTeam([]);
-      }
+      // Текущий залогиненный руководитель → его подчинённые
+      const me = await getMe('manager');
+      const subs = await getEmployees({ managerId: me.id, limit: 100 });
+      setTeam(subs.data);
     } catch (e) {
       setError((e as Error).message);
     } finally {
