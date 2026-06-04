@@ -440,10 +440,12 @@ export interface ScaleTpl { id: string; name: string; isDefault: boolean; points
 export interface PersonRef { id: string; firstName: string; lastName: string; middleName: string | null; }
 
 export interface Cycle360ListItem {
-  id: string; name: string; description: string | null; status: Cycle360Status;
+  id: string; name: string; description: string | null; year: number | null; half: number | null; status: Cycle360Status;
   startedAt: string | null; closedAt: string | null; createdAt: string;
   _count: { subjects: number };
 }
+
+export const halfLabel = (h: number | null) => h === 1 ? '1 полугодие' : h === 2 ? '2 полугодие' : '';
 
 export interface Cycle360Competency { id: string; name: string; description: string | null; category: string; order: number; indicators: { id: string; text: string; order: number }[]; }
 export interface Cycle360SubjectSummary {
@@ -452,7 +454,7 @@ export interface Cycle360SubjectSummary {
   respondents: { id: string; role: EvaluatorRole; status: RespondentStatus }[];
 }
 export interface Cycle360Detail {
-  id: string; name: string; description: string | null; status: Cycle360Status;
+  id: string; name: string; description: string | null; year: number | null; half: number | null; status: Cycle360Status;
   competencies: Cycle360Competency[];
   scalePoints: ScalePoint[];
   subjects: Cycle360SubjectSummary[];
@@ -527,7 +529,9 @@ export function get360Cycles(query: { status?: Cycle360Status; page?: number; li
   return fetchApi<PaginatedResult<Cycle360ListItem>>(`/oc360/cycles?${qs.toString()}`);
 }
 export const get360Cycle = (id: string) => fetchApi<Cycle360Detail>(`/oc360/cycles/${id}`);
-export const create360Cycle = (dto: { name: string; description?: string | null; scaleId: string; competencyIds?: string[] }) => fetchApi<Cycle360Detail>('/oc360/cycles', { method: 'POST', body: JSON.stringify(dto) });
+export const create360Cycle = (dto: { name: string; description?: string | null; year: number; half: number; scaleId: string; competencyIds?: string[] }) => fetchApi<Cycle360Detail>('/oc360/cycles', { method: 'POST', body: JSON.stringify(dto) });
+export const update360Cycle = (id: string, dto: { name?: string; description?: string | null; year?: number; half?: number }) => fetchApi<Cycle360Detail>(`/oc360/cycles/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const delete360Cycle = (id: string) => fetchApi<{ success: boolean }>(`/oc360/cycles/${id}`, { method: 'DELETE' });
 export const update360CycleCompetency = (id: string, cid: string, dto: { name?: string; description?: string | null; order?: number }) => fetchApi<unknown>(`/oc360/cycles/${id}/competencies/${cid}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const update360CycleIndicator = (id: string, iid: string, dto: { text?: string; order?: number }) => fetchApi<unknown>(`/oc360/cycles/${id}/indicators/${iid}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const add360Subjects = (id: string, employeeIds: string[]) => fetchApi<Cycle360SubjectSummary[]>(`/oc360/cycles/${id}/subjects`, { method: 'POST', body: JSON.stringify({ employeeIds }) });

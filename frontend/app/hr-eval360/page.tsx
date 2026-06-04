@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Modal, useToast } from '@/components/primitives';
 import {
-  get360Cycles, create360Cycle, Cycle360ListItem, Cycle360Status,
+  get360Cycles, create360Cycle, Cycle360ListItem, Cycle360Status, halfLabel,
   get360Competencies, create360Competency, update360Competency, delete360Competency,
   add360Indicator, update360Indicator, delete360Indicator, CompetencyTpl,
   get360Scales, create360Scale, update360Scale, delete360Scale, ScaleTpl, ScalePoint,
@@ -38,6 +38,8 @@ function CyclesTab() {
   const [comps, setComps] = useState<CompetencyTpl[]>([]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [half, setHalf] = useState(1);
   const [scaleId, setScaleId] = useState('');
   const [selectedComps, setSelectedComps] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -50,7 +52,7 @@ function CyclesTab() {
   useEffect(() => { load(); }, [load]);
 
   const openCreate = async () => {
-    setError(null); setName(''); setDescription('');
+    setError(null); setName('Оценка 360'); setDescription(''); setYear(new Date().getFullYear()); setHalf(1);
     const [sc, cp] = await Promise.all([get360Scales(), get360Competencies()]);
     setScales(sc); setComps(cp);
     setScaleId(sc.find(s => s.isDefault)?.id ?? sc[0]?.id ?? '');
@@ -64,9 +66,10 @@ function CyclesTab() {
 
   const handleCreate = async () => {
     if (!name.trim() || !scaleId || selectedComps.size === 0) { setError('Заполните название, шкалу и хотя бы одну компетенцию'); return; }
+    if (!year || (half !== 1 && half !== 2)) { setError('Укажите год и полугодие'); return; }
     setSaving(true); setError(null);
     try {
-      const cycle = await create360Cycle({ name: name.trim(), description: description.trim() || null, scaleId, competencyIds: Array.from(selectedComps) });
+      const cycle = await create360Cycle({ name: name.trim(), description: description.trim() || null, year, half, scaleId, competencyIds: Array.from(selectedComps) });
       toast('Запуск создан');
       router.push(`/hr-eval360/${cycle.id}`);
     } catch (e) { setError((e as Error).message); } finally { setSaving(false); }
@@ -76,22 +79,23 @@ function CyclesTab() {
     <div>
       <div className="mgr-toolbar">
         <div className="flex-1" />
-        <button className="btn btn-primary btn-sm" onClick={openCreate}><Icon name="plus" size={14} /> Создать запуск</button>
+        <button className="btn btn-primary btn-sm" onClick={openCreate}><Icon name="plus" size={14} /> Создать воркфлоу</button>
       </div>
       <div className="card" style={{ padding: 0 }}>
         <table className="tbl">
-          <thead><tr><th>Название</th><th>Статус</th><th>Сотрудников</th><th>Создан</th></tr></thead>
+          <thead><tr><th>Название</th><th>Период</th><th>Статус</th><th>Сотрудников</th><th>Создан</th></tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={4} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Загрузка...</td></tr>}
+            {loading && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Загрузка...</td></tr>}
             {!loading && items.map(c => (
               <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => router.push(`/hr-eval360/${c.id}`)}>
                 <td><b>{c.name}</b>{c.description && <div className="small muted">{c.description}</div>}</td>
+                <td className="small muted">{c.year ? `${c.year}, ${halfLabel(c.half)}` : '—'}</td>
                 <td><span className={`pill ${STATUS_PILL[c.status]}`}>{STATUS_LABEL[c.status]}</span></td>
                 <td>{c._count.subjects}</td>
                 <td className="small muted">{new Date(c.createdAt).toLocaleDateString('ru-RU')}</td>
               </tr>
             ))}
-            {!loading && items.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Запусков пока нет</td></tr>}
+            {!loading && items.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Запусков пока нет</td></tr>}
           </tbody>
         </table>
       </div>
@@ -100,7 +104,16 @@ function CyclesTab() {
         <><button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Отмена</button><button className="btn btn-primary" onClick={handleCreate} disabled={saving}>{saving ? 'Создание...' : 'Создать'}</button></>
       }>
         {error && <div className="form-error">{error}</div>}
-        <div className="field"><label className="small">Название</label><input className="inp" value={name} onChange={e => setName(e.target.value)} placeholder="Оценка 360 — II квартал" autoFocus /></div>
+        <div className="field"><label className="small">Название</label><input className="inp" value={name} onChange={e => setName(e.target.value)} placeholder="Оценка 360" autoFocus /></div>
+        <div className="row-2">
+          <div className="field flex-1"><label className="small">Год</label><input className="inp" type="number" value={year} onChange={e => setYear(parseInt(e.target.value, 10) || 0)} /></div>
+          <div className="field flex-1"><label className="small">Полугодие</label>
+            <select className="sel" value={half} onChange={e => setHalf(parseInt(e.target.value, 10))}>
+              <option value={1}>1 полугодие</option>
+              <option value={2}>2 полугодие</option>
+            </select>
+          </div>
+        </div>
         <div className="field"><label className="small">Описание (необязательно)</label><input className="inp" value={description} onChange={e => setDescription(e.target.value)} /></div>
         <div className="field"><label className="small">Шкала оценки</label>
           <select className="sel" value={scaleId} onChange={e => setScaleId(e.target.value)}>

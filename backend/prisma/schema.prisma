@@ -227,6 +227,8 @@ model Cycle360 {
   id           String               @id @default(uuid())
   name         String
   description  String?
+  year         Int?
+  half         Int?
   status       Cycle360Status       @default(DRAFT)
   startedAt    DateTime?            @map("started_at")
   closedAt     DateTime?            @map("closed_at")

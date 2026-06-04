@@ -40,8 +40,13 @@ export class CycleController {
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() dto: { name?: string; description?: string | null }) {
+  update(@Param('id') id: string, @Body() dto: { name?: string; description?: string | null; year?: number; half?: number }) {
     return this.cycleService.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.cycleService.delete(id);
   }
 
   @Put(':id/competencies/:cid')

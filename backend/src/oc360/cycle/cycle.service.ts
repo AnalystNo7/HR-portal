@@ -6,6 +6,8 @@ import { fio } from '../oc360.helpers';
 export interface CreateCycleDto {
   name: string;
   description?: string | null;
+  year?: number;
+  half?: number;
   scaleId: string;
   competencyIds?: string[];
 }
@@ -89,11 +91,16 @@ export class CycleService {
     if (competencies.length === 0) {
       throw new BadRequestException('Нужно выбрать хотя бы одну компетенцию');
     }
+    if (!dto.year || (dto.half !== 1 && dto.half !== 2)) {
+      throw new BadRequestException('Укажите год и полугодие');
+    }
 
     return this.prisma.cycle360.create({
       data: {
         name: dto.name,
         description: dto.description ?? null,
+        year: dto.year,
+        half: dto.half,
         createdById: createdById ?? null,
         scalePoints: { create: scale.points.map(p => ({ value: p.value, label: p.label })) },
         competencies: {
@@ -116,12 +123,18 @@ export class CycleService {
     });
   }
 
-  async update(id: string, dto: { name?: string; description?: string | null }) {
+  async update(id: string, dto: { name?: string; description?: string | null; year?: number; half?: number }) {
     await this.ensureDraft(id);
     return this.prisma.cycle360.update({
       where: { id },
-      data: { name: dto.name, description: dto.description },
+      data: { name: dto.name, description: dto.description, year: dto.year, half: dto.half },
     });
+  }
+
+  async delete(id: string) {
+    await this.ensureDraft(id);
+    await this.prisma.cycle360.delete({ where: { id } });
+    return { success: true };
   }
 
   async updateCompetency(id: string, competencyId: string, dto: { name?: string; description?: string | null; order?: number }) {

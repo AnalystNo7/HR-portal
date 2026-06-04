@@ -6,6 +6,7 @@ import { Icon, Modal, useToast } from '@/components/primitives';
 import {
   get360Cycle, Cycle360Detail, Cycle360Status, Cycle360SubjectSummary,
   add360Subjects, remove360Subject, activate360Cycle, close360Cycle,
+  update360Cycle, delete360Cycle, halfLabel,
   get360Respondents, RespondentLane, remove360Respondent, add360Respondent, EvaluatorRole,
   getEmployees, Employee,
 } from '@/lib/api';
@@ -31,6 +32,8 @@ export default function Eval360CyclePage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -66,10 +69,13 @@ export default function Eval360CyclePage() {
           <h2 style={{ fontFamily: 'var(--font-head)', fontSize: 22 }}>{cycle.name}</h2>
           <div className="row-2" style={{ alignItems: 'center', marginTop: 4 }}>
             <span className={`pill ${STATUS_PILL[cycle.status]}`}>{STATUS_LABEL[cycle.status]}</span>
+            {cycle.year && <span className="small muted">{cycle.year}, {halfLabel(cycle.half)}</span>}
             <span className="small muted">{cycle.subjects.length} сотрудников · {cycle.competencies.length} компетенций</span>
           </div>
         </div>
         <div className="row-2">
+          {isDraft && <button className="btn btn-ghost btn-sm" onClick={() => setEditOpen(true)}><Icon name="edit" size={14} /> Редактировать</button>}
+          {isDraft && <button className="btn btn-ghost btn-sm" onClick={() => setDelOpen(true)}><Icon name="trash" size={14} /> Удалить</button>}
           {isDraft && <button className="btn btn-primary" disabled={busy || cycle.subjects.length === 0} onClick={activate}>Запустить оценку</button>}
           {cycle.status === 'ACTIVE' && <button className="btn btn-secondary" disabled={busy} onClick={close}>Завершить запуск</button>}
         </div>
@@ -110,7 +116,55 @@ export default function Eval360CyclePage() {
       </div>
 
       {addOpen && <AddSubjectsModal cycleId={cycleId} existing={cycle.subjects.map(s => s.employee.id)} onClose={() => setAddOpen(false)} onAdded={() => { setAddOpen(false); load(); }} />}
+      {editOpen && <EditCycleModal cycle={cycle} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); load(); toast('Сохранено'); }} />}
+
+      <Modal open={delOpen} onClose={() => setDelOpen(false)} title="Удаление воркфлоу" footer={
+        <><button className="btn btn-secondary" onClick={() => setDelOpen(false)}>Отмена</button>
+        <button className="btn btn-primary" style={{ background: 'var(--err)' }} disabled={busy} onClick={async () => {
+          setBusy(true);
+          try { await delete360Cycle(cycleId); toast('Воркфлоу удалён'); router.push('/hr-eval360'); }
+          catch (e) { toast((e as Error).message); setBusy(false); }
+        }}>Удалить</button></>
+      }>
+        <p>Удалить воркфлоу <b>{cycle.name}</b>? Действие необратимо, все добавленные сотрудники и настройки оценивающих будут удалены.</p>
+      </Modal>
     </div>
+  );
+}
+
+// ─── Модалка: редактирование воркфлоу ──────────────────
+function EditCycleModal({ cycle, onClose, onSaved }: { cycle: Cycle360Detail; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [name, setName] = useState(cycle.name);
+  const [year, setYear] = useState(cycle.year ?? new Date().getFullYear());
+  const [half, setHalf] = useState(cycle.half ?? 1);
+  const [description, setDescription] = useState(cycle.description ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!name.trim()) { toast('Укажите название'); return; }
+    if (!year || (half !== 1 && half !== 2)) { toast('Укажите год и полугодие'); return; }
+    setSaving(true);
+    try { await update360Cycle(cycle.id, { name: name.trim(), description: description.trim() || null, year, half }); onSaved(); }
+    catch (e) { toast((e as Error).message); } finally { setSaving(false); }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="Редактирование воркфлоу" footer={
+      <><button className="btn btn-secondary" onClick={onClose}>Отмена</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить'}</button></>
+    }>
+      <div className="field"><label className="small">Название</label><input className="inp" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      <div className="row-2">
+        <div className="field flex-1"><label className="small">Год</label><input className="inp" type="number" value={year} onChange={e => setYear(parseInt(e.target.value, 10) || 0)} /></div>
+        <div className="field flex-1"><label className="small">Полугодие</label>
+          <select className="sel" value={half} onChange={e => setHalf(parseInt(e.target.value, 10))}>
+            <option value={1}>1 полугодие</option>
+            <option value={2}>2 полугодие</option>
+          </select>
+        </div>
+      </div>
+      <div className="field"><label className="small">Описание (необязательно)</label><input className="inp" value={description} onChange={e => setDescription(e.target.value)} /></div>
+    </Modal>
   );
 }
 
@@ -166,7 +220,22 @@ function AddSubjectsModal({ cycleId, existing, onClose, onAdded }: { cycleId: st
   useEffect(() => { getEmployees({ limit: 500 }).then(r => setAll(r.data)).catch(() => {}); }, []);
 
   const list = all.filter(e => !existing.includes(e.id) && (!search || fio(e).toLowerCase().includes(search.toLowerCase())));
+
+  // группировка по подразделению
+  const groups: { deptId: string; dept: string; items: Employee[] }[] = [];
+  for (const e of list) {
+    const deptId = e.departmentId || '—';
+    let g = groups.find(x => x.deptId === deptId);
+    if (!g) { g = { deptId, dept: e.department?.name || 'Без подразделения', items: [] }; groups.push(g); }
+    g.items.push(e);
+  }
+
   const toggle = (id: string) => setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleGroup = (items: Employee[], on: boolean) => setSel(p => {
+    const n = new Set(p);
+    for (const e of items) on ? n.add(e.id) : n.delete(e.id);
+    return n;
+  });
 
   const save = async () => {
     if (sel.size === 0) return;
@@ -179,14 +248,27 @@ function AddSubjectsModal({ cycleId, existing, onClose, onAdded }: { cycleId: st
       <><button className="btn btn-secondary" onClick={onClose}>Отмена</button><button className="btn btn-primary" onClick={save} disabled={saving || sel.size === 0}>{saving ? 'Добавление...' : `Добавить (${sel.size})`}</button></>
     }>
       <div className="field"><input className="inp" placeholder="Поиск по ФИО..." value={search} onChange={e => setSearch(e.target.value)} autoFocus /></div>
-      <div className="stack-2" style={{ maxHeight: 360, overflowY: 'auto' }}>
-        {list.map(e => (
-          <label key={e.id} className="row-2" style={{ alignItems: 'center', cursor: 'pointer' }}>
-            <input type="checkbox" checked={sel.has(e.id)} onChange={() => toggle(e.id)} />
-            <span>{fio(e)} <span className="small muted">· {e.department?.name} · {e.position?.name}</span></span>
-          </label>
-        ))}
-        {list.length === 0 && <div className="small muted">Ничего не найдено</div>}
+      <div className="stack-3" style={{ maxHeight: 360, overflowY: 'auto' }}>
+        {groups.map(g => {
+          const selectedCount = g.items.filter(e => sel.has(e.id)).length;
+          const allSel = selectedCount === g.items.length;
+          const someSel = selectedCount > 0 && !allSel;
+          return (
+            <div key={g.deptId} className="stack-2">
+              <label className="row-2" style={{ alignItems: 'center', cursor: 'pointer', borderBottom: '1px solid var(--line)', paddingBottom: 4 }}>
+                <input type="checkbox" checked={allSel} ref={el => { if (el) el.indeterminate = someSel; }} onChange={() => toggleGroup(g.items, !allSel)} />
+                <b className="small">{g.dept}</b><span className="small muted">· {g.items.length}</span>
+              </label>
+              {g.items.map(e => (
+                <label key={e.id} className="row-2" style={{ alignItems: 'center', cursor: 'pointer', paddingLeft: 20 }}>
+                  <input type="checkbox" checked={sel.has(e.id)} onChange={() => toggle(e.id)} />
+                  <span>{fio(e)} <span className="small muted">· {e.position?.name}</span></span>
+                </label>
+              ))}
+            </div>
+          );
+        })}
+        {groups.length === 0 && <div className="small muted">Ничего не найдено</div>}
       </div>
     </Modal>
   );
