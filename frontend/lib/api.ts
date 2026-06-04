@@ -423,3 +423,134 @@ export function deletePosition(id: string) {
     method: 'DELETE',
   });
 }
+
+// ─── Оценка 360 ────────────────────────────────────────
+
+export type EvaluatorRole = 'SELF' | 'MANAGER' | 'SUBORDINATE' | 'PEER';
+export type Cycle360Status = 'DRAFT' | 'ACTIVE' | 'CLOSED';
+export type SubjectStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'PUBLISHED';
+export type RespondentStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+export type EvalZone = 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL' | null;
+
+export interface IndicatorTpl { id: string; competencyId: string; text: string; order: number; }
+export interface CompetencyTpl { id: string; name: string; description: string | null; category: string; order: number; isActive: boolean; indicators: IndicatorTpl[]; }
+export interface ScalePoint { id?: string; value: number; label: string; }
+export interface ScaleTpl { id: string; name: string; isDefault: boolean; points: ScalePoint[]; }
+
+export interface PersonRef { id: string; firstName: string; lastName: string; middleName: string | null; }
+
+export interface Cycle360ListItem {
+  id: string; name: string; description: string | null; status: Cycle360Status;
+  startedAt: string | null; closedAt: string | null; createdAt: string;
+  _count: { subjects: number };
+}
+
+export interface Cycle360Competency { id: string; name: string; description: string | null; category: string; order: number; indicators: { id: string; text: string; order: number }[]; }
+export interface Cycle360SubjectSummary {
+  id: string; status: SubjectStatus; resultsPublishedAt: string | null;
+  employee: PersonRef;
+  respondents: { id: string; role: EvaluatorRole; status: RespondentStatus }[];
+}
+export interface Cycle360Detail {
+  id: string; name: string; description: string | null; status: Cycle360Status;
+  competencies: Cycle360Competency[];
+  scalePoints: ScalePoint[];
+  subjects: Cycle360SubjectSummary[];
+}
+
+export interface RespondentLane {
+  role: EvaluatorRole; label: string;
+  respondents: { id: string; status: RespondentStatus; name: string; evaluator: PersonRef }[];
+}
+
+export interface WorkflowLane { role: EvaluatorRole; label: string; items: { id: string; name: string; status: RespondentStatus }[]; completed: number; total: number; done: boolean; }
+export interface Workflow {
+  subject: { id: string; employee: PersonRef; name: string; status: SubjectStatus };
+  cycleStatus: Cycle360Status; stage: 'DRAFT' | 'IN_PROGRESS' | 'RESULTS';
+  published: boolean; lanes: WorkflowLane[];
+}
+
+export interface Assignment {
+  id: string; role: EvaluatorRole; roleLabel: string; status: RespondentStatus;
+  cycle: { id: string; name: string }; subject: { id: string; name: string }; isSelf: boolean;
+}
+export interface AssignmentForm {
+  id: string; role: EvaluatorRole; roleLabel: string; status: RespondentStatus;
+  cycle: { id: string; name: string }; subject: { id: string; name: string };
+  competencies: Cycle360Competency[]; scalePoints: ScalePoint[];
+  scores: Record<string, number>;
+  openAnswer: { strengths: string | null; toChange: string | null; toDevelop: string | null };
+}
+export interface SubmitAssignmentDto {
+  scores: { indicatorId: string; score: number }[];
+  openAnswer?: { strengths?: string | null; toChange?: string | null; toDevelop?: string | null };
+  submit?: boolean;
+  employeeId?: string;
+}
+
+export interface CompetencyResult {
+  id: string; name: string; category: string;
+  self: number | null; manager: number | null; peers: number | null; subordinates: number | null;
+  othersAvg: number | null; total: number | null; gap: number | null; zone: EvalZone;
+}
+export interface OpenAnswerGroup { role: EvaluatorRole; items: { author: string | null; strengths: string | null; toChange: string | null; toDevelop: string | null }[]; }
+export interface Results360 {
+  subject: { id: string; employee: PersonRef; name: string; status: SubjectStatus };
+  published: boolean;
+  scalePoints: ScalePoint[];
+  competencyResults: CompetencyResult[];
+  overall: { selfAvg: number | null; othersAvg: number | null; gap: number | null };
+  openAnswers: OpenAnswerGroup[];
+  progress: { role: EvaluatorRole; completed: number; total: number }[];
+  conclusions: { id: string; text: string; createdAt: string; author?: string | null }[];
+}
+export interface Conclusion360 { id: string; text: string; createdAt: string; author?: { firstName: string; lastName: string; middleName: string | null } | null; }
+export interface MySubject360 { subjectId: string; cycle: { id: string; name: string }; publishedAt: string | null; }
+
+// Template
+export const get360Competencies = () => fetchApi<CompetencyTpl[]>('/oc360/template/competencies');
+export const create360Competency = (dto: { name: string; description?: string | null; category?: string; order?: number; isActive?: boolean }) => fetchApi<CompetencyTpl>('/oc360/template/competencies', { method: 'POST', body: JSON.stringify(dto) });
+export const update360Competency = (id: string, dto: { name?: string; description?: string | null; category?: string; order?: number; isActive?: boolean }) => fetchApi<CompetencyTpl>(`/oc360/template/competencies/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const delete360Competency = (id: string) => fetchApi<{ success: boolean }>(`/oc360/template/competencies/${id}`, { method: 'DELETE' });
+export const add360Indicator = (competencyId: string, dto: { text: string; order?: number }) => fetchApi<IndicatorTpl>(`/oc360/template/competencies/${competencyId}/indicators`, { method: 'POST', body: JSON.stringify(dto) });
+export const update360Indicator = (id: string, dto: { text?: string; order?: number }) => fetchApi<IndicatorTpl>(`/oc360/template/indicators/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const delete360Indicator = (id: string) => fetchApi<{ success: boolean }>(`/oc360/template/indicators/${id}`, { method: 'DELETE' });
+export const get360Scales = () => fetchApi<ScaleTpl[]>('/oc360/template/scales');
+export const create360Scale = (dto: { name: string; isDefault?: boolean; points: ScalePoint[] }) => fetchApi<ScaleTpl>('/oc360/template/scales', { method: 'POST', body: JSON.stringify(dto) });
+export const update360Scale = (id: string, dto: { name?: string; isDefault?: boolean; points?: ScalePoint[] }) => fetchApi<ScaleTpl>(`/oc360/template/scales/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const delete360Scale = (id: string) => fetchApi<{ success: boolean }>(`/oc360/template/scales/${id}`, { method: 'DELETE' });
+
+// Cycles
+export function get360Cycles(query: { status?: Cycle360Status; page?: number; limit?: number } = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(query).forEach(([k, v]) => { if (v !== undefined) qs.set(k, String(v)); });
+  return fetchApi<PaginatedResult<Cycle360ListItem>>(`/oc360/cycles?${qs.toString()}`);
+}
+export const get360Cycle = (id: string) => fetchApi<Cycle360Detail>(`/oc360/cycles/${id}`);
+export const create360Cycle = (dto: { name: string; description?: string | null; scaleId: string; competencyIds?: string[] }) => fetchApi<Cycle360Detail>('/oc360/cycles', { method: 'POST', body: JSON.stringify(dto) });
+export const update360CycleCompetency = (id: string, cid: string, dto: { name?: string; description?: string | null; order?: number }) => fetchApi<unknown>(`/oc360/cycles/${id}/competencies/${cid}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const update360CycleIndicator = (id: string, iid: string, dto: { text?: string; order?: number }) => fetchApi<unknown>(`/oc360/cycles/${id}/indicators/${iid}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const add360Subjects = (id: string, employeeIds: string[]) => fetchApi<Cycle360SubjectSummary[]>(`/oc360/cycles/${id}/subjects`, { method: 'POST', body: JSON.stringify({ employeeIds }) });
+export const remove360Subject = (id: string, sid: string) => fetchApi<{ success: boolean }>(`/oc360/cycles/${id}/subjects/${sid}`, { method: 'DELETE' });
+export const get360Respondents = (id: string, sid: string) => fetchApi<RespondentLane[]>(`/oc360/cycles/${id}/subjects/${sid}/respondents`);
+export const add360Respondent = (id: string, sid: string, dto: { evaluatorId: string; role: EvaluatorRole }) => fetchApi<unknown>(`/oc360/cycles/${id}/subjects/${sid}/respondents`, { method: 'POST', body: JSON.stringify(dto) });
+export const remove360Respondent = (id: string, rid: string) => fetchApi<{ success: boolean }>(`/oc360/cycles/${id}/respondents/${rid}`, { method: 'DELETE' });
+export const activate360Cycle = (id: string) => fetchApi<Cycle360Detail>(`/oc360/cycles/${id}/activate`, { method: 'POST' });
+export const close360Cycle = (id: string) => fetchApi<unknown>(`/oc360/cycles/${id}/close`, { method: 'POST' });
+export const get360Workflow = (id: string, sid: string) => fetchApi<Workflow>(`/oc360/cycles/${id}/subjects/${sid}/workflow`);
+
+// Assignments (заполнение)
+export const get360Assignments = (employeeId: string) => fetchApi<Assignment[]>(`/oc360/assignments?employeeId=${employeeId}`);
+export const get360Assignment = (respondentId: string, employeeId: string) => fetchApi<AssignmentForm>(`/oc360/assignments/${respondentId}?employeeId=${employeeId}`);
+export const submit360Assignment = (respondentId: string, dto: SubmitAssignmentDto) => fetchApi<{ success: boolean; submitted: boolean }>(`/oc360/assignments/${respondentId}`, { method: 'PUT', body: JSON.stringify(dto) });
+
+// Results / publish / conclusions
+export const get360Results = (id: string, sid: string) => fetchApi<Results360>(`/oc360/cycles/${id}/subjects/${sid}/results`);
+export const publish360 = (id: string, sid: string) => fetchApi<unknown>(`/oc360/cycles/${id}/subjects/${sid}/publish`, { method: 'POST' });
+export const unpublish360 = (id: string, sid: string) => fetchApi<unknown>(`/oc360/cycles/${id}/subjects/${sid}/unpublish`, { method: 'POST' });
+export const get360Conclusions = (id: string, sid: string) => fetchApi<Conclusion360[]>(`/oc360/cycles/${id}/subjects/${sid}/conclusions`);
+export const add360Conclusion = (id: string, sid: string, text: string) => fetchApi<Conclusion360>(`/oc360/cycles/${id}/subjects/${sid}/conclusions`, { method: 'POST', body: JSON.stringify({ text }) });
+export const update360Conclusion = (id: string, text: string) => fetchApi<Conclusion360>(`/oc360/conclusions/${id}`, { method: 'PUT', body: JSON.stringify({ text }) });
+export const delete360Conclusion = (id: string) => fetchApi<{ success: boolean }>(`/oc360/conclusions/${id}`, { method: 'DELETE' });
+export const get360MyResults = (employeeId: string) => fetchApi<MySubject360[]>(`/oc360/my-results?employeeId=${employeeId}`);
+export const get360MyResult = (cycleId: string, sid: string, employeeId: string) => fetchApi<Results360>(`/oc360/my-results/${cycleId}/${sid}?employeeId=${employeeId}`);

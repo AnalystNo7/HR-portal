@@ -48,6 +48,10 @@ model Employee {
   educations     Education[]
   appeals        Appeal[]         @relation("AuthorAppeals")
   appealComments AppealComment[]
+  cycles360Created Cycle360[]            @relation("Cycle360Creator")
+  subject360       Cycle360Subject[]    @relation("Subject360")
+  evaluations360   Cycle360Respondent[] @relation("Evaluator360")
+  conclusions360   Cycle360Conclusion[] @relation("Conclusion360Author")
   keycloakId     String?          @unique @map("keycloak_id")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
@@ -140,4 +144,206 @@ model AppealFile {
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("appeal_files")
+}
+
+// ─── Оценка 360 ────────────────────────────────────────
+
+enum EvaluatorRole {
+  SELF
+  MANAGER
+  SUBORDINATE
+  PEER
+}
+
+enum Cycle360Status {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum SubjectStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  PUBLISHED
+}
+
+enum RespondentStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+// Глобальный шаблон (каталог) — источник снапшотов
+model CompetencyTemplate {
+  id          String              @id @default(uuid())
+  name        String
+  description String?
+  category    String              @default("")
+  order       Int                 @default(0)
+  isActive    Boolean             @default(true) @map("is_active")
+  indicators  IndicatorTemplate[]
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  @@map("competency_templates")
+}
+
+model IndicatorTemplate {
+  id           String             @id @default(uuid())
+  competencyId String             @map("competency_id")
+  competency   CompetencyTemplate @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+  text         String
+  order        Int                @default(0)
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  @@map("indicator_templates")
+}
+
+model ScaleTemplate {
+  id        String               @id @default(uuid())
+  name      String               @unique
+  isDefault Boolean              @default(false) @map("is_default")
+  points    ScalePointTemplate[]
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  @@map("scale_templates")
+}
+
+model ScalePointTemplate {
+  id      String        @id @default(uuid())
+  scaleId String        @map("scale_id")
+  scale   ScaleTemplate @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+  value   Int
+  label   String
+
+  @@map("scale_point_templates")
+}
+
+// Запуск (цикл) + снапшот пунктов
+model Cycle360 {
+  id           String               @id @default(uuid())
+  name         String
+  description  String?
+  status       Cycle360Status       @default(DRAFT)
+  startedAt    DateTime?            @map("started_at")
+  closedAt     DateTime?            @map("closed_at")
+  createdById  String?              @map("created_by_id")
+  createdBy    Employee?            @relation("Cycle360Creator", fields: [createdById], references: [id])
+  competencies Cycle360Competency[]
+  scalePoints  Cycle360ScalePoint[]
+  subjects     Cycle360Subject[]
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  @@map("cycle360")
+}
+
+model Cycle360Competency {
+  id          String              @id @default(uuid())
+  cycleId     String              @map("cycle_id")
+  cycle       Cycle360            @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  sourceId    String?             @map("source_id")
+  name        String
+  description String?
+  category    String              @default("")
+  order       Int                 @default(0)
+  indicators  Cycle360Indicator[]
+
+  @@map("cycle360_competencies")
+}
+
+model Cycle360Indicator {
+  id           String              @id @default(uuid())
+  competencyId String              @map("competency_id")
+  competency   Cycle360Competency  @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+  sourceId     String?             @map("source_id")
+  text         String
+  order        Int                 @default(0)
+  responses    IndicatorResponse[]
+
+  @@map("cycle360_indicators")
+}
+
+model Cycle360ScalePoint {
+  id      String   @id @default(uuid())
+  cycleId String   @map("cycle_id")
+  cycle   Cycle360 @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  value   Int
+  label   String
+
+  @@map("cycle360_scale_points")
+}
+
+model Cycle360Subject {
+  id                 String               @id @default(uuid())
+  cycleId            String               @map("cycle_id")
+  cycle              Cycle360             @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employeeId         String               @map("employee_id")
+  employee           Employee             @relation("Subject360", fields: [employeeId], references: [id])
+  status             SubjectStatus        @default(PENDING)
+  resultsPublishedAt DateTime?            @map("results_published_at")
+  respondents        Cycle360Respondent[]
+  conclusions        Cycle360Conclusion[]
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  @@unique([cycleId, employeeId])
+  @@map("cycle360_subjects")
+}
+
+model Cycle360Respondent {
+  id          String              @id @default(uuid())
+  subjectId   String              @map("subject_id")
+  subject     Cycle360Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  evaluatorId String              @map("evaluator_id")
+  evaluator   Employee            @relation("Evaluator360", fields: [evaluatorId], references: [id])
+  role        EvaluatorRole
+  status      RespondentStatus    @default(PENDING)
+  submittedAt DateTime?           @map("submitted_at")
+  responses   IndicatorResponse[]
+  openAnswer  Cycle360OpenAnswer?
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  @@unique([subjectId, evaluatorId, role])
+  @@map("cycle360_respondents")
+}
+
+model IndicatorResponse {
+  id           String             @id @default(uuid())
+  respondentId String             @map("respondent_id")
+  respondent   Cycle360Respondent @relation(fields: [respondentId], references: [id], onDelete: Cascade)
+  indicatorId  String             @map("indicator_id")
+  indicator    Cycle360Indicator  @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  score        Int
+
+  @@unique([respondentId, indicatorId])
+  @@map("cycle360_indicator_responses")
+}
+
+model Cycle360OpenAnswer {
+  id           String             @id @default(uuid())
+  respondentId String             @unique @map("respondent_id")
+  respondent   Cycle360Respondent @relation(fields: [respondentId], references: [id], onDelete: Cascade)
+  strengths    String?
+  toChange     String?            @map("to_change")
+  toDevelop    String?            @map("to_develop")
+
+  @@map("cycle360_open_answers")
+}
+
+model Cycle360Conclusion {
+  id        String          @id @default(uuid())
+  subjectId String          @map("subject_id")
+  subject   Cycle360Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  authorId  String?         @map("author_id")
+  author    Employee?       @relation("Conclusion360Author", fields: [authorId], references: [id])
+  text      String
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  @@map("cycle360_conclusions")
 }

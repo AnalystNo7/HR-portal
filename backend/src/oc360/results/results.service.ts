@@ -1,0 +1,218 @@
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { EvaluatorRole } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+import { fio } from '../oc360.helpers';
+
+const ZONE_EPS = 0.5;
+
+function avg(nums: number[]): number | null {
+  if (!nums.length) return null;
+  return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 100) / 100;
+}
+
+@Injectable()
+export class ResultsService {
+  constructor(private prisma: PrismaService) {}
+
+  /** Полная аналитика для HR (с поимённой расшифровкой открытых ответов руководителя/самооценки). */
+  async getResults(cycleId: string, subjectId: string) {
+    return this.computeResults(cycleId, subjectId, false);
+  }
+
+  /** Свои опубликованные результаты — агрегированно и анонимно. */
+  async getMyResults(cycleId: string, subjectId: string, employeeId: string | null) {
+    const subject = await this.prisma.cycle360Subject.findFirst({
+      where: { id: subjectId, cycleId },
+      select: { employeeId: true, resultsPublishedAt: true },
+    });
+    if (!subject) throw new NotFoundException('Subject not found');
+    if (subject.employeeId !== employeeId) throw new ForbiddenException('Нет доступа');
+    if (!subject.resultsPublishedAt) throw new ForbiddenException('Результаты ещё не опубликованы');
+    return this.computeResults(cycleId, subjectId, true);
+  }
+
+  /** Список «моих» субъектов с признаком публикации (для вкладки сотрудника). */
+  async listMySubjects(employeeId: string) {
+    const subjects = await this.prisma.cycle360Subject.findMany({
+      where: { employeeId, resultsPublishedAt: { not: null } },
+      include: { cycle: { select: { id: true, name: true } } },
+      orderBy: { resultsPublishedAt: 'desc' },
+    });
+    return subjects.map(s => ({ subjectId: s.id, cycle: s.cycle, publishedAt: s.resultsPublishedAt }));
+  }
+
+  private async computeResults(cycleId: string, subjectId: string, anonymized: boolean) {
+    const subject = await this.prisma.cycle360Subject.findFirst({
+      where: { id: subjectId, cycleId },
+      include: {
+        employee: { select: { id: true, firstName: true, lastName: true, middleName: true } },
+        cycle: {
+          include: {
+            competencies: { orderBy: { order: 'asc' }, include: { indicators: { orderBy: { order: 'asc' } } } },
+            scalePoints: { orderBy: { value: 'asc' } },
+          },
+        },
+        respondents: {
+          include: {
+            responses: true,
+            openAnswer: true,
+            evaluator: { select: { id: true, firstName: true, lastName: true, middleName: true } },
+          },
+        },
+        conclusions: { orderBy: { createdAt: 'asc' }, include: { author: { select: { firstName: true, lastName: true, middleName: true } } } },
+      },
+    });
+    if (!subject) throw new NotFoundException('Subject not found');
+
+    // indicator -> competency
+    const indicatorToComp = new Map<string, string>();
+    for (const c of subject.cycle.competencies) {
+      for (const i of c.indicators) indicatorToComp.set(i.id, c.id);
+    }
+
+    // lane -> compId -> scores[]
+    const perLane = new Map<EvaluatorRole, Map<string, number[]>>();
+    const completed = subject.respondents.filter(r => r.status === 'COMPLETED');
+    for (const r of completed) {
+      let laneMap = perLane.get(r.role);
+      if (!laneMap) { laneMap = new Map(); perLane.set(r.role, laneMap); }
+      for (const resp of r.responses) {
+        const compId = indicatorToComp.get(resp.indicatorId);
+        if (!compId) continue;
+        if (!laneMap.has(compId)) laneMap.set(compId, []);
+        laneMap.get(compId)!.push(resp.score);
+      }
+    }
+
+    const laneScores = (role: EvaluatorRole, compId: string) => perLane.get(role)?.get(compId) ?? [];
+
+    const competencyResults = subject.cycle.competencies.map(c => {
+      const self = avg(laneScores('SELF', c.id));
+      const manager = avg(laneScores('MANAGER', c.id));
+      const peers = avg(laneScores('PEER', c.id));
+      const subordinates = avg(laneScores('SUBORDINATE', c.id));
+      const othersScores = [
+        ...laneScores('MANAGER', c.id),
+        ...laneScores('PEER', c.id),
+        ...laneScores('SUBORDINATE', c.id),
+      ];
+      const othersAvg = avg(othersScores);
+      const gap = self != null && othersAvg != null ? Math.round((self - othersAvg) * 100) / 100 : null;
+      // «Итоговая (средняя)» — среднее доступных групповых оценок (само + руководитель + коллеги + подчинённые)
+      const total = avg([self, manager, peers, subordinates].filter((v): v is number => v != null));
+      let zone: 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL' | null = null;
+      if (self != null && othersAvg != null) {
+        if (self > othersAvg + ZONE_EPS) zone = 'BLIND_SPOT';
+        else if (self < othersAvg - ZONE_EPS) zone = 'HIDDEN_POTENTIAL';
+        else zone = 'CONSENSUS';
+      }
+      return { id: c.id, name: c.name, category: c.category, self, manager, peers, subordinates, othersAvg, total, gap, zone };
+    });
+
+    const allSelf = competencyResults.map(c => c.self).filter((v): v is number => v != null);
+    const allOthers = competencyResults.map(c => c.othersAvg).filter((v): v is number => v != null);
+    const selfAvg = avg(allSelf);
+    const othersAvg = avg(allOthers);
+    const overall = {
+      selfAvg,
+      othersAvg,
+      gap: selfAvg != null && othersAvg != null ? Math.round((selfAvg - othersAvg) * 100) / 100 : null,
+    };
+
+    // открытые ответы по дорожкам; в анонимном виде PEER/SUBORDINATE без имён
+    const openAnswers = (['SELF', 'MANAGER', 'PEER', 'SUBORDINATE'] as EvaluatorRole[]).map(role => {
+      const anonymousLane = anonymized && (role === 'PEER' || role === 'SUBORDINATE');
+      const items = completed
+        .filter(r => r.role === role && r.openAnswer)
+        .map(r => ({
+          author: anonymousLane ? null : fio(r.evaluator),
+          strengths: r.openAnswer!.strengths,
+          toChange: r.openAnswer!.toChange,
+          toDevelop: r.openAnswer!.toDevelop,
+        }))
+        .filter(a => a.strengths || a.toChange || a.toDevelop);
+      return { role, items };
+    });
+
+    // прогресс по дорожкам (для HR-вида)
+    const progress = (['SELF', 'MANAGER', 'PEER', 'SUBORDINATE'] as EvaluatorRole[]).map(role => {
+      const all = subject.respondents.filter(r => r.role === role);
+      return { role, completed: all.filter(r => r.status === 'COMPLETED').length, total: all.length };
+    });
+
+    return {
+      subject: { id: subject.id, employee: subject.employee, name: fio(subject.employee), status: subject.status },
+      published: subject.resultsPublishedAt != null,
+      scalePoints: subject.cycle.scalePoints,
+      competencyResults,
+      overall,
+      openAnswers,
+      progress,
+      conclusions: anonymized
+        ? subject.conclusions.map(c => ({ id: c.id, text: c.text, createdAt: c.createdAt }))
+        : subject.conclusions.map(c => ({
+            id: c.id,
+            text: c.text,
+            createdAt: c.createdAt,
+            author: c.author ? fio(c.author as any) : null,
+          })),
+    };
+  }
+
+  // ─── Публикация ────────────────────────────────
+  async publish(cycleId: string, subjectId: string) {
+    const subject = await this.ensureSubject(cycleId, subjectId);
+    return this.prisma.cycle360Subject.update({
+      where: { id: subject.id },
+      data: { resultsPublishedAt: new Date(), status: 'PUBLISHED' },
+    });
+  }
+
+  async unpublish(cycleId: string, subjectId: string) {
+    const subject = await this.ensureSubject(cycleId, subjectId);
+    const respondents = await this.prisma.cycle360Respondent.findMany({
+      where: { subjectId: subject.id }, select: { status: true },
+    });
+    const allDone = respondents.length > 0 && respondents.every(r => r.status === 'COMPLETED');
+    return this.prisma.cycle360Subject.update({
+      where: { id: subject.id },
+      data: { resultsPublishedAt: null, status: allDone ? 'COMPLETED' : 'IN_PROGRESS' },
+    });
+  }
+
+  // ─── Выводы HR ─────────────────────────────────
+  async listConclusions(cycleId: string, subjectId: string) {
+    const subject = await this.ensureSubject(cycleId, subjectId);
+    return this.prisma.cycle360Conclusion.findMany({
+      where: { subjectId: subject.id },
+      orderBy: { createdAt: 'asc' },
+      include: { author: { select: { firstName: true, lastName: true, middleName: true } } },
+    });
+  }
+
+  async addConclusion(cycleId: string, subjectId: string, text: string, authorId: string | null) {
+    const subject = await this.ensureSubject(cycleId, subjectId);
+    return this.prisma.cycle360Conclusion.create({
+      data: { subjectId: subject.id, text, authorId },
+    });
+  }
+
+  async updateConclusion(id: string, text: string) {
+    const exists = await this.prisma.cycle360Conclusion.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException('Conclusion not found');
+    return this.prisma.cycle360Conclusion.update({ where: { id }, data: { text } });
+  }
+
+  async deleteConclusion(id: string) {
+    const exists = await this.prisma.cycle360Conclusion.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException('Conclusion not found');
+    await this.prisma.cycle360Conclusion.delete({ where: { id } });
+    return { success: true };
+  }
+
+  private async ensureSubject(cycleId: string, subjectId: string) {
+    const subject = await this.prisma.cycle360Subject.findFirst({ where: { id: subjectId, cycleId } });
+    if (!subject) throw new NotFoundException('Subject not found');
+    return subject;
+  }
+}

@@ -171,3 +171,22 @@
 
 /* Icons */
 .icon { width: 18px; height: 18px; display: inline-block; vertical-align: middle; }
+
+/* Inline form error */
+.form-error { margin-bottom: 12px; padding: 8px 10px; background: var(--err-bg); border: 1px solid var(--err); border-radius: 6px; color: var(--err); font-size: 13px; }
+
+/* Оценка 360 — воркфлоу-дорожки */
+.wf-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.wf-lane { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--card-bg); }
+.wf-lane.done { border-color: var(--ok-green); background: var(--ok-green-bg); }
+.wf-lane-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.wf-lane-head b { font-size: 13px; }
+.wf-person { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; }
+.wf-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+.wf-dot.PENDING { background: var(--gpc-gray-300); }
+.wf-dot.IN_PROGRESS { background: #E0A106; }
+.wf-dot.COMPLETED { background: var(--ok-green); }
+.wf-flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.wf-flow .node { padding: 6px 12px; border-radius: 999px; background: var(--gpc-gray-100); color: var(--gpc-gray-600); font-size: 13px; font-weight: 600; }
+.wf-flow .node.active { background: var(--gpc-sky); color: var(--gpc-blue-800); }
+.wf-flow .arrow { color: var(--gpc-gray-400); }

@@ -28,6 +28,7 @@ const NAV: Record<UserRole, NavSection[]> = {
     ]},
     { group: 'Обучение и развитие', items: [
       { id: '/learn', label: 'Обучение', icon: 'graduation' },
+      { id: '/eval360', label: 'Мои оценки 360', icon: 'chart' },
       { id: '/appeals', label: 'Мои обращения', icon: 'chat', badge: 2 },
     ]},
   ],
@@ -37,6 +38,7 @@ const NAV: Record<UserRole, NavSection[]> = {
       { id: '/profile', label: 'Личный кабинет', icon: 'user' },
       { id: '/career', label: 'Карьера', icon: 'compass' },
       { id: '/culture', label: 'Корп. культура', icon: 'heart' },
+      { id: '/eval360', label: 'Мои оценки 360', icon: 'chart' },
     ]},
     { group: 'Управление', items: [
       { id: '/manager', label: 'Кабинет руководителя', icon: 'briefcase' },
@@ -47,11 +49,13 @@ const NAV: Record<UserRole, NavSection[]> = {
     { group: 'Основное', items: [
       { id: '/', label: 'Главная', icon: 'home' },
       { id: '/profile', label: 'Личный кабинет', icon: 'user' },
+      { id: '/eval360', label: 'Мои оценки 360', icon: 'chart' },
     ]},
     { group: 'HR', items: [
       { id: '/hr', label: 'Все сотрудники', icon: 'users' },
       { id: '/hr-vacancies', label: 'Отклики', icon: 'clipboard', badge: 7 },
       { id: '/hr-surveys', label: 'Опросы', icon: 'chart' },
+      { id: '/hr-eval360', label: 'Оценка 360', icon: 'compass' },
       { id: '/appeals', label: 'Обращения', icon: 'chat', badge: 5 },
     ]},
     { group: 'Организация', items: [
@@ -64,6 +68,7 @@ const NAV: Record<UserRole, NavSection[]> = {
       { id: '/admin/employees', label: 'Сотрудники', icon: 'users' },
       { id: '/admin/departments', label: 'Подразделения', icon: 'building' },
       { id: '/admin/positions', label: 'Должности', icon: 'briefcase' },
+      { id: '/hr-eval360', label: 'Оценка 360', icon: 'compass' },
       { id: '/admin/import', label: 'Импорт', icon: 'upload' },
     ]},
   ],
@@ -80,6 +85,8 @@ const NAV_LABELS: Record<string, string> = {
   '/hr': 'Все сотрудники',
   '/hr-vacancies': 'Отклики на вакансии',
   '/hr-surveys': 'Опросы и рассылки',
+  '/hr-eval360': 'Оценка 360',
+  '/eval360': 'Мои оценки 360',
   '/admin/employees': 'Сотрудники',
   '/admin/departments': 'Подразделения',
   '/admin/positions': 'Должности',
