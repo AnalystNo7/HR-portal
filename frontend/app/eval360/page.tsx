@@ -205,7 +205,7 @@ function MyResultDetail({ cycleId, sid, employeeId, onBack }: { cycleId: string;
       <button className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }} onClick={onBack}><Icon name="chevron_left" size={14} /> Назад</button>
       <div className="card card-pad">
         <table className="tbl">
-          <thead><tr><th>Компетенция</th><th>Само</th><th>Окруж.</th><th>Итоговая</th><th>Gap</th><th>Зона</th></tr></thead>
+          <thead><tr><th>Ценность/Компетенция</th><th>Само</th><th>Окруж.</th><th>Итоговая</th><th>Gap</th><th>Зона</th></tr></thead>
           <tbody>
             {groupByCategory(res.competencyResults).map(g => (
               <React.Fragment key={g.cat || '—'}>

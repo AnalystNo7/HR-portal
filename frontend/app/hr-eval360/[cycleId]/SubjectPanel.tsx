@@ -117,7 +117,7 @@ function ResultsView({ res }: { res: Results360 }) {
         </div>
       </div>
       <table className="tbl">
-        <thead><tr><th>Компетенция</th><th>Само</th><th>Рук.</th><th>Колл.</th><th>Подч.</th><th>Итоговая</th><th>Gap</th><th>Зона</th></tr></thead>
+        <thead><tr><th>Ценность/Компетенция</th><th>Само</th><th>Рук.</th><th>Колл.</th><th>Подч.</th><th>Итоговая</th><th>Gap</th><th>Зона</th></tr></thead>
         <tbody>
           {groupByCategory(res.competencyResults).map(g => (
             <React.Fragment key={g.cat || '—'}>

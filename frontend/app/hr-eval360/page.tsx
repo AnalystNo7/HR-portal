@@ -107,7 +107,7 @@ function CyclesTab() {
             {scales.map(s => <option key={s.id} value={s.id}>{s.name} ({s.points.length} баллов)</option>)}
           </select>
         </div>
-        <div className="field"><label className="small">Компетенции (можно скорректировать после создания)</label>
+        <div className="field"><label className="small">Ценности/Компетенции (можно скорректировать после создания)</label>
           <div className="stack-2" style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 8, padding: 10 }}>
             {comps.map(c => (
               <label key={c.id} className="row-2" style={{ alignItems: 'center', cursor: 'pointer' }}>
@@ -202,7 +202,7 @@ function TemplateTab() {
       <datalist id={CAT_LIST_ID}>{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
 
       <div className="card card-pad">
-        <div className="card-head"><b>Компетенции и индикаторы</b></div>
+        <div className="card-head"><b>Ценности/Компетенции</b></div>
         <div className="stack-3" style={{ marginTop: 12 }}>
           {groups.map(g => (
             <div key={g.cat || '—'} className="stack-2">
