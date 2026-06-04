@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Icon, Modal, useToast } from '@/components/primitives';
 import {
   get360Cycle, Cycle360Detail, Cycle360Status, Cycle360SubjectSummary,
@@ -24,13 +24,23 @@ function progressOf(s: Cycle360SubjectSummary) {
   return { done, total };
 }
 
-export default function Eval360CyclePage() {
+export default function Eval360CyclePageWrapper() {
+  return (
+    <Suspense fallback={<div className="card card-pad muted">Загрузка...</div>}>
+      <Eval360CyclePage />
+    </Suspense>
+  );
+}
+
+function Eval360CyclePage() {
   const { cycleId } = useParams<{ cycleId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const [cycle, setCycle] = useState<Cycle360Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(searchParams.get('edit') === '1');
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
@@ -51,8 +61,9 @@ export default function Eval360CyclePage() {
   if (!cycle) return <div className="card card-pad muted">Запуск не найден</div>;
 
   const isDraft = cycle.status === 'DRAFT';
-  const isClosed = cycle.status === 'CLOSED';
-  const canEdit = !isClosed;
+  const isActive = cycle.status === 'ACTIVE';
+  // Редактор доступен: в DRAFT всегда, в ACTIVE — только в режиме редактирования.
+  const showEditor = isDraft || (isActive && editMode);
 
   return (
     <div>
@@ -70,9 +81,17 @@ export default function Eval360CyclePage() {
           </div>
         </div>
         <div className="row-2">
-          {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => setEditOpen(true)}><Icon name="edit" size={14} /> Редактировать</button>}
-          {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => setDelOpen(true)}><Icon name="trash" size={14} /> Удалить</button>}
-          {isDraft && <button className="btn btn-primary" disabled={busy || cycle.subjects.length === 0} onClick={activate}>Запустить оценку</button>}
+          {isDraft && <>
+            <button className="btn btn-ghost btn-sm" onClick={() => setEditOpen(true)}><Icon name="edit" size={14} /> Редактировать</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setDelOpen(true)}><Icon name="trash" size={14} /> Удалить</button>
+            <button className="btn btn-primary" disabled={busy || cycle.subjects.length === 0} onClick={activate}>Запустить оценку</button>
+          </>}
+          {isActive && !editMode && <button className="btn btn-ghost btn-sm" onClick={() => setEditMode(true)}><Icon name="edit" size={14} /> Редактировать</button>}
+          {isActive && editMode && <>
+            <button className="btn btn-ghost btn-sm" onClick={() => setEditOpen(true)}><Icon name="edit" size={14} /> Изменить название</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setDelOpen(true)}><Icon name="trash" size={14} /> Удалить</button>
+            <button className="btn btn-primary btn-sm" onClick={() => setEditMode(false)}>Готово</button>
+          </>}
         </div>
       </div>
 
@@ -81,10 +100,10 @@ export default function Eval360CyclePage() {
         <div className="card" style={{ padding: 0 }}>
           <div className="card-head" style={{ padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <b>Сотрудники</b>
-            {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => setAddOpen(true)}><Icon name="plus" size={13} /> Добавить</button>}
+            {showEditor && <button className="btn btn-secondary btn-sm" onClick={() => setAddOpen(true)}><Icon name="plus" size={13} /> Добавить</button>}
           </div>
           <div>
-            {cycle.subjects.length === 0 && <div className="muted small" style={{ padding: 16 }}>Сотрудники не добавлены. {canEdit && 'Нажмите «Добавить».'}</div>}
+            {cycle.subjects.length === 0 && <div className="muted small" style={{ padding: 16 }}>Сотрудники не добавлены. {showEditor && 'Нажмите «Добавить».'}</div>}
             {cycle.subjects.map(s => {
               const p = progressOf(s);
               return (
@@ -108,7 +127,7 @@ export default function Eval360CyclePage() {
           {selected && isDraft && <DraftRespondentsEditor cycleId={cycleId} subjectId={selected} managerEditsPeers={cycle.subjects.find(s => s.id === selected)?.managerEditsPeers} onChange={load} />}
           {selected && !isDraft && <>
             <SubjectPanel cycleId={cycleId} subjectId={selected} onChange={load} />
-            {canEdit && <div style={{ marginTop: 16 }}><DraftRespondentsEditor cycleId={cycleId} subjectId={selected} managerEditsPeers={cycle.subjects.find(s => s.id === selected)?.managerEditsPeers} onChange={load} /></div>}
+            {isActive && editMode && <div style={{ marginTop: 16 }}><DraftRespondentsEditor cycleId={cycleId} subjectId={selected} managerEditsPeers={cycle.subjects.find(s => s.id === selected)?.managerEditsPeers} onChange={load} /></div>}
           </>}
         </div>
       </div>

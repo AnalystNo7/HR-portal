@@ -98,7 +98,7 @@ function CyclesTab() {
                 <td className="small muted">{new Date(c.createdAt).toLocaleDateString('ru-RU')}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   {c.status !== 'CLOSED' && <>
-                    <button className="btn btn-ghost btn-sm" title="Редактировать" onClick={e => { e.stopPropagation(); router.push(`/hr-eval360/${c.id}`); }}><Icon name="edit" size={14} /></button>
+                    <button className="btn btn-ghost btn-sm" title="Редактировать" onClick={e => { e.stopPropagation(); router.push(`/hr-eval360/${c.id}?edit=1`); }}><Icon name="edit" size={14} /></button>
                     <button className="btn btn-ghost btn-sm" title="Удалить" onClick={e => { e.stopPropagation(); setDelTarget({ id: c.id, name: c.name }); }}><Icon name="trash" size={14} /></button>
                   </>}
                 </td>
