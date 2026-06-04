@@ -40,6 +40,8 @@ export class RespondentService {
       status: r.status,
       cycle: r.subject.cycle,
       subject: { id: r.subject.employee.id, name: fio(r.subject.employee) },
+      subjectId: r.subject.id,
+      managerEditsPeers: r.subject.managerEditsPeers,
       isSelf: r.role === 'SELF',
     }));
   }
@@ -140,6 +142,63 @@ export class RespondentService {
 
     if (dto.submit) await this.refreshSubjectStatus(respondent.subjectId);
     return { success: true, submitted: !!dto.submit };
+  }
+
+  // ─── Управление коллегами (для руководителя) ───
+  async listPeers(subjectId: string, managerId: string) {
+    const subject = await this.prisma.cycle360Subject.findUnique({
+      where: { id: subjectId },
+      include: { cycle: { select: { status: true } } },
+    });
+    if (!subject) throw new NotFoundException('Subject not found');
+    if (!subject.managerEditsPeers) throw new ForbiddenException('Управление коллегами отключено');
+    const mgr = await this.prisma.cycle360Respondent.findFirst({
+      where: { subjectId, evaluatorId: managerId, role: 'MANAGER' },
+    });
+    if (!mgr) throw new ForbiddenException('Вы не являетесь руководителем этого сотрудника');
+    const peers = await this.prisma.cycle360Respondent.findMany({
+      where: { subjectId, role: 'PEER' },
+      include: { evaluator: { select: { id: true, firstName: true, lastName: true, middleName: true } } },
+    });
+    return peers.map(p => ({ id: p.id, evaluator: p.evaluator, name: fio(p.evaluator), status: p.status }));
+  }
+
+  async addPeer(subjectId: string, managerId: string, evaluatorId: string) {
+    const subject = await this.prisma.cycle360Subject.findUnique({
+      where: { id: subjectId },
+      include: { cycle: { select: { status: true } } },
+    });
+    if (!subject) throw new NotFoundException('Subject not found');
+    if (subject.cycle.status !== 'ACTIVE') throw new BadRequestException('Оценка не активна');
+    if (!subject.managerEditsPeers) throw new ForbiddenException('Управление коллегами отключено');
+    const mgr = await this.prisma.cycle360Respondent.findFirst({
+      where: { subjectId, evaluatorId: managerId, role: 'MANAGER' },
+    });
+    if (!mgr) throw new ForbiddenException('Вы не являетесь руководителем этого сотрудника');
+    const existing = await this.prisma.cycle360Respondent.findUnique({
+      where: { subjectId_evaluatorId_role: { subjectId, evaluatorId, role: 'PEER' } },
+    });
+    if (existing) throw new BadRequestException('Этот оценивающий уже добавлен');
+    return this.prisma.cycle360Respondent.create({
+      data: { subjectId, evaluatorId, role: 'PEER' },
+      include: { evaluator: { select: { id: true, firstName: true, lastName: true, middleName: true } } },
+    });
+  }
+
+  async removePeer(subjectId: string, managerId: string, respondentId: string) {
+    const respondent = await this.prisma.cycle360Respondent.findFirst({
+      where: { id: respondentId, subjectId, role: 'PEER' },
+      include: { subject: { include: { cycle: { select: { status: true } } } } },
+    });
+    if (!respondent) throw new NotFoundException('Respondent not found');
+    if (respondent.subject.cycle.status !== 'ACTIVE') throw new BadRequestException('Оценка не активна');
+    if (!respondent.subject.managerEditsPeers) throw new ForbiddenException('Управление коллегами отключено');
+    const mgr = await this.prisma.cycle360Respondent.findFirst({
+      where: { subjectId, evaluatorId: managerId, role: 'MANAGER' },
+    });
+    if (!mgr) throw new ForbiddenException('Вы не являетесь руководителем этого сотрудника');
+    await this.prisma.cycle360Respondent.delete({ where: { id: respondentId } });
+    return { success: true };
   }
 
   /** Если все оценивающие завершили — субъект COMPLETED. */

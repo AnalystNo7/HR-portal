@@ -443,6 +443,7 @@ export interface Cycle360ListItem {
   id: string; name: string; description: string | null; year: number | null; half: number | null; status: Cycle360Status;
   startedAt: string | null; closedAt: string | null; createdAt: string;
   _count: { subjects: number };
+  departments: string[];
 }
 
 export const halfLabel = (h: number | null) => h === 1 ? '1 полугодие' : h === 2 ? '2 полугодие' : '';
@@ -450,6 +451,7 @@ export const halfLabel = (h: number | null) => h === 1 ? '1 полугодие' 
 export interface Cycle360Competency { id: string; name: string; description: string | null; category: string; order: number; indicators: { id: string; text: string; order: number }[]; }
 export interface Cycle360SubjectSummary {
   id: string; status: SubjectStatus; resultsPublishedAt: string | null;
+  managerEditsPeers: boolean;
   employee: PersonRef;
   respondents: { id: string; role: EvaluatorRole; status: RespondentStatus }[];
 }
@@ -469,13 +471,15 @@ export interface WorkflowLane { role: EvaluatorRole; label: string; items: { id:
 export interface Workflow {
   subject: { id: string; employee: PersonRef; name: string; status: SubjectStatus };
   cycleStatus: Cycle360Status; stage: 'DRAFT' | 'IN_PROGRESS' | 'RESULTS';
-  published: boolean; lanes: WorkflowLane[];
+  published: boolean; managerEditsPeers: boolean; lanes: WorkflowLane[];
 }
 
 export interface Assignment {
   id: string; role: EvaluatorRole; roleLabel: string; status: RespondentStatus;
-  cycle: { id: string; name: string }; subject: { id: string; name: string }; isSelf: boolean;
+  cycle: { id: string; name: string }; subject: { id: string; name: string };
+  subjectId: string; managerEditsPeers: boolean; isSelf: boolean;
 }
+export interface PeerRespondent { id: string; evaluator: PersonRef; name: string; status: RespondentStatus; }
 export interface AssignmentForm {
   id: string; role: EvaluatorRole; roleLabel: string; status: RespondentStatus;
   cycle: { id: string; name: string }; subject: { id: string; name: string };
@@ -535,6 +539,7 @@ export const delete360Cycle = (id: string) => fetchApi<{ success: boolean }>(`/o
 export const update360CycleCompetency = (id: string, cid: string, dto: { name?: string; description?: string | null; order?: number }) => fetchApi<unknown>(`/oc360/cycles/${id}/competencies/${cid}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const update360CycleIndicator = (id: string, iid: string, dto: { text?: string; order?: number }) => fetchApi<unknown>(`/oc360/cycles/${id}/indicators/${iid}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const add360Subjects = (id: string, employeeIds: string[]) => fetchApi<Cycle360SubjectSummary[]>(`/oc360/cycles/${id}/subjects`, { method: 'POST', body: JSON.stringify({ employeeIds }) });
+export const update360Subject = (id: string, sid: string, dto: { managerEditsPeers?: boolean }) => fetchApi<unknown>(`/oc360/cycles/${id}/subjects/${sid}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const remove360Subject = (id: string, sid: string) => fetchApi<{ success: boolean }>(`/oc360/cycles/${id}/subjects/${sid}`, { method: 'DELETE' });
 export const get360Respondents = (id: string, sid: string) => fetchApi<RespondentLane[]>(`/oc360/cycles/${id}/subjects/${sid}/respondents`);
 export const add360Respondent = (id: string, sid: string, dto: { evaluatorId: string; role: EvaluatorRole }) => fetchApi<unknown>(`/oc360/cycles/${id}/subjects/${sid}/respondents`, { method: 'POST', body: JSON.stringify(dto) });
@@ -546,6 +551,9 @@ export const get360Workflow = (id: string, sid: string) => fetchApi<Workflow>(`/
 export const get360Assignments = (employeeId: string) => fetchApi<Assignment[]>(`/oc360/assignments?employeeId=${employeeId}`);
 export const get360Assignment = (respondentId: string, employeeId: string) => fetchApi<AssignmentForm>(`/oc360/assignments/${respondentId}?employeeId=${employeeId}`);
 export const submit360Assignment = (respondentId: string, dto: SubmitAssignmentDto) => fetchApi<{ success: boolean; submitted: boolean }>(`/oc360/assignments/${respondentId}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const listPeers = (subjectId: string, employeeId: string) => fetchApi<PeerRespondent[]>(`/oc360/assignments/peers/${subjectId}?employeeId=${employeeId}`);
+export const addPeer = (subjectId: string, dto: { evaluatorId: string; employeeId?: string }) => fetchApi<unknown>(`/oc360/assignments/peers/${subjectId}`, { method: 'POST', body: JSON.stringify(dto) });
+export const removePeer = (subjectId: string, respondentId: string, employeeId: string) => fetchApi<{ success: boolean }>(`/oc360/assignments/peers/${subjectId}/${respondentId}?employeeId=${employeeId}`, { method: 'DELETE' });
 
 // Results / publish / conclusions
 export const get360Results = (id: string, sid: string) => fetchApi<Results360>(`/oc360/cycles/${id}/subjects/${sid}/results`);

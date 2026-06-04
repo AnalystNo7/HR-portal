@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { BadRequestException } from '@nestjs/common';
 import { KeycloakAuthGuard } from '../../auth/auth.guard';
 import { RolesGuard, Roles } from '../../auth/roles.guard';
@@ -20,6 +20,27 @@ export class RespondentController {
     const id = await resolveCurrentEmployeeId(this.prisma, req, employeeId);
     if (!id) throw new BadRequestException('Не удалось определить текущего сотрудника');
     return this.respondentService.listMine(id);
+  }
+
+  @Get('peers/:subjectId')
+  async listPeers(@Req() req: any, @Param('subjectId') subjectId: string, @Query('employeeId') employeeId?: string) {
+    const id = await resolveCurrentEmployeeId(this.prisma, req, employeeId);
+    if (!id) throw new BadRequestException('Не удалось определить текущего сотрудника');
+    return this.respondentService.listPeers(subjectId, id);
+  }
+
+  @Post('peers/:subjectId')
+  async addPeer(@Req() req: any, @Param('subjectId') subjectId: string, @Body() dto: { evaluatorId: string; employeeId?: string }) {
+    const id = await resolveCurrentEmployeeId(this.prisma, req, dto.employeeId);
+    if (!id) throw new BadRequestException('Не удалось определить текущего сотрудника');
+    return this.respondentService.addPeer(subjectId, id, dto.evaluatorId);
+  }
+
+  @Delete('peers/:subjectId/:respondentId')
+  async removePeer(@Req() req: any, @Param('subjectId') subjectId: string, @Param('respondentId') respondentId: string, @Query('employeeId') employeeId?: string) {
+    const id = await resolveCurrentEmployeeId(this.prisma, req, employeeId);
+    if (!id) throw new BadRequestException('Не удалось определить текущего сотрудника');
+    return this.respondentService.removePeer(subjectId, id, respondentId);
   }
 
   @Get(':respondentId')

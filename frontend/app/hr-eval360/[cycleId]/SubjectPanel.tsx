@@ -86,8 +86,9 @@ function WorkflowView({ wf }: { wf: Workflow }) {
         <span className="arrow">→</span>
         <span className={`node ${wf.stage !== 'DRAFT' ? 'active' : ''}`}>Параллельная оценка</span>
         <span className="arrow">→</span>
-        <span className={`node ${wf.stage === 'RESULTS' ? 'active' : ''}`}>Результаты у HR</span>
-        {wf.published && <><span className="arrow">→</span><span className="node active">Опубликовано сотруднику</span></>}
+        <span className={`node ${wf.stage === 'RESULTS' ? 'active' : ''}`}>Обработка</span>
+        <span className="arrow">→</span>
+        <span className={`node ${wf.published ? 'active' : ''}`}>Оценка завершена</span>
       </div>
       <div className="wf-lanes">
         {wf.lanes.filter(l => l.total > 0).map(lane => (

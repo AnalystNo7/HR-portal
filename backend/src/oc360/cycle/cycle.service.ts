@@ -42,16 +42,23 @@ export class CycleService {
     const where: Prisma.Cycle360WhereInput = {};
     if (status) where.status = status;
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.cycle360.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
-        include: { _count: { select: { subjects: true } } },
+        include: {
+          _count: { select: { subjects: true } },
+          subjects: { select: { employee: { select: { department: { select: { name: true } } } } } },
+        },
       }),
       this.prisma.cycle360.count({ where }),
     ]);
+    const data = rows.map(({ subjects, ...rest }) => ({
+      ...rest,
+      departments: [...new Set(subjects.map(s => s.employee.department.name))],
+    }));
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
@@ -124,7 +131,7 @@ export class CycleService {
   }
 
   async update(id: string, dto: { name?: string; description?: string | null; year?: number; half?: number }) {
-    await this.ensureDraft(id);
+    await this.ensureNotClosed(id);
     return this.prisma.cycle360.update({
       where: { id },
       data: { name: dto.name, description: dto.description, year: dto.year, half: dto.half },
@@ -132,7 +139,7 @@ export class CycleService {
   }
 
   async delete(id: string) {
-    await this.ensureDraft(id);
+    await this.ensureNotClosed(id);
     await this.prisma.cycle360.delete({ where: { id } });
     return { success: true };
   }
@@ -161,7 +168,7 @@ export class CycleService {
 
   // ─── Субъекты + авто-подбор оценивающих ────────
   async addSubjects(id: string, employeeIds: string[]) {
-    await this.ensureDraft(id);
+    const cycleStatus = await this.ensureNotClosed(id);
     if (!employeeIds?.length) throw new BadRequestException('Не выбраны сотрудники');
 
     const created = [];
@@ -176,6 +183,7 @@ export class CycleService {
         data: {
           cycleId: id,
           employeeId,
+          status: cycleStatus === 'ACTIVE' ? 'IN_PROGRESS' : 'PENDING',
           respondents: { create: respondents.map(r => ({ evaluatorId: r.evaluatorId, role: r.role })) },
         },
         include: {
@@ -189,7 +197,7 @@ export class CycleService {
   }
 
   async removeSubject(id: string, subjectId: string) {
-    await this.ensureDraft(id);
+    await this.ensureNotClosed(id);
     const subject = await this.prisma.cycle360Subject.findFirst({ where: { id: subjectId, cycleId: id } });
     if (!subject) throw new NotFoundException('Subject not found');
     await this.prisma.cycle360Subject.delete({ where: { id: subjectId } });
@@ -246,7 +254,7 @@ export class CycleService {
   }
 
   async addRespondent(id: string, subjectId: string, dto: AddRespondentDto) {
-    await this.ensureDraft(id);
+    await this.ensureNotClosed(id);
     const subject = await this.prisma.cycle360Subject.findFirst({ where: { id: subjectId, cycleId: id } });
     if (!subject) throw new NotFoundException('Subject not found');
     const existing = await this.prisma.cycle360Respondent.findUnique({
@@ -260,7 +268,7 @@ export class CycleService {
   }
 
   async removeRespondent(id: string, respondentId: string) {
-    await this.ensureDraft(id);
+    await this.ensureNotClosed(id);
     const respondent = await this.prisma.cycle360Respondent.findFirst({
       where: { id: respondentId, subject: { cycleId: id } },
     });
@@ -325,8 +333,28 @@ export class CycleService {
       cycleStatus: subject.cycle.status,
       stage,
       published: subject.resultsPublishedAt != null,
+      managerEditsPeers: subject.managerEditsPeers,
       lanes,
     };
+  }
+
+  async updateSubject(cycleId: string, subjectId: string, dto: { managerEditsPeers?: boolean }) {
+    await this.ensureNotClosed(cycleId);
+    const subject = await this.prisma.cycle360Subject.findFirst({ where: { id: subjectId, cycleId } });
+    if (!subject) throw new NotFoundException('Subject not found');
+    return this.prisma.cycle360Subject.update({
+      where: { id: subjectId },
+      data: { managerEditsPeers: dto.managerEditsPeers },
+    });
+  }
+
+  private async ensureNotClosed(id: string) {
+    const cycle = await this.prisma.cycle360.findUnique({ where: { id }, select: { status: true } });
+    if (!cycle) throw new NotFoundException('Cycle not found');
+    if (cycle.status === 'CLOSED') {
+      throw new BadRequestException('Изменения невозможны в завершённом воркфлоу');
+    }
+    return cycle.status;
   }
 
   private async ensureDraft(id: string) {

@@ -6,7 +6,7 @@ import { Icon, Modal, useToast } from '@/components/primitives';
 import {
   get360Cycle, Cycle360Detail, Cycle360Status, Cycle360SubjectSummary,
   add360Subjects, remove360Subject, activate360Cycle,
-  update360Cycle, delete360Cycle, halfLabel,
+  update360Cycle, delete360Cycle, halfLabel, update360Subject,
   get360Respondents, RespondentLane, remove360Respondent, add360Respondent, EvaluatorRole,
   getEmployees, Employee,
 } from '@/lib/api';
@@ -51,6 +51,8 @@ export default function Eval360CyclePage() {
   if (!cycle) return <div className="card card-pad muted">Запуск не найден</div>;
 
   const isDraft = cycle.status === 'DRAFT';
+  const isClosed = cycle.status === 'CLOSED';
+  const canEdit = !isClosed;
 
   return (
     <div>
@@ -68,8 +70,8 @@ export default function Eval360CyclePage() {
           </div>
         </div>
         <div className="row-2">
-          {isDraft && <button className="btn btn-ghost btn-sm" onClick={() => setEditOpen(true)}><Icon name="edit" size={14} /> Редактировать</button>}
-          {isDraft && <button className="btn btn-ghost btn-sm" onClick={() => setDelOpen(true)}><Icon name="trash" size={14} /> Удалить</button>}
+          {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => setEditOpen(true)}><Icon name="edit" size={14} /> Редактировать</button>}
+          {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => setDelOpen(true)}><Icon name="trash" size={14} /> Удалить</button>}
           {isDraft && <button className="btn btn-primary" disabled={busy || cycle.subjects.length === 0} onClick={activate}>Запустить оценку</button>}
         </div>
       </div>
@@ -79,10 +81,10 @@ export default function Eval360CyclePage() {
         <div className="card" style={{ padding: 0 }}>
           <div className="card-head" style={{ padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <b>Сотрудники</b>
-            {isDraft && <button className="btn btn-secondary btn-sm" onClick={() => setAddOpen(true)}><Icon name="plus" size={13} /> Добавить</button>}
+            {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => setAddOpen(true)}><Icon name="plus" size={13} /> Добавить</button>}
           </div>
           <div>
-            {cycle.subjects.length === 0 && <div className="muted small" style={{ padding: 16 }}>Сотрудники не добавлены. {isDraft && 'Нажмите «Добавить».'}</div>}
+            {cycle.subjects.length === 0 && <div className="muted small" style={{ padding: 16 }}>Сотрудники не добавлены. {canEdit && 'Нажмите «Добавить».'}</div>}
             {cycle.subjects.map(s => {
               const p = progressOf(s);
               return (
@@ -103,8 +105,11 @@ export default function Eval360CyclePage() {
         {/* Детали выбранного сотрудника */}
         <div>
           {!selected && <div className="card card-pad muted">Выберите сотрудника слева, чтобы {isDraft ? 'настроить оценивающих' : 'увидеть воркфлоу и результаты'}.</div>}
-          {selected && isDraft && <DraftRespondentsEditor cycleId={cycleId} subjectId={selected} onChange={load} />}
-          {selected && !isDraft && <SubjectPanel cycleId={cycleId} subjectId={selected} onChange={load} />}
+          {selected && isDraft && <DraftRespondentsEditor cycleId={cycleId} subjectId={selected} managerEditsPeers={cycle.subjects.find(s => s.id === selected)?.managerEditsPeers} onChange={load} />}
+          {selected && !isDraft && <>
+            <SubjectPanel cycleId={cycleId} subjectId={selected} onChange={load} />
+            {canEdit && <div style={{ marginTop: 16 }}><DraftRespondentsEditor cycleId={cycleId} subjectId={selected} managerEditsPeers={cycle.subjects.find(s => s.id === selected)?.managerEditsPeers} onChange={load} /></div>}
+          </>}
         </div>
       </div>
 
@@ -161,8 +166,8 @@ function EditCycleModal({ cycle, onClose, onSaved }: { cycle: Cycle360Detail; on
   );
 }
 
-// ─── DRAFT: редактор оценивающих ───────────────────────
-function DraftRespondentsEditor({ cycleId, subjectId, onChange }: { cycleId: string; subjectId: string; onChange: () => void }) {
+// ─── Редактор оценивающих ─────────────────────────────
+function DraftRespondentsEditor({ cycleId, subjectId, managerEditsPeers, onChange }: { cycleId: string; subjectId: string; managerEditsPeers?: boolean; onChange: () => void }) {
   const toast = useToast();
   const [lanes, setLanes] = useState<RespondentLane[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,6 +180,10 @@ function DraftRespondentsEditor({ cycleId, subjectId, onChange }: { cycleId: str
   useEffect(() => { load(); }, [load]);
 
   const removeR = async (rid: string) => { await remove360Respondent(cycleId, rid); load(); };
+  const toggleManagerEdits = async (checked: boolean) => {
+    await update360Subject(cycleId, subjectId, { managerEditsPeers: checked });
+    onChange();
+  };
 
   if (loading) return <div className="card card-pad muted">Загрузка...</div>;
 
@@ -184,7 +193,15 @@ function DraftRespondentsEditor({ cycleId, subjectId, onChange }: { cycleId: str
       <div className="wf-lanes" style={{ marginTop: 12 }}>
         {lanes.map(lane => (
           <div key={lane.role} className="wf-lane">
-            <div className="wf-lane-head"><b>{lane.label}</b><span className="small muted">{lane.respondents.length}</span></div>
+            <div className="wf-lane-head">
+              <b>{lane.label}</b><span className="small muted">{lane.respondents.length}</span>
+              {lane.role === 'PEER' && managerEditsPeers !== undefined && (
+                <label className="row-2 small" style={{ alignItems: 'center', cursor: 'pointer', marginLeft: 'auto', fontWeight: 'normal' }}>
+                  <input type="checkbox" checked={managerEditsPeers} onChange={e => toggleManagerEdits(e.target.checked)} />
+                  Рук. редактирует
+                </label>
+              )}
+            </div>
             {lane.respondents.map(r => (
               <div key={r.id} className="wf-person">
                 <span>{r.name}</span>

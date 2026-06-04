@@ -72,6 +72,11 @@ export class CycleController {
     return this.cycleService.addSubjects(id, dto.employeeIds);
   }
 
+  @Put(':id/subjects/:sid')
+  updateSubject(@Param('id') id: string, @Param('sid') sid: string, @Body() dto: { managerEditsPeers?: boolean }) {
+    return this.cycleService.updateSubject(id, sid, dto);
+  }
+
   @Delete(':id/subjects/:sid')
   removeSubject(@Param('id') id: string, @Param('sid') sid: string) {
     return this.cycleService.removeSubject(id, sid);

@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Modal, useToast } from '@/components/primitives';
 import {
-  get360Cycles, create360Cycle, Cycle360ListItem, Cycle360Status, halfLabel,
+  get360Cycles, create360Cycle, delete360Cycle, Cycle360ListItem, Cycle360Status, halfLabel,
   get360Competencies, create360Competency, update360Competency, delete360Competency,
   add360Indicator, update360Indicator, delete360Indicator, CompetencyTpl,
   get360Scales, create360Scale, update360Scale, delete360Scale, ScaleTpl, ScalePoint,
@@ -44,6 +44,8 @@ function CyclesTab() {
   const [selectedComps, setSelectedComps] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [delTarget, setDelTarget] = useState<{ id: string; name: string } | null>(null);
+  const [delBusy, setDelBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,22 +85,41 @@ function CyclesTab() {
       </div>
       <div className="card" style={{ padding: 0 }}>
         <table className="tbl">
-          <thead><tr><th>Название</th><th>Период</th><th>Статус</th><th>Сотрудников</th><th>Создан</th></tr></thead>
+          <thead><tr><th>Название</th><th>Период</th><th>Подразделения</th><th>Статус</th><th>Сотрудников</th><th>Создан</th><th></th></tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Загрузка...</td></tr>}
+            {loading && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Загрузка...</td></tr>}
             {!loading && items.map(c => (
               <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => router.push(`/hr-eval360/${c.id}`)}>
                 <td><b>{c.name}</b>{c.description && <div className="small muted">{c.description}</div>}</td>
                 <td className="small muted">{c.year ? `${c.year}, ${halfLabel(c.half)}` : '—'}</td>
+                <td className="small muted">{c.departments?.length ? c.departments.join(', ') : '—'}</td>
                 <td><span className={`pill ${STATUS_PILL[c.status]}`}>{STATUS_LABEL[c.status]}</span></td>
                 <td>{c._count.subjects}</td>
                 <td className="small muted">{new Date(c.createdAt).toLocaleDateString('ru-RU')}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  {c.status !== 'CLOSED' && <>
+                    <button className="btn btn-ghost btn-sm" title="Редактировать" onClick={e => { e.stopPropagation(); router.push(`/hr-eval360/${c.id}`); }}><Icon name="edit" size={14} /></button>
+                    <button className="btn btn-ghost btn-sm" title="Удалить" onClick={e => { e.stopPropagation(); setDelTarget({ id: c.id, name: c.name }); }}><Icon name="trash" size={14} /></button>
+                  </>}
+                </td>
               </tr>
             ))}
-            {!loading && items.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Запусков пока нет</td></tr>}
+            {!loading && items.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--gpc-gray-500)' }}>Запусков пока нет</td></tr>}
           </tbody>
         </table>
       </div>
+
+      <Modal open={!!delTarget} onClose={() => setDelTarget(null)} title="Удаление воркфлоу" footer={
+        <><button className="btn btn-secondary" onClick={() => setDelTarget(null)}>Отмена</button>
+        <button className="btn btn-primary" style={{ background: 'var(--err)' }} disabled={delBusy} onClick={async () => {
+          if (!delTarget) return;
+          setDelBusy(true);
+          try { await delete360Cycle(delTarget.id); toast('Воркфлоу удалён'); setDelTarget(null); load(); }
+          catch (e) { toast((e as Error).message); } finally { setDelBusy(false); }
+        }}>Удалить</button></>
+      }>
+        <p>Удалить воркфлоу <b>{delTarget?.name}</b>? Действие необратимо, все данные оценки будут удалены.</p>
+      </Modal>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Новый запуск оценки 360" footer={
         <><button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Отмена</button><button className="btn btn-primary" onClick={handleCreate} disabled={saving}>{saving ? 'Создание...' : 'Создать'}</button></>

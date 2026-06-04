@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Icon, useToast } from '@/components/primitives';
+import { Icon, Modal, useToast } from '@/components/primitives';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   get360Assignments, Assignment, get360Assignment, AssignmentForm, submit360Assignment,
   get360MyResults, MySubject360, get360MyResult, Results360, RespondentStatus, EvaluatorRole, EvalZone,
+  listPeers, addPeer, removePeer, PeerRespondent, getEmployees, Employee,
 } from '@/lib/api';
 
 const ST_PILL: Record<RespondentStatus, string> = { PENDING: 'pill-gray', IN_PROGRESS: 'pill-yellow', COMPLETED: 'pill-green' };
@@ -32,6 +33,7 @@ function AssignmentsTab() {
   const [items, setItems] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<string | null>(null);
+  const [peersFor, setPeersFor] = useState<Assignment | null>(null);
 
   const load = useCallback(async () => {
     if (!employeeId) return;
@@ -41,6 +43,7 @@ function AssignmentsTab() {
   useEffect(() => { load(); }, [load]);
 
   if (active && employeeId) return <FillForm respondentId={active} employeeId={employeeId} onBack={() => { setActive(null); load(); }} />;
+  if (peersFor && employeeId) return <PeerEditor assignment={peersFor} employeeId={employeeId} onBack={() => setPeersFor(null)} />;
 
   if (loading) return <div className="card card-pad muted">Загрузка...</div>;
   if (items.length === 0) return <div className="card card-pad muted">Вам пока не назначено оценок.</div>;
@@ -48,17 +51,102 @@ function AssignmentsTab() {
   return (
     <div className="stack-2">
       {items.map(a => (
-        <div key={a.id} className="card card-pad" style={{ cursor: 'pointer' }} onClick={() => setActive(a.id)}>
-          <div className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+        <div key={a.id} className="card card-pad">
+          <div className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => setActive(a.id)}>
             <div>
               <b>{a.isSelf ? 'Самооценка' : `Оценка: ${a.subject.name}`}</b>
               <div className="small muted">{a.cycle.name} · {a.roleLabel}</div>
             </div>
             <span className={`pill ${ST_PILL[a.status]}`}>{ST_LABEL[a.status]}</span>
           </div>
+          {a.role === 'MANAGER' && a.managerEditsPeers && (
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => setPeersFor(a)}>
+              <Icon name="people" size={14} /> Управление оценивающими коллегами
+            </button>
+          )}
         </div>
       ))}
     </div>
+  );
+}
+
+// ─── Управление коллегами (для руководителя) ──────────
+const fio = (e: { lastName: string; firstName: string; middleName: string | null }) =>
+  [e.lastName, e.firstName, e.middleName].filter(Boolean).join(' ');
+
+function PeerEditor({ assignment, employeeId, onBack }: { assignment: Assignment; employeeId: string; onBack: () => void }) {
+  const toast = useToast();
+  const [peers, setPeers] = useState<PeerRespondent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [addOpen, setAddOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setPeers(await listPeers(assignment.subjectId, employeeId)); } catch (e) { toast((e as Error).message); } finally { setLoading(false); }
+  }, [assignment.subjectId, employeeId]);
+  useEffect(() => { load(); }, [load]);
+
+  const remove = async (rid: string) => {
+    try { await removePeer(assignment.subjectId, rid, employeeId); load(); } catch (e) { toast((e as Error).message); }
+  };
+
+  return (
+    <div>
+      <button className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }} onClick={onBack}><Icon name="chevron_left" size={14} /> Назад</button>
+      <div className="card card-pad">
+        <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <b>Оценивающие коллеги: {assignment.subject.name}</b>
+            <div className="small muted">{assignment.cycle.name}</div>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => setAddOpen(true)}><Icon name="plus" size={13} /> Добавить коллегу</button>
+        </div>
+        {loading && <div className="muted small" style={{ marginTop: 12 }}>Загрузка...</div>}
+        {!loading && peers.length === 0 && <div className="muted small" style={{ marginTop: 12 }}>Коллеги-оценивающие не назначены.</div>}
+        {!loading && peers.map(p => (
+          <div key={p.id} className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+            <div>
+              <span>{p.name}</span>
+              <span className={`pill ${ST_PILL[p.status]}`} style={{ marginLeft: 8 }}>{ST_LABEL[p.status]}</span>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={() => remove(p.id)}><Icon name="close" size={12} /></button>
+          </div>
+        ))}
+      </div>
+      {addOpen && <AddPeerModal subjectId={assignment.subjectId} employeeId={employeeId}
+        existing={peers.map(p => p.evaluator.id)}
+        onClose={() => setAddOpen(false)} onAdded={() => { setAddOpen(false); load(); toast('Коллега добавлен'); }} />}
+    </div>
+  );
+}
+
+function AddPeerModal({ subjectId, employeeId, existing, onClose, onAdded }: { subjectId: string; employeeId: string; existing: string[]; onClose: () => void; onAdded: () => void }) {
+  const toast = useToast();
+  const [all, setAll] = useState<Employee[]>([]);
+  const [search, setSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { getEmployees({ limit: 500 }).then(r => setAll(r.data)).catch(() => {}); }, []);
+
+  const list = all.filter(e => !existing.includes(e.id) && e.id !== employeeId && (!search || fio(e).toLowerCase().includes(search.toLowerCase())));
+
+  const select = async (id: string) => {
+    setSaving(true);
+    try { await addPeer(subjectId, { evaluatorId: id, employeeId }); onAdded(); } catch (e) { toast((e as Error).message); } finally { setSaving(false); }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="Добавить коллегу-оценивающего">
+      <input className="inp" placeholder="Поиск..." value={search} onChange={e => setSearch(e.target.value)} autoFocus style={{ marginBottom: 12 }} />
+      <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+        {list.map(e => (
+          <div key={e.id} className="item-row" style={{ padding: 8, cursor: 'pointer', borderBottom: '1px solid var(--line)' }} onClick={() => !saving && select(e.id)}>
+            {fio(e)} <span className="small muted">· {e.department?.name}</span>
+          </div>
+        ))}
+        {list.length === 0 && <div className="muted small" style={{ padding: 12 }}>Нет подходящих сотрудников.</div>}
+      </div>
+    </Modal>
   );
 }
 
