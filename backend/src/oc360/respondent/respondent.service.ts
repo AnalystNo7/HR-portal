@@ -10,7 +10,7 @@ export interface SubmitDto {
 
 const ROLE_LABELS: Record<string, string> = {
   SELF: 'Самооценка',
-  MANAGER: 'Оценка как руководитель',
+  MANAGER: 'Оценить подчиненного',
   SUBORDINATE: 'Оценка руководителя',
   PEER: 'Оценка коллеги',
 };

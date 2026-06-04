@@ -71,7 +71,7 @@ function AssignmentsTab() {
           </div>
           {needsPeerConfirm(a) && (
             <div className="small muted" style={{ marginTop: 8 }}>
-              <Icon name="people" size={13} /> Утвердите список оценивающих коллег, чтобы начать оценку
+              <Icon name="people" size={13} /> Утвердите список коллег, оценивающих {a.subject.name}
             </div>
           )}
         </div>
