@@ -162,10 +162,20 @@ export class ResultsService {
   // ─── Публикация ────────────────────────────────
   async publish(cycleId: string, subjectId: string) {
     const subject = await this.ensureSubject(cycleId, subjectId);
-    return this.prisma.cycle360Subject.update({
+    const updated = await this.prisma.cycle360Subject.update({
       where: { id: subject.id },
       data: { resultsPublishedAt: new Date(), status: 'PUBLISHED' },
     });
+    const unpublished = await this.prisma.cycle360Subject.count({
+      where: { cycleId, status: { not: 'PUBLISHED' } },
+    });
+    if (unpublished === 0) {
+      await this.prisma.cycle360.update({
+        where: { id: cycleId },
+        data: { status: 'CLOSED', closedAt: new Date() },
+      });
+    }
+    return updated;
   }
 
   async unpublish(cycleId: string, subjectId: string) {
@@ -174,10 +184,20 @@ export class ResultsService {
       where: { subjectId: subject.id }, select: { status: true },
     });
     const allDone = respondents.length > 0 && respondents.every(r => r.status === 'COMPLETED');
-    return this.prisma.cycle360Subject.update({
+    const updated = await this.prisma.cycle360Subject.update({
       where: { id: subject.id },
       data: { resultsPublishedAt: null, status: allDone ? 'COMPLETED' : 'IN_PROGRESS' },
     });
+    const cycle = await this.prisma.cycle360.findUnique({
+      where: { id: cycleId }, select: { status: true },
+    });
+    if (cycle?.status === 'CLOSED') {
+      await this.prisma.cycle360.update({
+        where: { id: cycleId },
+        data: { status: 'ACTIVE', closedAt: null },
+      });
+    }
+    return updated;
   }
 
   // ─── Выводы HR ─────────────────────────────────

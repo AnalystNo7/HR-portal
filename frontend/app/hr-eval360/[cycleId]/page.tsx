@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Icon, Modal, useToast } from '@/components/primitives';
 import {
   get360Cycle, Cycle360Detail, Cycle360Status, Cycle360SubjectSummary,
-  add360Subjects, remove360Subject, activate360Cycle, close360Cycle,
+  add360Subjects, remove360Subject, activate360Cycle,
   update360Cycle, delete360Cycle, halfLabel,
   get360Respondents, RespondentLane, remove360Respondent, add360Respondent, EvaluatorRole,
   getEmployees, Employee,
@@ -47,12 +47,6 @@ export default function Eval360CyclePage() {
     try { await activate360Cycle(cycleId); toast('Оценка запущена'); load(); }
     catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
-  const close = async () => {
-    setBusy(true);
-    try { await close360Cycle(cycleId); toast('Запуск завершён'); load(); }
-    catch (e) { toast((e as Error).message); } finally { setBusy(false); }
-  };
-
   if (loading) return <div className="card card-pad muted">Загрузка...</div>;
   if (!cycle) return <div className="card card-pad muted">Запуск не найден</div>;
 
@@ -77,7 +71,6 @@ export default function Eval360CyclePage() {
           {isDraft && <button className="btn btn-ghost btn-sm" onClick={() => setEditOpen(true)}><Icon name="edit" size={14} /> Редактировать</button>}
           {isDraft && <button className="btn btn-ghost btn-sm" onClick={() => setDelOpen(true)}><Icon name="trash" size={14} /> Удалить</button>}
           {isDraft && <button className="btn btn-primary" disabled={busy || cycle.subjects.length === 0} onClick={activate}>Запустить оценку</button>}
-          {cycle.status === 'ACTIVE' && <button className="btn btn-secondary" disabled={busy} onClick={close}>Завершить запуск</button>}
         </div>
       </div>
 

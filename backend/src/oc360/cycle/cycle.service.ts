@@ -292,16 +292,6 @@ export class CycleService {
     return this.findById(id);
   }
 
-  async close(id: string) {
-    const cycle = await this.prisma.cycle360.findUnique({ where: { id } });
-    if (!cycle) throw new NotFoundException('Cycle not found');
-    if (cycle.status === 'CLOSED') throw new BadRequestException('Запуск уже закрыт');
-    return this.prisma.cycle360.update({
-      where: { id },
-      data: { status: 'CLOSED', closedAt: new Date() },
-    });
-  }
-
   // ─── Поимённая визуализация воркфлоу (HR/admin) ─
   async workflow(id: string, subjectId: string) {
     const subject = await this.prisma.cycle360Subject.findFirst({

@@ -97,11 +97,6 @@ export class CycleController {
     return this.cycleService.activate(id);
   }
 
-  @Post(':id/close')
-  close(@Param('id') id: string) {
-    return this.cycleService.close(id);
-  }
-
   @Get(':id/subjects/:sid/workflow')
   workflow(@Param('id') id: string, @Param('sid') sid: string) {
     return this.cycleService.workflow(id, sid);

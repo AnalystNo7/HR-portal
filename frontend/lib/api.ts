@@ -540,7 +540,6 @@ export const get360Respondents = (id: string, sid: string) => fetchApi<Responden
 export const add360Respondent = (id: string, sid: string, dto: { evaluatorId: string; role: EvaluatorRole }) => fetchApi<unknown>(`/oc360/cycles/${id}/subjects/${sid}/respondents`, { method: 'POST', body: JSON.stringify(dto) });
 export const remove360Respondent = (id: string, rid: string) => fetchApi<{ success: boolean }>(`/oc360/cycles/${id}/respondents/${rid}`, { method: 'DELETE' });
 export const activate360Cycle = (id: string) => fetchApi<Cycle360Detail>(`/oc360/cycles/${id}/activate`, { method: 'POST' });
-export const close360Cycle = (id: string) => fetchApi<unknown>(`/oc360/cycles/${id}/close`, { method: 'POST' });
 export const get360Workflow = (id: string, sid: string) => fetchApi<Workflow>(`/oc360/cycles/${id}/subjects/${sid}/workflow`);
 
 // Assignments (заполнение)
