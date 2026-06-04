@@ -33,17 +33,21 @@ export class RespondentService {
       },
       orderBy: { createdAt: 'asc' },
     });
-    return rows.map(r => ({
-      id: r.id,
-      role: r.role,
-      roleLabel: ROLE_LABELS[r.role],
-      status: r.status,
-      cycle: r.subject.cycle,
-      subject: { id: r.subject.employee.id, name: fio(r.subject.employee) },
-      subjectId: r.subject.id,
-      managerEditsPeers: r.subject.managerEditsPeers,
-      isSelf: r.role === 'SELF',
-    }));
+    return rows
+      // PEER-назначения скрыты, пока руководитель не утвердил список коллег.
+      .filter(r => r.role !== 'PEER' || !r.subject.managerEditsPeers || r.subject.peersConfirmed)
+      .map(r => ({
+        id: r.id,
+        role: r.role,
+        roleLabel: ROLE_LABELS[r.role],
+        status: r.status,
+        cycle: r.subject.cycle,
+        subject: { id: r.subject.employee.id, name: fio(r.subject.employee) },
+        subjectId: r.subject.id,
+        managerEditsPeers: r.subject.managerEditsPeers,
+        peersConfirmed: r.subject.peersConfirmed,
+        isSelf: r.role === 'SELF',
+      }));
   }
 
   /** Форма для заполнения. Доступ: владелец (evaluator) или HR/admin. */
@@ -198,6 +202,26 @@ export class RespondentService {
     });
     if (!mgr) throw new ForbiddenException('Вы не являетесь руководителем этого сотрудника');
     await this.prisma.cycle360Respondent.delete({ where: { id: respondentId } });
+    return { success: true };
+  }
+
+  /** Руководитель утверждает список коллег — после этого PEER-назначения становятся видимыми. */
+  async confirmPeers(subjectId: string, managerId: string) {
+    const subject = await this.prisma.cycle360Subject.findUnique({
+      where: { id: subjectId },
+      include: { cycle: { select: { status: true } } },
+    });
+    if (!subject) throw new NotFoundException('Subject not found');
+    if (subject.cycle.status !== 'ACTIVE') throw new BadRequestException('Оценка не активна');
+    if (!subject.managerEditsPeers) throw new ForbiddenException('Управление коллегами отключено');
+    const mgr = await this.prisma.cycle360Respondent.findFirst({
+      where: { subjectId, evaluatorId: managerId, role: 'MANAGER' },
+    });
+    if (!mgr) throw new ForbiddenException('Вы не являетесь руководителем этого сотрудника');
+    await this.prisma.cycle360Subject.update({
+      where: { id: subjectId },
+      data: { peersConfirmed: true },
+    });
     return { success: true };
   }
 

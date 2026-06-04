@@ -477,7 +477,7 @@ export interface Workflow {
 export interface Assignment {
   id: string; role: EvaluatorRole; roleLabel: string; status: RespondentStatus;
   cycle: { id: string; name: string }; subject: { id: string; name: string };
-  subjectId: string; managerEditsPeers: boolean; isSelf: boolean;
+  subjectId: string; managerEditsPeers: boolean; peersConfirmed: boolean; isSelf: boolean;
 }
 export interface PeerRespondent { id: string; evaluator: PersonRef; name: string; status: RespondentStatus; }
 export interface AssignmentForm {
@@ -554,6 +554,7 @@ export const submit360Assignment = (respondentId: string, dto: SubmitAssignmentD
 export const listPeers = (subjectId: string, employeeId: string) => fetchApi<PeerRespondent[]>(`/oc360/assignments/peers/${subjectId}?employeeId=${employeeId}`);
 export const addPeer = (subjectId: string, dto: { evaluatorId: string; employeeId?: string }) => fetchApi<unknown>(`/oc360/assignments/peers/${subjectId}`, { method: 'POST', body: JSON.stringify(dto) });
 export const removePeer = (subjectId: string, respondentId: string, employeeId: string) => fetchApi<{ success: boolean }>(`/oc360/assignments/peers/${subjectId}/${respondentId}?employeeId=${employeeId}`, { method: 'DELETE' });
+export const confirmPeers = (subjectId: string, employeeId: string) => fetchApi<{ success: boolean }>(`/oc360/assignments/peers/${subjectId}/confirm`, { method: 'POST', body: JSON.stringify({ employeeId }) });
 
 // Results / publish / conclusions
 export const get360Results = (id: string, sid: string) => fetchApi<Results360>(`/oc360/cycles/${id}/subjects/${sid}/results`);

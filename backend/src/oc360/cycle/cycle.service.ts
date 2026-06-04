@@ -296,6 +296,10 @@ export class CycleService {
         where: { cycleId: id },
         data: { status: 'IN_PROGRESS' },
       }),
+      this.prisma.cycle360Subject.updateMany({
+        where: { cycleId: id, managerEditsPeers: false },
+        data: { peersConfirmed: true },
+      }),
     ]);
     return this.findById(id);
   }

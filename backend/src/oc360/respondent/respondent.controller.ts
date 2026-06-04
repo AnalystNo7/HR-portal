@@ -36,6 +36,13 @@ export class RespondentController {
     return this.respondentService.addPeer(subjectId, id, dto.evaluatorId);
   }
 
+  @Post('peers/:subjectId/confirm')
+  async confirmPeers(@Req() req: any, @Param('subjectId') subjectId: string, @Body() dto: { employeeId?: string }) {
+    const id = await resolveCurrentEmployeeId(this.prisma, req, dto.employeeId);
+    if (!id) throw new BadRequestException('Не удалось определить текущего сотрудника');
+    return this.respondentService.confirmPeers(subjectId, id);
+  }
+
   @Delete('peers/:subjectId/:respondentId')
   async removePeer(@Req() req: any, @Param('subjectId') subjectId: string, @Param('respondentId') respondentId: string, @Query('employeeId') employeeId?: string) {
     const id = await resolveCurrentEmployeeId(this.prisma, req, employeeId);

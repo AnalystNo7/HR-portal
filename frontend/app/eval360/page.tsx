@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   get360Assignments, Assignment, get360Assignment, AssignmentForm, submit360Assignment,
   get360MyResults, MySubject360, get360MyResult, Results360, RespondentStatus, EvaluatorRole, EvalZone,
-  listPeers, addPeer, removePeer, PeerRespondent, getEmployees, Employee,
+  listPeers, addPeer, removePeer, confirmPeers, PeerRespondent, getEmployees, Employee,
 } from '@/lib/api';
 
 const ST_PILL: Record<RespondentStatus, string> = { PENDING: 'pill-gray', IN_PROGRESS: 'pill-yellow', COMPLETED: 'pill-green' };
@@ -42,8 +42,18 @@ function AssignmentsTab() {
   }, [employeeId]);
   useEffect(() => { load(); }, [load]);
 
+  // Руководитель сначала утверждает список коллег — до этого открывается редактор, после — форма оценки.
+  const needsPeerConfirm = (a: Assignment) => a.role === 'MANAGER' && a.managerEditsPeers && !a.peersConfirmed;
+  const openAssignment = (a: Assignment) => { if (needsPeerConfirm(a)) setPeersFor(a); else setActive(a.id); };
+
   if (active && employeeId) return <FillForm respondentId={active} employeeId={employeeId} onBack={() => { setActive(null); load(); }} />;
-  if (peersFor && employeeId) return <PeerEditor assignment={peersFor} employeeId={employeeId} onBack={() => setPeersFor(null)} />;
+  if (peersFor && employeeId) return (
+    <PeerEditor
+      assignment={peersFor} employeeId={employeeId}
+      onBack={() => { setPeersFor(null); load(); }}
+      onConfirmAndEvaluate={() => { const id = peersFor.id; setPeersFor(null); load(); setActive(id); }}
+    />
+  );
 
   if (loading) return <div className="card card-pad muted">Загрузка...</div>;
   if (items.length === 0) return <div className="card card-pad muted">Вам пока не назначено оценок.</div>;
@@ -51,18 +61,18 @@ function AssignmentsTab() {
   return (
     <div className="stack-2">
       {items.map(a => (
-        <div key={a.id} className="card card-pad">
-          <div className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => setActive(a.id)}>
+        <div key={a.id} className="card card-pad" style={{ cursor: 'pointer' }} onClick={() => openAssignment(a)}>
+          <div className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <b>{a.isSelf ? 'Самооценка' : `Оценка: ${a.subject.name}`}</b>
               <div className="small muted">{a.cycle.name} · {a.roleLabel}</div>
             </div>
             <span className={`pill ${ST_PILL[a.status]}`}>{ST_LABEL[a.status]}</span>
           </div>
-          {a.role === 'MANAGER' && a.managerEditsPeers && (
-            <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => setPeersFor(a)}>
-              <Icon name="people" size={14} /> Управление оценивающими коллегами
-            </button>
+          {needsPeerConfirm(a) && (
+            <div className="small muted" style={{ marginTop: 8 }}>
+              <Icon name="people" size={13} /> Утвердите список оценивающих коллег, чтобы начать оценку
+            </div>
           )}
         </div>
       ))}
@@ -74,11 +84,12 @@ function AssignmentsTab() {
 const fio = (e: { lastName: string; firstName: string; middleName: string | null }) =>
   [e.lastName, e.firstName, e.middleName].filter(Boolean).join(' ');
 
-function PeerEditor({ assignment, employeeId, onBack }: { assignment: Assignment; employeeId: string; onBack: () => void }) {
+function PeerEditor({ assignment, employeeId, onBack, onConfirmAndEvaluate }: { assignment: Assignment; employeeId: string; onBack: () => void; onConfirmAndEvaluate: () => void }) {
   const toast = useToast();
   const [peers, setPeers] = useState<PeerRespondent[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,6 +99,12 @@ function PeerEditor({ assignment, employeeId, onBack }: { assignment: Assignment
 
   const remove = async (rid: string) => {
     try { await removePeer(assignment.subjectId, rid, employeeId); load(); } catch (e) { toast((e as Error).message); }
+  };
+
+  // Утверждение делает PEER-назначения видимыми оценивающим. then: куда перейти после сохранения.
+  const confirm = async (then: () => void) => {
+    setSaving(true);
+    try { await confirmPeers(assignment.subjectId, employeeId); then(); } catch (e) { toast((e as Error).message); } finally { setSaving(false); }
   };
 
   return (
@@ -112,6 +129,11 @@ function PeerEditor({ assignment, employeeId, onBack }: { assignment: Assignment
             <button className="btn btn-ghost btn-sm" onClick={() => remove(p.id)}><Icon name="close" size={12} /></button>
           </div>
         ))}
+        <div className="small muted" style={{ marginTop: 12 }}>После сохранения коллеги получат свои задания на оценку.</div>
+        <div className="row-2" style={{ marginTop: 12 }}>
+          <button className="btn btn-secondary" disabled={saving} onClick={() => confirm(() => { toast('Список коллег сохранён'); onBack(); })}>Сохранить</button>
+          <button className="btn btn-primary" disabled={saving} onClick={() => confirm(onConfirmAndEvaluate)}>Перейти к оценке</button>
+        </div>
       </div>
       {addOpen && <AddPeerModal subjectId={assignment.subjectId} employeeId={employeeId}
         existing={peers.map(p => p.evaluator.id)}

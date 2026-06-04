@@ -288,6 +288,7 @@ model Cycle360Subject {
   status             SubjectStatus        @default(PENDING)
   resultsPublishedAt DateTime?            @map("results_published_at")
   managerEditsPeers  Boolean              @default(true) @map("manager_edits_peers")
+  peersConfirmed     Boolean              @default(false) @map("peers_confirmed")
   respondents        Cycle360Respondent[]
   conclusions        Cycle360Conclusion[]
   createdAt          DateTime             @default(now()) @map("created_at")
