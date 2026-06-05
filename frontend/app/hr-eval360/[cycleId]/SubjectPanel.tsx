@@ -84,7 +84,7 @@ function WorkflowView({ wf }: { wf: Workflow }) {
       <div className="wf-flow">
         <span className="node active">Оценка запущена</span>
         <span className="arrow">→</span>
-        <span className={`node ${wf.stage !== 'DRAFT' ? 'active' : ''}`}>Параллельная оценка</span>
+        <span className={`node ${wf.stage !== 'DRAFT' ? 'active' : ''}`}>Оценка</span>
         <span className="arrow">→</span>
         <span className={`node ${wf.stage === 'RESULTS' ? 'active' : ''}`}>Обработка</span>
         <span className="arrow">→</span>
