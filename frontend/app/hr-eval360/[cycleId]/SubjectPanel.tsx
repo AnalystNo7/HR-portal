@@ -28,7 +28,7 @@ function groupByCategory<T extends { category: string }>(items: T[]): { cat: str
 
 export function SubjectPanel({ cycleId, subjectId, onChange }: { cycleId: string; subjectId: string; onChange: () => void }) {
   const toast = useToast();
-  const [tab, setTab] = useState<'workflow' | 'results' | 'open' | 'conclusions'>('workflow');
+  const [tab, setTab] = useState<'workflow' | 'results' | 'conclusions'>('workflow');
   const [wf, setWf] = useState<Workflow | null>(null);
   const [res, setRes] = useState<Results360 | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,13 +66,11 @@ export function SubjectPanel({ cycleId, subjectId, onChange }: { cycleId: string
       <div className="tabs" style={{ margin: '12px 0' }}>
         <button aria-selected={tab === 'workflow'} onClick={() => setTab('workflow')}>Воркфлоу</button>
         <button aria-selected={tab === 'results'} onClick={() => setTab('results')}>Результаты</button>
-        <button aria-selected={tab === 'open'} onClick={() => setTab('open')}>Открытые ответы</button>
-        <button aria-selected={tab === 'conclusions'} onClick={() => setTab('conclusions')}>Выводы HR</button>
+        <button aria-selected={tab === 'conclusions'} onClick={() => setTab('conclusions')}>Выводы</button>
       </div>
 
       {tab === 'workflow' && <WorkflowView wf={wf} />}
       {tab === 'results' && <ResultsView res={res} />}
-      {tab === 'open' && <OpenAnswersView res={res} />}
       {tab === 'conclusions' && <ConclusionsView cycleId={cycleId} subjectId={subjectId} res={res} reload={load} />}
     </div>
   );
@@ -140,6 +138,10 @@ function ResultsView({ res }: { res: Results360 }) {
         </tbody>
       </table>
       <div className="small muted" style={{ marginTop: 8 }}>Шкала: {res.scalePoints.map(p => `${p.value} — ${p.label}`).join(' · ')}</div>
+      <div style={{ marginTop: 20 }}>
+        <b style={{ fontSize: 15 }}>Открытые ответы</b>
+        <div style={{ marginTop: 8 }}><OpenAnswersView res={res} /></div>
+      </div>
     </div>
   );
 }
