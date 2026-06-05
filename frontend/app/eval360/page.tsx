@@ -191,6 +191,7 @@ function FillForm({ respondentId, employeeId, onBack }: { respondentId: string; 
   const allIndicators = form.competencies.flatMap(c => c.indicators);
   const answered = allIndicators.filter(i => scores[i.id] != null).length;
   const complete = answered === allIndicators.length;
+  const readonly = form.status === 'COMPLETED';
 
   const save = async (submit: boolean) => {
     if (submit && !complete) { toast('Оцените все индикаторы перед отправкой'); return; }
@@ -224,11 +225,11 @@ function FillForm({ respondentId, employeeId, onBack }: { respondentId: string; 
               {c.indicators.map(i => (
                 <div key={i.id}>
                   <div style={{ marginBottom: 6 }}>{i.text}</div>
-                  <div className="row-2" style={{ flexWrap: 'wrap', gap: 6 }}>
+                  <div className="row-2" style={{ flexWrap: 'wrap', gap: 6, ...(readonly ? { pointerEvents: 'none' as const, opacity: 0.6 } : {}) }}>
                     {form.scalePoints.map(p => (
                       <button key={p.value}
                         className={`btn btn-sm ${scores[i.id] === p.value ? 'btn-primary' : 'btn-secondary'}`}
-                        onClick={() => setScores(s => ({ ...s, [i.id]: p.value }))}
+                        onClick={() => !readonly && setScores(s => ({ ...s, [i.id]: p.value }))}
                         title={p.label}>
                         {p.value}
                       </button>
@@ -244,14 +245,14 @@ function FillForm({ respondentId, employeeId, onBack }: { respondentId: string; 
         ))}
 
         <div className="card card-pad stack-3">
-          <div className="field"><label className="small">Сильные стороны</label><textarea className="ta" rows={2} value={open.strengths} onChange={e => setOpen(o => ({ ...o, strengths: e.target.value }))} /></div>
-          <div className="field"><label className="small">Что стоит изменить</label><textarea className="ta" rows={2} value={open.toChange} onChange={e => setOpen(o => ({ ...o, toChange: e.target.value }))} /></div>
-          <div className="field"><label className="small">Что развивать</label><textarea className="ta" rows={2} value={open.toDevelop} onChange={e => setOpen(o => ({ ...o, toDevelop: e.target.value }))} /></div>
+          <div className="field"><label className="small">Сильные стороны</label><textarea className="ta" rows={2} value={open.strengths} onChange={e => setOpen(o => ({ ...o, strengths: e.target.value }))} disabled={readonly} /></div>
+          <div className="field"><label className="small">Что стоит изменить</label><textarea className="ta" rows={2} value={open.toChange} onChange={e => setOpen(o => ({ ...o, toChange: e.target.value }))} disabled={readonly} /></div>
+          <div className="field"><label className="small">Что развивать</label><textarea className="ta" rows={2} value={open.toDevelop} onChange={e => setOpen(o => ({ ...o, toDevelop: e.target.value }))} disabled={readonly} /></div>
         </div>
 
         <div className="row-2">
-          <button className="btn btn-secondary" disabled={saving} onClick={() => save(false)}>Сохранить черновик</button>
-          <button className="btn btn-primary" disabled={saving || !complete} onClick={() => save(true)}>Отправить оценку</button>
+          <button className="btn btn-secondary" disabled={saving || readonly} onClick={() => save(false)}>Сохранить черновик</button>
+          <button className="btn btn-primary" disabled={saving || !complete || readonly} onClick={() => save(true)}>Отправить оценку</button>
         </div>
       </div>
     </div>
