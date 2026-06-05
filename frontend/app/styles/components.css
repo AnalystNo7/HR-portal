@@ -99,6 +99,7 @@
 .modal { background: #fff; border-radius: var(--r-lg); box-shadow: var(--shadow-modal); max-width: 560px; width: 100%; max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
 .modal.lg { max-width: 720px; }
 .modal.xl { max-width: 980px; }
+.modal.full { max-width: calc(100vw - 48px); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--line); }
 .modal-head h2 { font-family: var(--font-head); font-size: 20px; }
 .modal-body { padding: 24px; overflow-y: auto; flex: 1 1 auto; }

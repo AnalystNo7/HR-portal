@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Icon, useToast } from '@/components/primitives';
+import { Icon, Modal, useToast } from '@/components/primitives';
 import {
   get360Workflow, Workflow, get360Results, Results360,
   publish360, unpublish360, add360Conclusion, update360Conclusion, delete360Conclusion,
@@ -198,6 +198,7 @@ function scaleColor(v: number | null): string {
 
 function DashboardView({ res }: { res: Results360 }) {
   const [active, setActive] = useState<Set<SeriesKey>>(new Set<SeriesKey>(['total']));
+  const [expanded, setExpanded] = useState<number | null>(null);
   const toggle = (k: SeriesKey) => setActive(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   const vals = res.scalePoints.map(p => p.value);
@@ -210,43 +211,52 @@ function DashboardView({ res }: { res: Results360 }) {
     return ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : null;
   };
 
+  const renderChart = (g: { items: CompetencyResult[] }, size?: number) => {
+    const series = SERIES.filter(s => active.has(s.key)).map(s => ({
+      label: s.label, color: s.color, values: g.items.map(c => c[s.key]),
+    }));
+    const axes = g.items.map(c => ({ label: c.name, value: c.total }));
+    return <RadarChart axes={axes} series={series} min={min} max={max} size={size} />;
+  };
+
+  const picker = (
+    <div className="card card-pad" style={{ flex: '0 0 auto' }}>
+      <b>Оценка</b>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 10 }}>
+        {SERIES.map(s => {
+          const dis = !hasData(s.key);
+          return (
+            <label key={s.key} className="chk" style={{ opacity: dis ? 0.4 : 1 }}>
+              <input type="checkbox" checked={active.has(s.key)} disabled={dis} onChange={() => toggle(s.key)} />
+              <span style={{ width: 12, height: 12, borderRadius: 3, background: s.color, flex: '0 0 12px' }} />
+              <span>{s.label}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const scaleLegend = (
+    <div className="card card-pad">
+      <b>Шкала оценок</b>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 10 }}>
+        {SCALE.map(s => (
+          <div key={s.label} className="row-2" style={{ alignItems: 'flex-start', gap: 8 }}>
+            <span className={`pill ${s.cls}`} style={{ flex: '0 0 auto' }}>{s.label}</span>
+            <span className="small muted">{s.desc}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div>
-      <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div className="card card-pad" style={{ flex: '0 0 auto' }}>
-          <b>Оценка</b>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 10 }}>
-            {SERIES.map(s => {
-              const dis = !hasData(s.key);
-              return (
-                <label key={s.key} className="chk" style={{ opacity: dis ? 0.4 : 1 }}>
-                  <input type="checkbox" checked={active.has(s.key)} disabled={dis} onChange={() => toggle(s.key)} />
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: s.color, flex: '0 0 12px' }} />
-                  <span>{s.label}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-        <div className="card card-pad" style={{ flex: '1 1 auto' }}>
-          <b>Шкала оценок</b>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 10 }}>
-            {SCALE.map(s => (
-              <div key={s.label} className="row-2" style={{ alignItems: 'flex-start', gap: 8 }}>
-                <span className={`pill ${s.cls}`} style={{ flex: '0 0 auto' }}>{s.label}</span>
-                <span className="small muted">{s.desc}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <div style={{ marginBottom: 16 }}>{picker}</div>
 
       <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        {groups.map(g => {
-          const series = SERIES.filter(s => active.has(s.key)).map(s => ({
-            label: s.label, color: s.color, values: g.items.map(c => c[s.key]),
-          }));
-          const axes = g.items.map(c => ({ label: c.name, value: c.total }));
+        {groups.map((g, idx) => {
           const grp = avgTotal(g.items);
           return (
             <div key={g.cat || '—'} className="card card-pad" style={{ flex: '1 1 420px', minWidth: 340 }}>
@@ -255,16 +265,43 @@ function DashboardView({ res }: { res: Results360 }) {
                 <span className="row-2" style={{ alignItems: 'center', gap: 6 }}>
                   <span className="small muted">Уровень развития группы</span>
                   <span className="pill" style={{ background: scaleColor(grp), color: '#fff' }}>{grp == null ? '—' : grp.toFixed(1)}</span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setExpanded(idx)} title="Развернуть"><Icon name="expand" /></button>
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-                <RadarChart axes={axes} series={series} min={min} max={max} />
+                {renderChart(g)}
               </div>
               <div className="small muted" style={{ textAlign: 'center' }}>макс. {max} · мин. {min}</div>
             </div>
           );
         })}
       </div>
+
+      <div style={{ marginTop: 16 }}>{scaleLegend}</div>
+
+      {expanded != null && (() => {
+        const g = groups[expanded];
+        const grp = avgTotal(g.items);
+        return (
+          <Modal open onClose={() => setExpanded(null)} size="full" title={g.cat || 'Компетенции'}>
+            <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <div className="stack-3" style={{ flex: '0 0 240px', minWidth: 200 }}>
+                {picker}
+                <div className="card card-pad">
+                  <span className="row-2" style={{ alignItems: 'center', gap: 6 }}>
+                    <span className="small muted">Уровень развития группы</span>
+                    <span className="pill" style={{ background: scaleColor(grp), color: '#fff' }}>{grp == null ? '—' : grp.toFixed(1)}</span>
+                  </span>
+                </div>
+                {scaleLegend}
+              </div>
+              <div style={{ flex: '1 1 600px', display: 'flex', justifyContent: 'center' }}>
+                {renderChart(g, 620)}
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }
