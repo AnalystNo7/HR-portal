@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Icon, Modal, useToast } from '@/components/primitives';
 import {
   get360Workflow, Workflow, get360Results, Results360,
@@ -259,13 +259,13 @@ function DashboardView({ res }: { res: Results360 }) {
         {groups.map((g, idx) => {
           const grp = avgTotal(g.items);
           return (
-            <div key={g.cat || '—'} className="card card-pad" style={{ flex: '1 1 420px', minWidth: 340 }}>
-              <div className="row-2" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div key={g.cat || '—'} className="card card-pad" style={{ flex: '1 1 420px', minWidth: 340, position: 'relative' }}>
+              <button className="btn btn-ghost btn-sm" style={{ position: 'absolute', top: 10, right: 10 }} onClick={() => setExpanded(idx)} title="Развернуть"><Icon name="expand" /></button>
+              <div className="row-2" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingRight: 28 }}>
                 <b>{g.cat || 'Компетенции'}</b>
                 <span className="row-2" style={{ alignItems: 'center', gap: 6 }}>
                   <span className="small muted">Уровень развития группы</span>
                   <span className="pill" style={{ background: scaleColor(grp), color: '#fff' }}>{grp == null ? '—' : grp.toFixed(1)}</span>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setExpanded(idx)} title="Развернуть"><Icon name="expand" /></button>
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
@@ -281,28 +281,71 @@ function DashboardView({ res }: { res: Results360 }) {
 
       {expanded != null && (() => {
         const g = groups[expanded];
-        const grp = avgTotal(g.items);
         return (
-          <Modal open onClose={() => setExpanded(null)} size="full" title={g.cat || 'Компетенции'}>
-            <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              <div className="stack-3" style={{ flex: '0 0 240px', minWidth: 200 }}>
-                {picker}
-                <div className="card card-pad">
-                  <span className="row-2" style={{ alignItems: 'center', gap: 6 }}>
-                    <span className="small muted">Уровень развития группы</span>
-                    <span className="pill" style={{ background: scaleColor(grp), color: '#fff' }}>{grp == null ? '—' : grp.toFixed(1)}</span>
-                  </span>
-                </div>
-                {scaleLegend}
-              </div>
-              <div style={{ flex: '1 1 600px', display: 'flex', justifyContent: 'center' }}>
-                {renderChart(g, 620)}
-              </div>
-            </div>
-          </Modal>
+          <ChartZoomModal
+            key={expanded}
+            title={g.cat || 'Компетенции'}
+            grp={avgTotal(g.items)}
+            picker={picker}
+            scaleLegend={scaleLegend}
+            renderChart={size => renderChart(g, size)}
+            onClose={() => setExpanded(null)}
+          />
         );
       })()}
     </div>
+  );
+}
+
+function ChartZoomModal({ title, grp, picker, scaleLegend, renderChart, onClose }: {
+  title: string; grp: number | null; picker: React.ReactNode; scaleLegend: React.ReactNode;
+  renderChart: (size: number) => React.ReactNode; onClose: () => void;
+}) {
+  const [zoom, setZoom] = useState(1);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const clamp = (v: number) => Math.min(4, Math.max(1, v));
+  const BASE = 520;
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setZoom(z => clamp(+(z + (e.deltaY < 0 ? 0.2 : -0.2)).toFixed(2)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  return (
+    <Modal open onClose={onClose} size="half" title={title}>
+      <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div className="stack-3" style={{ flex: '0 0 240px', minWidth: 200 }}>
+          {picker}
+          <div className="card card-pad">
+            <span className="row-2" style={{ alignItems: 'center', gap: 6 }}>
+              <span className="small muted">Уровень развития группы</span>
+              <span className="pill" style={{ background: scaleColor(grp), color: '#fff' }}>{grp == null ? '—' : grp.toFixed(1)}</span>
+            </span>
+          </div>
+          {scaleLegend}
+        </div>
+        <div className="stack-2" style={{ alignItems: 'center', flex: '0 0 auto' }}>
+          <span className="small muted">{zoom.toFixed(1)}×</span>
+          <input
+            type="range" min={1} max={4} step={0.1} value={zoom}
+            onChange={e => setZoom(clamp(Number(e.target.value)))}
+            style={{ writingMode: 'vertical-lr', direction: 'rtl', height: 240, WebkitAppearance: 'slider-vertical' as any }}
+          />
+        </div>
+        <div ref={scrollRef} style={{ flex: '1 1 400px', overflow: 'auto', maxHeight: 'calc(100vh - 200px)' }}>
+          <div style={{ width: BASE * zoom, margin: '0 auto' }}>
+            {renderChart(BASE * zoom)}
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

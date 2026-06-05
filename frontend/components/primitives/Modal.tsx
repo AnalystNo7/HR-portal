@@ -8,7 +8,7 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  size?: 'md' | 'lg' | 'xl' | 'full';
+  size?: 'md' | 'lg' | 'xl' | 'full' | 'half';
   footer?: React.ReactNode;
 }
 
@@ -17,7 +17,7 @@ export function Modal({ open, onClose, title, children, size = 'md', footer }: M
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className={`modal ${size === 'lg' ? 'lg' : size === 'xl' ? 'xl' : size === 'full' ? 'full' : ''}`} onClick={e => e.stopPropagation()}>
+      <div className={`modal ${size === 'lg' ? 'lg' : size === 'xl' ? 'xl' : size === 'full' ? 'full' : size === 'half' ? 'half' : ''}`} onClick={e => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{title}</h2>
           <button className="modal-close" onClick={onClose}><Icon name="close" /></button>
