@@ -211,12 +211,12 @@ function DashboardView({ res }: { res: Results360 }) {
     return ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : null;
   };
 
-  const renderChart = (g: { items: CompetencyResult[] }, size?: number) => {
+  const renderChart = (g: { items: CompetencyResult[] }, size?: number, showValues?: boolean) => {
     const series = SERIES.filter(s => active.has(s.key)).map(s => ({
       label: s.label, color: s.color, values: g.items.map(c => c[s.key]),
     }));
     const axes = g.items.map(c => ({ label: c.name, value: c.total }));
-    return <RadarChart axes={axes} series={series} min={min} max={max} size={size} />;
+    return <RadarChart axes={axes} series={series} min={min} max={max} size={size} showValues={showValues} />;
   };
 
   const picker = (
@@ -259,9 +259,9 @@ function DashboardView({ res }: { res: Results360 }) {
         {groups.map((g, idx) => {
           const grp = avgTotal(g.items);
           return (
-            <div key={g.cat || '—'} className="card card-pad" style={{ flex: '1 1 420px', minWidth: 340, position: 'relative' }}>
-              <button className="btn btn-ghost btn-sm" style={{ position: 'absolute', top: 10, right: 10 }} onClick={() => setExpanded(idx)} title="Развернуть"><Icon name="expand" /></button>
-              <div className="row-2" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingRight: 28 }}>
+            <div key={g.cat || '—'} className="card card-pad" style={{ flex: '1 1 0', minWidth: 340, position: 'relative' }}>
+              <button className="btn btn-ghost btn-sm" style={{ position: 'absolute', top: 6, right: 6 }} onClick={() => setExpanded(idx)} title="Развернуть"><Icon name="expand" /></button>
+              <div className="row-2" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingRight: 56 }}>
                 <b>{g.cat || 'Компетенции'}</b>
                 <span className="row-2" style={{ alignItems: 'center', gap: 6 }}>
                   <span className="small muted">Уровень развития группы</span>
@@ -271,7 +271,6 @@ function DashboardView({ res }: { res: Results360 }) {
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
                 {renderChart(g)}
               </div>
-              <div className="small muted" style={{ textAlign: 'center' }}>макс. {max} · мин. {min}</div>
             </div>
           );
         })}
@@ -288,7 +287,7 @@ function DashboardView({ res }: { res: Results360 }) {
             grp={avgTotal(g.items)}
             picker={picker}
             scaleLegend={scaleLegend}
-            renderChart={size => renderChart(g, size)}
+            renderChart={size => renderChart(g, size, true)}
             onClose={() => setExpanded(null)}
           />
         );

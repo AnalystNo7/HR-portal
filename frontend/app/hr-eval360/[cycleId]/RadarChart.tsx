@@ -1,13 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface Axis { label: string; value: number | null }
 interface Series { label: string; color: string; values: (number | null)[] }
 
-export function RadarChart({ axes, series, min, max, size = 520 }: {
-  axes: Axis[]; series: Series[]; min: number; max: number; size?: number;
+export function RadarChart({ axes, series, min, max, size = 520, showValues = false }: {
+  axes: Axis[]; series: Series[]; min: number; max: number; size?: number; showValues?: boolean;
 }) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null);
   const N = axes.length;
   const cx = size / 2;
   const cy = size / 2;
@@ -45,7 +46,19 @@ export function RadarChart({ axes, series, min, max, size = 520 }: {
         return (
           <g key={s.label}>
             <polygon points={poly} fill={s.color} fillOpacity={0.12} stroke={s.color} strokeWidth={2} strokeLinejoin="round" />
-            {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={3} fill={s.color} />)}
+            {pts.map((p, i) => {
+              const v = s.values[i];
+              return (
+                <g key={i}>
+                  <circle cx={p.x} cy={p.y} r={3} fill={s.color} />
+                  {showValues && v != null && (
+                    <circle cx={p.x} cy={p.y} r={10} fill="transparent" style={{ cursor: 'pointer' }}
+                      onMouseEnter={() => setHover({ x: p.x, y: p.y, text: v.toFixed(1) })}
+                      onMouseLeave={() => setHover(null)} />
+                  )}
+                </g>
+              );
+            })}
           </g>
         );
       })}
@@ -61,6 +74,14 @@ export function RadarChart({ axes, series, min, max, size = 520 }: {
           </text>
         );
       })}
+
+      {/* тултип со значением точки */}
+      {hover && (
+        <g pointerEvents="none">
+          <rect x={hover.x - 17} y={hover.y - 30} width={34} height={19} rx={4} fill="var(--gpc-blue-800)" />
+          <text x={hover.x} y={hover.y - 20} textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight={600} fill="#fff">{hover.text}</text>
+        </g>
+      )}
     </svg>
   );
 }
