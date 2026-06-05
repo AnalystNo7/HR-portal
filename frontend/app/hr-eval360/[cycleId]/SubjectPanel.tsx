@@ -196,6 +196,8 @@ function scaleColor(v: number | null): string {
   return 'var(--ok-green)';
 }
 
+const catLabel = (cat: string) => cat === 'Управленческие компетенции' ? 'Компетенции' : (cat || 'Компетенции');
+
 function DashboardView({ res }: { res: Results360 }) {
   const [active, setActive] = useState<Set<SeriesKey>>(new Set<SeriesKey>(['total']));
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -240,7 +242,7 @@ function DashboardView({ res }: { res: Results360 }) {
   const scaleLegend = (
     <div className="card card-pad">
       <b>Шкала оценок</b>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 10 }}>
+      <div className="stack-2" style={{ marginTop: 10 }}>
         {SCALE.map(s => (
           <div key={s.label} className="row-2" style={{ alignItems: 'flex-start', gap: 8 }}>
             <span className={`pill ${s.cls}`} style={{ flex: '0 0 auto' }}>{s.label}</span>
@@ -255,18 +257,18 @@ function DashboardView({ res }: { res: Results360 }) {
     <div>
       <div style={{ marginBottom: 16 }}>{picker}</div>
 
-      <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'stretch' }}>
         {groups.map((g, idx) => {
           const grp = avgTotal(g.items);
           return (
             <div key={g.cat || '—'} className="card card-pad" style={{ flex: '1 1 0', minWidth: 340, position: 'relative' }}>
               <button className="btn btn-ghost btn-sm" style={{ position: 'absolute', top: 6, right: 6 }} onClick={() => setExpanded(idx)} title="Развернуть"><Icon name="expand" /></button>
-              <div className="row-2" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingRight: 56 }}>
-                <b>{g.cat || 'Компетенции'}</b>
-                <span className="row-2" style={{ alignItems: 'center', gap: 6 }}>
+              <div style={{ paddingRight: 56 }}>
+                <b>{catLabel(g.cat)}</b>
+                <div className="row-2" style={{ alignItems: 'center', gap: 6, marginTop: 4 }}>
                   <span className="small muted">Уровень развития группы</span>
                   <span className="pill" style={{ background: scaleColor(grp), color: '#fff' }}>{grp == null ? '—' : grp.toFixed(1)}</span>
-                </span>
+                </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
                 {renderChart(g)}
@@ -276,14 +278,14 @@ function DashboardView({ res }: { res: Results360 }) {
         })}
       </div>
 
-      <div style={{ marginTop: 16 }}>{scaleLegend}</div>
+      <div style={{ marginTop: 16, maxWidth: '50%' }}>{scaleLegend}</div>
 
       {expanded != null && (() => {
         const g = groups[expanded];
         return (
           <ChartZoomModal
             key={expanded}
-            title={g.cat || 'Компетенции'}
+            title={catLabel(g.cat)}
             grp={avgTotal(g.items)}
             picker={picker}
             scaleLegend={scaleLegend}
