@@ -5,8 +5,9 @@ import { Icon, useToast } from '@/components/primitives';
 import {
   get360Workflow, Workflow, get360Results, Results360,
   publish360, unpublish360, add360Conclusion, update360Conclusion, delete360Conclusion,
-  RespondentStatus, EvalZone, EvaluatorRole,
+  RespondentStatus, EvalZone, EvaluatorRole, CompetencyResult,
 } from '@/lib/api';
+import { RadarChart } from './RadarChart';
 
 const ROLE_LABEL: Record<EvaluatorRole, string> = { SELF: 'Самооценка', MANAGER: 'Руководитель', PEER: 'Коллеги', SUBORDINATE: 'Подчинённые' };
 const ZONE_LABEL: Record<Exclude<EvalZone, null>, string> = { CONSENSUS: 'Согласие', BLIND_SPOT: 'Слепая зона', HIDDEN_POTENTIAL: 'Скрытый потенциал' };
@@ -28,7 +29,7 @@ function groupByCategory<T extends { category: string }>(items: T[]): { cat: str
 
 export function SubjectPanel({ cycleId, subjectId, onChange }: { cycleId: string; subjectId: string; onChange: () => void }) {
   const toast = useToast();
-  const [tab, setTab] = useState<'workflow' | 'results' | 'conclusions'>('workflow');
+  const [tab, setTab] = useState<'workflow' | 'results' | 'dashboard' | 'conclusions'>('workflow');
   const [wf, setWf] = useState<Workflow | null>(null);
   const [res, setRes] = useState<Results360 | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,11 +67,13 @@ export function SubjectPanel({ cycleId, subjectId, onChange }: { cycleId: string
       <div className="tabs" style={{ margin: '12px 0' }}>
         <button aria-selected={tab === 'workflow'} onClick={() => setTab('workflow')}>Воркфлоу</button>
         <button aria-selected={tab === 'results'} onClick={() => setTab('results')}>Результаты</button>
+        <button aria-selected={tab === 'dashboard'} onClick={() => setTab('dashboard')}>Дашборд</button>
         <button aria-selected={tab === 'conclusions'} onClick={() => setTab('conclusions')}>Выводы</button>
       </div>
 
       {tab === 'workflow' && <WorkflowView wf={wf} />}
       {tab === 'results' && <ResultsView res={res} />}
+      {tab === 'dashboard' && <DashboardView res={res} />}
       {tab === 'conclusions' && <ConclusionsView cycleId={cycleId} subjectId={subjectId} res={res} reload={load} />}
     </div>
   );
@@ -168,6 +171,100 @@ function OpenAnswersView({ res }: { res: Results360 }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+type SeriesKey = 'total' | 'peers' | 'subordinates' | 'manager' | 'self';
+const SERIES: { key: SeriesKey; label: string; color: string }[] = [
+  { key: 'total', label: 'Итоговая (средняя)', color: 'var(--gpc-blue-800)' },
+  { key: 'peers', label: 'Коллега', color: 'var(--gpc-cyan)' },
+  { key: 'subordinates', label: 'Подчинённый', color: 'var(--gpc-peach)' },
+  { key: 'manager', label: 'Руководитель', color: 'var(--gpc-blue)' },
+  { key: 'self', label: 'Самооценка', color: 'var(--gpc-orange)' },
+];
+const SCALE = [
+  { label: 'менее 2', cls: 'pill-red', desc: 'компетенция на этапе развития, требуется обучение и поддержка' },
+  { label: '2,0 – 3,5', cls: 'pill-yellow', desc: 'в целом соответствует ожиданиям, есть потенциал для роста' },
+  { label: 'более 3,5', cls: 'pill-green', desc: 'высокий уровень развития, лучшие практики' },
+];
+
+function scaleColor(v: number | null): string {
+  if (v == null) return 'var(--gpc-gray-400)';
+  if (v < 2) return 'var(--err)';
+  if (v <= 3.5) return 'var(--warn)';
+  return 'var(--ok-green)';
+}
+
+function DashboardView({ res }: { res: Results360 }) {
+  const [active, setActive] = useState<Set<SeriesKey>>(new Set<SeriesKey>(['total']));
+  const toggle = (k: SeriesKey) => setActive(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+
+  const vals = res.scalePoints.map(p => p.value);
+  const min = vals.length ? Math.min(...vals) : 0;
+  const max = vals.length ? Math.max(...vals) : 4;
+  const hasData = (k: SeriesKey) => res.competencyResults.some(c => c[k] != null);
+  const groups = groupByCategory(res.competencyResults);
+  const avgTotal = (items: CompetencyResult[]) => {
+    const ns = items.map(c => c.total).filter((v): v is number => v != null);
+    return ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : null;
+  };
+
+  return (
+    <div className="row-2" style={{ alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+      <div className="stack-3" style={{ flex: '0 0 240px', minWidth: 200 }}>
+        <div className="card card-pad">
+          <b>Оценка</b>
+          <div className="stack-2" style={{ marginTop: 10 }}>
+            {SERIES.map(s => {
+              const dis = !hasData(s.key);
+              return (
+                <label key={s.key} className="chk" style={{ opacity: dis ? 0.4 : 1 }}>
+                  <input type="checkbox" checked={active.has(s.key)} disabled={dis} onChange={() => toggle(s.key)} />
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: s.color, flex: '0 0 12px' }} />
+                  <span>{s.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+        <div className="card card-pad">
+          <b>Шкала оценок</b>
+          <div className="stack-2" style={{ marginTop: 10 }}>
+            {SCALE.map(s => (
+              <div key={s.label} className="row-2" style={{ alignItems: 'flex-start', gap: 8 }}>
+                <span className={`pill ${s.cls}`} style={{ flex: '0 0 auto' }}>{s.label}</span>
+                <span className="small muted">{s.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="row-2" style={{ flex: '1 1 480px', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        {groups.map(g => {
+          const series = SERIES.filter(s => active.has(s.key)).map(s => ({
+            label: s.label, color: s.color, values: g.items.map(c => c[s.key]),
+          }));
+          const axes = g.items.map(c => ({ label: c.name, value: c.total }));
+          const grp = avgTotal(g.items);
+          return (
+            <div key={g.cat || '—'} className="card card-pad" style={{ flex: '1 1 360px', minWidth: 300 }}>
+              <div className="row-2" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <b>{g.cat || 'Компетенции'}</b>
+                <span className="row-2" style={{ alignItems: 'center', gap: 6 }}>
+                  <span className="small muted">Уровень развития группы</span>
+                  <span className="pill" style={{ background: scaleColor(grp), color: '#fff' }}>{grp == null ? '—' : grp.toFixed(1)}</span>
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+                <RadarChart axes={axes} series={series} min={min} max={max} />
+              </div>
+              <div className="small muted" style={{ textAlign: 'center' }}>макс. {max} · мин. {min}</div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
