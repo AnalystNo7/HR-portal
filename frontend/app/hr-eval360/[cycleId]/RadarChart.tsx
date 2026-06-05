@@ -5,13 +5,13 @@ import React from 'react';
 interface Axis { label: string; value: number | null }
 interface Series { label: string; color: string; values: (number | null)[] }
 
-export function RadarChart({ axes, series, min, max, size = 320 }: {
+export function RadarChart({ axes, series, min, max, size = 520 }: {
   axes: Axis[]; series: Series[]; min: number; max: number; size?: number;
 }) {
   const N = axes.length;
   const cx = size / 2;
   const cy = size / 2;
-  const R = size / 2 - 56; // запас под подписи осей
+  const R = size / 2 - 70;
 
   const angle = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / N;
   const radius = (v: number) => ((v - min) / (max - min || 1)) * R;

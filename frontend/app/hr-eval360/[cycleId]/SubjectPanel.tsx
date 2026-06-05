@@ -211,11 +211,11 @@ function DashboardView({ res }: { res: Results360 }) {
   };
 
   return (
-    <div className="row-2" style={{ alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
-      <div className="stack-3" style={{ flex: '0 0 240px', minWidth: 200 }}>
-        <div className="card card-pad">
+    <div>
+      <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div className="card card-pad" style={{ flex: '0 0 auto' }}>
           <b>Оценка</b>
-          <div className="stack-2" style={{ marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 10 }}>
             {SERIES.map(s => {
               const dis = !hasData(s.key);
               return (
@@ -228,9 +228,9 @@ function DashboardView({ res }: { res: Results360 }) {
             })}
           </div>
         </div>
-        <div className="card card-pad">
+        <div className="card card-pad" style={{ flex: '1 1 auto' }}>
           <b>Шкала оценок</b>
-          <div className="stack-2" style={{ marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 10 }}>
             {SCALE.map(s => (
               <div key={s.label} className="row-2" style={{ alignItems: 'flex-start', gap: 8 }}>
                 <span className={`pill ${s.cls}`} style={{ flex: '0 0 auto' }}>{s.label}</span>
@@ -241,7 +241,7 @@ function DashboardView({ res }: { res: Results360 }) {
         </div>
       </div>
 
-      <div className="row-2" style={{ flex: '1 1 480px', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         {groups.map(g => {
           const series = SERIES.filter(s => active.has(s.key)).map(s => ({
             label: s.label, color: s.color, values: g.items.map(c => c[s.key]),
@@ -249,7 +249,7 @@ function DashboardView({ res }: { res: Results360 }) {
           const axes = g.items.map(c => ({ label: c.name, value: c.total }));
           const grp = avgTotal(g.items);
           return (
-            <div key={g.cat || '—'} className="card card-pad" style={{ flex: '1 1 360px', minWidth: 300 }}>
+            <div key={g.cat || '—'} className="card card-pad" style={{ flex: '1 1 420px', minWidth: 340 }}>
               <div className="row-2" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <b>{g.cat || 'Компетенции'}</b>
                 <span className="row-2" style={{ alignItems: 'center', gap: 6 }}>
