@@ -1,138 +1,142 @@
-# Деплой HR-портала на Timeweb через Dokploy
+# Деплой HR-портала через Dokploy
+
+Актуальная конфигурация: домен **https://sitehrportal.ru**, единый compose-файл `docker-compose.yml`,
+роутинг по путям `/` (frontend), `/api` (backend), `/auth` (Keycloak).
 
 ## Архитектура
 
 ```
-Browser → 92.53.124.249:3101 (frontend, Next.js)
-       → 92.53.124.249:4100/api (backend, NestJS)
-       → 92.53.124.249:8180 (Keycloak)
+Browser → https://sitehrportal.ru/        → frontend (Next.js)
+        → https://sitehrportal.ru/api      → backend (NestJS)
+        → https://sitehrportal.ru/auth     → Keycloak
 
-Внутри Docker сети:
-  frontend → backend (http://backend:4000)
-  backend → keycloak (http://keycloak:8080)
-  backend → postgres (http://postgres:5432)
-  keycloak → postgres (http://postgres:5432)
+Внутри Docker-сети:
+  frontend → backend  (http://backend:4000)
+  backend  → keycloak (http://keycloak:8080)
+  backend  → postgres (postgres:5432)
+  keycloak → postgres (postgres:5432)
 ```
 
-## Порты
+## Сервисы и порты
 
 | Сервис | Внешний порт | Внутренний |
 |---|---|---|
-| Frontend | **3101** | 3001 |
-| Backend | **4100** | 4000 |
-| Keycloak | **8180** | 8080 |
+| Frontend | 3101 | 3001 |
+| Backend | 4100 | 4000 |
+| Keycloak | 8180 | 8080 |
 | PostgreSQL | — (только внутри) | 5432 |
 
-Порты выбраны так чтобы не конфликтовать с другим решением на сервере.
+Публичный доступ по домену идёт через reverse-proxy (nginx/Traefik Dokploy) на пути `/`, `/api`, `/auth`.
 
-## Шаги деплоя в Dokploy
+---
 
-### 1. Подключить GitHub (уже сделано)
+## A. Обновление существующего деплоя (обычный сценарий)
 
-Settings → Git Integrations → GitHub → ваш репозиторий `AnalystNo7/HR-portal`.
+Код уже в GitHub, ветка **`mvp`**. Схема БД синхронизируется автоматически —
+backend на старте выполняет `prisma db push` (зашито в `backend/Dockerfile`),
+отдельная миграция не нужна.
 
-### 2. Создать новый проект в Dokploy
+### 1. Запустить пересборку в Dokploy
+- **Auto Deploy включён** → push в `mvp` уже запустил билд. Откройте проект `hr-portal`
+  → сервис `hr-portal-stack` → **Deployments**, дождитесь зелёного статуса.
+- **Вручную** → сервис `hr-portal-stack` → кнопка **Redeploy**. Сборка ~5–10 мин.
 
-1. Кнопка **Create Project** → название `hr-portal`
+Переменные окружения при обновлении заново вводить не нужно.
 
-### 3. Добавить Docker Compose приложение
+### 2. Проверить логи
+postgres `ready to accept connections` · keycloak `started` ·
+backend `Nest application successfully started` · frontend `ready`.
 
-1. В проекте нажать **Create Service** → **Docker Compose**
-2. Имя: `hr-portal-stack`
-3. **Provider**: GitHub → выбрать `AnalystNo7/HR-portal` → ветка `mvp`
-4. **Compose Path**: `docker-compose.prod.yml`
+### 3. Разовые миграции данных (если меняли сид/категории)
+Dokploy → сервис **backend** → вкладка **Terminal** (или SSH + `docker exec`):
 
-### 4. Добавить переменные окружения
+```bash
+# Переименование «Управленческие компетенции» → «Компетенции»
+# (обновляет competency_templates и cycle360_competencies; idempotent)
+npm run db:rename:360cat
 
-В разделе **Environment** вставьте содержимое `.env.prod.example`:
+# По необходимости — досеять справочник компетенций/шкалу (без сотрудников)
+npm run db:seed:360
+```
 
+Через SSH, если вкладки Terminal нет:
+```bash
+ssh root@<сервер>
+docker ps | grep backend
+docker exec -it <backend-container> sh -c "npm run db:rename:360cat"
+```
+
+### 4. Проверка
+- `https://sitehrportal.ru/api/health` → `{"status":"ok"}`
+- Портал → **HR → Оценка 360 → цикл → субъект → «Дашборд»**: карта называется
+  «Компетенции», работают графики, раскрытие в окне, зум и тултипы.
+
+### 5. Откат
+Dokploy → **Deployments** → выбрать предыдущий успешный билд → **Rollback**.
+(Переименование категории — это данные; откат кода их не возвращает, но это безопасно.)
+
+---
+
+## B. Первичная настройка (если разворачиваете с нуля)
+
+### 1. GitHub в Dokploy
+Settings → Git → GitHub → репозиторий `AnalystNo7/HR-portal`.
+
+### 2. Проект и сервис
+**Create Project** → `hr-portal` → **Create Service → Docker Compose** → имя `hr-portal-stack`.
+- **Provider**: GitHub → `AnalystNo7/HR-portal` → ветка **`mvp`**
+- **Compose Path**: `docker-compose.yml`
+
+### 3. Переменные окружения
+В разделе **Environment** (замените пароли на сильные):
 ```
 POSTGRES_USER=hrportal
-POSTGRES_PASSWORD=hrportal_strong_password_change_me
+POSTGRES_PASSWORD=<сильный_пароль>
 POSTGRES_DB=hrportal
 
 KEYCLOAK_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=admin_strong_password_change_me
+KEYCLOAK_ADMIN_PASSWORD=<сильный_пароль>
 
-NEXT_PUBLIC_API_URL=http://92.53.124.249:4100/api
-NEXT_PUBLIC_KEYCLOAK_URL=http://92.53.124.249:8180
-KEYCLOAK_PUBLIC_URL=http://92.53.124.249:8180
+KEYCLOAK_PUBLIC_URL=https://sitehrportal.ru/auth
 ```
+Публичные `NEXT_PUBLIC_*` для frontend зашиты в `docker-compose.yml` (build args на домен `sitehrportal.ru`) — отдельно задавать не нужно.
 
-**Замените пароли на сильные!**
+### 4. Домен
+В Dokploy привяжите домен `sitehrportal.ru` к сервису frontend (порт 3001),
+включите HTTPS (Let's Encrypt). Пути `/api` и `/auth` проксируются на backend и keycloak.
 
-### 5. Deploy
-
-1. Нажмите **Deploy**
-2. Ждите 5-10 минут (сборка Docker образов)
-3. В логах проверьте что все 4 сервиса запустились:
-   - postgres: `database system is ready to accept connections`
-   - keycloak: `Keycloak ... started`
-   - backend: `Nest application successfully started`
-   - frontend: `ready started server on :::3001`
-
-### 6. Настроить Keycloak realm
-
-1. Открыть http://92.53.124.249:8180/admin
-2. Логин: admin / пароль из env
-3. Realm `hr-portal` должен быть автоматически импортирован из `keycloak/realm-export.json`
-4. Проверить клиент `hr-portal-app`:
-   - **Valid redirect URIs**: `http://92.53.124.249:3101/*`
-   - **Web origins**: `http://92.53.124.249:3101`
-5. Если значения другие → обновить на указанные → Save
-
-### 7. Запустить миграции и seed
-
-В Dokploy → Terminal контейнера `backend`:
-
+### 5. Deploy → миграции
+Нажмите **Deploy**, дождитесь старта 4 сервисов, затем в Terminal backend:
 ```bash
-npx prisma migrate deploy
-npx prisma db seed
+npx prisma migrate deploy   # или сработает авто-`prisma db push` на старте
+npm run db:seed:360         # справочник компетенций + шкала
+npm run db:rename:360cat    # привести категорию к «Компетенции»
 ```
 
-Или через SSH:
+### 6. Keycloak
+- `https://sitehrportal.ru/auth/admin` → admin / пароль из env.
+- Realm `hr-portal` импортируется автоматически из `keycloak/realm-export.json`.
+- Клиент `hr-portal-app` уже содержит redirect URIs и web origins для
+  `https://sitehrportal.ru/*` — проверьте, при необходимости поправьте.
 
-```bash
-ssh root@92.53.124.249
-docker exec -it <hr-backend-container-id> sh
-npx prisma migrate deploy
-npx prisma db seed
-exit
-```
+---
 
-### 8. Открыть портал
-
-http://92.53.124.249:3101 → Keycloak login → employee1/employee1
+## Авто-деплой
+Сервис `hr-portal-stack` → **Auto Deploy: On** → каждый `git push origin mvp`
+автоматически пересобирает и перезапускает стек. Шаг 3 (миграции данных) при
+изменении сида/категорий выполняется вручную.
 
 ## Если что-то сломалось
 
-### Keycloak не стартует
-Проверьте что схема `keycloak` существует в БД:
+**Keycloak не стартует** — проверьте схему `keycloak` в БД:
 ```bash
 docker exec -it <postgres-container> psql -U hrportal -d hrportal -c "CREATE SCHEMA IF NOT EXISTS keycloak;"
 ```
 
-### Frontend не загружает API
-В DevTools → Network → Headers — Frontend использует URL из ENV при сборке. Если неправильный — пересоберите образ с правильным `NEXT_PUBLIC_API_URL`.
+**Frontend не видит API** — `NEXT_PUBLIC_API_URL` вшивается при сборке. Если меняли домен,
+пересоберите образ (Redeploy), а не только перезапустите.
 
-### Ошибка CORS
-Backend должен разрешать домен frontend. Проверьте в `backend/src/main.ts` — `app.enableCors()` без параметров разрешает всё (для dev/demo ок).
+**CORS** — backend разрешает запросы (`app.enableCors()` в `backend/src/main.ts`).
 
-### Keycloak отказывается принимать redirect
-Admin console → Clients → hr-portal-app → Valid redirect URIs → должны быть:
-- `http://92.53.124.249:3101/*`
-- `http://92.53.124.249:3101`
-
-## После деплоя — проверка
-
-- [ ] http://92.53.124.249:4100/api/health → `{"status":"ok"}`
-- [ ] http://92.53.124.249:8180 → Keycloak welcome page
-- [ ] http://92.53.124.249:3101 → редирект на Keycloak login
-- [ ] Логин employee1/employee1 → портал открывается
-
-## Обновление
-
-Dokploy умеет auto-deploy по push в GitHub:
-
-1. В настройках Docker Compose приложения → **Auto Deploy** → On
-2. Теперь при каждом `git push origin mvp` Dokploy автоматически пересобирает и перезапускает
+**Redirect URI отклонён** — Keycloak → Clients → `hr-portal-app` → Valid redirect URIs
+должны включать `https://sitehrportal.ru/*`.
