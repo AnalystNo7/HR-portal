@@ -38,7 +38,6 @@ export class KeycloakStrategy extends PassportStrategy(Strategy, 'keycloak') {
         rateLimit: true,
         jwksRequestsPerMinute: 5,
       }),
-      issuer: `${keycloakPublicUrl}/realms/${realm}`,
       algorithms: ['RS256'],
     });
   }
