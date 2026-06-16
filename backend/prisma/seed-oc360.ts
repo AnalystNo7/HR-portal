@@ -98,7 +98,8 @@ export async function seedOc360(db: PrismaClient = prisma) {
 }
 
 // Standalone-запуск (без сотрудников)
-if (require.main === module) {
+const isMain = typeof require !== 'undefined' ? require.main === module : !process.argv[1] || process.argv[1].includes('seed-oc360');
+if (isMain) {
   seedOc360()
     .then(async () => {
       const comps = await prisma.competencyTemplate.count();

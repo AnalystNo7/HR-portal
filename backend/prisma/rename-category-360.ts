@@ -16,7 +16,8 @@ export async function renameCategory360(db: PrismaClient = prisma) {
   return { templates: tmpl.count, cycleCompetencies: cycle.count };
 }
 
-if (require.main === module) {
+const isMain = typeof require !== 'undefined' ? require.main === module : !process.argv[1] || process.argv[1].includes('rename-category-360');
+if (isMain) {
   renameCategory360()
     .then(({ templates, cycleCompetencies }) => {
       console.log(`Категория переименована «${OLD}» → «${NEW}»: шаблонов=${templates}, компетенций циклов=${cycleCompetencies}.`);
