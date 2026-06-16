@@ -26,6 +26,7 @@ export interface AuthUser {
 export class KeycloakStrategy extends PassportStrategy(Strategy, 'keycloak') {
   constructor() {
     const keycloakUrl = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+    const keycloakPublicUrl = process.env.KEYCLOAK_PUBLIC_URL || keycloakUrl;
     const realm = process.env.KEYCLOAK_REALM || 'hr-portal';
 
     super({
@@ -37,7 +38,7 @@ export class KeycloakStrategy extends PassportStrategy(Strategy, 'keycloak') {
         rateLimit: true,
         jwksRequestsPerMinute: 5,
       }),
-      issuer: `${keycloakUrl}/realms/${realm}`,
+      issuer: `${keycloakPublicUrl}/realms/${realm}`,
       algorithms: ['RS256'],
     });
   }
