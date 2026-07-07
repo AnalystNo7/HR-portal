@@ -8,6 +8,7 @@ import {
   get360Competencies, create360Competency, update360Competency, delete360Competency,
   add360Indicator, update360Indicator, delete360Indicator, CompetencyTpl,
   get360Scales, create360Scale, update360Scale, delete360Scale, ScaleTpl, ScalePoint,
+  get360Versions, create360Version, update360Version, delete360Version, CompetencyVersion,
 } from '@/lib/api';
 
 const STATUS_PILL: Record<Cycle360Status, string> = { DRAFT: 'pill-gray', ACTIVE: 'pill-green', CLOSED: 'pill-blue' };
@@ -35,12 +36,14 @@ function CyclesTab() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [scales, setScales] = useState<ScaleTpl[]>([]);
+  const [versions, setVersions] = useState<CompetencyVersion[]>([]);
   const [comps, setComps] = useState<CompetencyTpl[]>([]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [year, setYear] = useState(new Date().getFullYear());
   const [half, setHalf] = useState(1);
   const [scaleId, setScaleId] = useState('');
+  const [versionId, setVersionId] = useState('');
   const [selectedComps, setSelectedComps] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,11 +58,22 @@ function CyclesTab() {
 
   const openCreate = async () => {
     setError(null); setName('Оценка 360'); setDescription(''); setYear(new Date().getFullYear()); setHalf(1);
-    const [sc, cp] = await Promise.all([get360Scales(), get360Competencies()]);
-    setScales(sc); setComps(cp);
+    const [sc, vs] = await Promise.all([get360Scales(), get360Versions()]);
+    setScales(sc); setVersions(vs);
     setScaleId(sc.find(s => s.isDefault)?.id ?? sc[0]?.id ?? '');
+    const vid = vs.find(v => v.isDefault)?.id ?? vs[0]?.id ?? '';
+    setVersionId(vid);
+    const cp = vid ? await get360Competencies(vid) : [];
+    setComps(cp);
     setSelectedComps(new Set(cp.filter(c => c.isActive).map(c => c.id)));
     setModalOpen(true);
+  };
+
+  const changeVersion = async (id: string) => {
+    setVersionId(id);
+    const cp = await get360Competencies(id);
+    setComps(cp);
+    setSelectedComps(new Set(cp.filter(c => c.isActive).map(c => c.id)));
   };
 
   const toggleComp = (id: string) => setSelectedComps(prev => {
@@ -67,11 +81,11 @@ function CyclesTab() {
   });
 
   const handleCreate = async () => {
-    if (!name.trim() || !scaleId || selectedComps.size === 0) { setError('Заполните название, шкалу и хотя бы одну компетенцию'); return; }
+    if (!name.trim() || !scaleId || !versionId || selectedComps.size === 0) { setError('Заполните название, шкалу, версию и хотя бы одну компетенцию'); return; }
     if (!year || (half !== 1 && half !== 2)) { setError('Укажите год и полугодие'); return; }
     setSaving(true); setError(null);
     try {
-      const cycle = await create360Cycle({ name: name.trim(), description: description.trim() || null, year, half, scaleId, competencyIds: Array.from(selectedComps) });
+      const cycle = await create360Cycle({ name: name.trim(), description: description.trim() || null, year, half, scaleId, versionId, competencyIds: Array.from(selectedComps) });
       toast('Запуск создан');
       router.push(`/hr-eval360/${cycle.id}`);
     } catch (e) { setError((e as Error).message); } finally { setSaving(false); }
@@ -141,6 +155,11 @@ function CyclesTab() {
             {scales.map(s => <option key={s.id} value={s.id}>{s.name} ({s.points.length} баллов)</option>)}
           </select>
         </div>
+        <div className="field"><label className="small">Версия шаблона</label>
+          <select className="sel" value={versionId} onChange={e => changeVersion(e.target.value)}>
+            {versions.map(v => <option key={v.id} value={v.id}>{v.name}{v.isDefault ? ' (по умолчанию)' : ''}</option>)}
+          </select>
+        </div>
         <div className="field"><label className="small">Ценности/Компетенции (можно скорректировать после создания)</label>
           <div className="stack-2" style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 8, padding: 10 }}>
             {comps.map(c => (
@@ -164,35 +183,71 @@ function TemplateTab() {
   const toast = useToast();
   const [comps, setComps] = useState<CompetencyTpl[]>([]);
   const [scales, setScales] = useState<ScaleTpl[]>([]);
+  const [versions, setVersions] = useState<CompetencyVersion[]>([]);
+  const [versionId, setVersionId] = useState('');
   const [loading, setLoading] = useState(true);
   const [newComp, setNewComp] = useState('');
   const [newCompCat, setNewCompCat] = useState('');
   const [newInd, setNewInd] = useState<Record<string, string>>({});
   const [scaleModal, setScaleModal] = useState<ScaleTpl | 'new' | null>(null);
   const [delScale, setDelScale] = useState<ScaleTpl | null>(null);
+  const [verModal, setVerModal] = useState(false);
+  const [verName, setVerName] = useState('');
+  const [delVersion, setDelVersion] = useState<CompetencyVersion | null>(null);
 
-  const load = useCallback(async () => {
+  // targetVid: сохранить выбранную версию между перезагрузками; иначе — версия по умолчанию.
+  const load = useCallback(async (targetVid?: string) => {
     setLoading(true);
-    try { const [c, s] = await Promise.all([get360Competencies(), get360Scales()]); setComps(c); setScales(s); }
-    catch {} finally { setLoading(false); }
+    try {
+      const [v, s] = await Promise.all([get360Versions(), get360Scales()]);
+      setVersions(v); setScales(s);
+      const vid = (targetVid && v.some(x => x.id === targetVid)) ? targetVid
+        : (v.find(x => x.isDefault)?.id ?? v[0]?.id ?? '');
+      setVersionId(vid);
+      setComps(vid ? await get360Competencies(vid) : []);
+    } catch {} finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  const currentVersion = versions.find(v => v.id === versionId) ?? null;
+
+  const makeVersionDefault = async () => {
+    try { await update360Version(versionId, { isDefault: true }); toast('Версия назначена по умолчанию'); load(versionId); }
+    catch (e) { toast((e as Error).message); }
+  };
+  const renameVersion = async (nm: string) => {
+    if (!nm.trim() || nm.trim() === currentVersion?.name) return;
+    try { await update360Version(versionId, { name: nm.trim() }); load(versionId); }
+    catch (e) { toast((e as Error).message); }
+  };
+  const createVersion = async () => {
+    if (!verName.trim()) return;
+    try {
+      const v = await create360Version({ name: verName.trim(), sourceVersionId: versionId });
+      setVerModal(false); toast('Версия создана'); load(v.id);
+    } catch (e) { toast((e as Error).message); }
+  };
+  const doDeleteVersion = async () => {
+    if (!delVersion) return;
+    try { await delete360Version(delVersion.id); toast('Версия удалена'); setDelVersion(null); load(); }
+    catch (e) { toast((e as Error).message); }
+  };
+
   const addComp = async () => {
     if (!newComp.trim()) return;
-    await create360Competency({ name: newComp.trim(), category: newCompCat.trim(), order: comps.length });
-    setNewComp(''); toast('Компетенция добавлена'); load();
+    await create360Competency({ name: newComp.trim(), category: newCompCat.trim(), order: comps.length, versionId });
+    setNewComp(''); toast('Компетенция добавлена'); load(versionId);
   };
-  const patchComp = async (c: CompetencyTpl, dto: { name?: string; category?: string }) => { await update360Competency(c.id, dto); load(); };
-  const removeComp = async (id: string) => { await delete360Competency(id); toast('Удалено'); load(); };
+  const patchComp = async (c: CompetencyTpl, dto: { name?: string; category?: string }) => { await update360Competency(c.id, dto); load(versionId); };
+  const removeComp = async (id: string) => { await delete360Competency(id); toast('Удалено'); load(versionId); };
   const addInd = async (cid: string) => {
     const text = (newInd[cid] || '').trim(); if (!text) return;
-    await add360Indicator(cid, { text }); setNewInd(p => ({ ...p, [cid]: '' })); load();
+    await add360Indicator(cid, { text }); setNewInd(p => ({ ...p, [cid]: '' })); load(versionId);
   };
-  const removeInd = async (id: string) => { await delete360Indicator(id); load(); };
+  const removeInd = async (id: string) => { await delete360Indicator(id); load(versionId); };
   const doDeleteScale = async () => {
     if (!delScale) return;
-    try { await delete360Scale(delScale.id); toast('Шкала удалена'); setDelScale(null); load(); }
+    try { await delete360Scale(delScale.id); toast('Шкала удалена'); setDelScale(null); load(versionId); }
     catch (e) { toast((e as Error).message); }
   };
 
@@ -219,7 +274,7 @@ function TemplateTab() {
         {c.indicators.map(i => (
           <div key={i.id} className="row-2" style={{ alignItems: 'center' }}>
             <span className="small" style={{ color: 'var(--gpc-gray-400)' }}>•</span>
-            <input className="inp flex-1" defaultValue={i.text} onBlur={e => e.target.value !== i.text && update360Indicator(i.id, { text: e.target.value }).then(load)} />
+            <input className="inp flex-1" defaultValue={i.text} onBlur={e => e.target.value !== i.text && update360Indicator(i.id, { text: e.target.value }).then(() => load(versionId))} />
             <button className="btn btn-ghost btn-sm" onClick={() => removeInd(i.id)}><Icon name="close" size={12} /></button>
           </div>
         ))}
@@ -236,7 +291,28 @@ function TemplateTab() {
       <datalist id={CAT_LIST_ID}>{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
 
       <div className="card card-pad">
-        <div className="card-head"><b>Ценности/Компетенции</b></div>
+        <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div className="row-2" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <b>Ценности/Компетенции</b>
+            <select className="sel" style={{ width: 'auto' }} value={versionId} onChange={e => load(e.target.value)}>
+              {versions.map(v => <option key={v.id} value={v.id}>{v.name}{v.isDefault ? ' (по умолчанию)' : ''}</option>)}
+            </select>
+            {currentVersion?.isDefault && <span className="pill pill-blue">по умолчанию</span>}
+            {currentVersion && (
+              <input key={versionId} className="inp" style={{ width: 180 }} defaultValue={currentVersion.name}
+                title="Переименовать версию" onBlur={e => renameVersion(e.target.value)} />
+            )}
+          </div>
+          <div className="row-2" style={{ alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {currentVersion && !currentVersion.isDefault && (
+              <button className="btn btn-secondary btn-sm" onClick={makeVersionDefault}>Сделать по умолчанию</button>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={() => { setVerName(`${currentVersion?.name ?? 'Версия'} (копия)`); setVerModal(true); }}><Icon name="plus" size={13} /> Создать версию</button>
+            {currentVersion && !currentVersion.isDefault && (
+              <button className="btn btn-ghost btn-sm" title="Удалить версию" onClick={() => setDelVersion(currentVersion)}><Icon name="trash" size={14} /></button>
+            )}
+          </div>
+        </div>
         <div className="stack-3" style={{ marginTop: 12 }}>
           {groups.map(g => (
             <div key={g.cat || '—'} className="stack-2">
@@ -282,6 +358,21 @@ function TemplateTab() {
         <><button className="btn btn-secondary" onClick={() => setDelScale(null)}>Отмена</button><button className="btn btn-primary" style={{ background: 'var(--err)' }} onClick={doDeleteScale}>Удалить</button></>
       }>
         <p>Удалить шкалу <b>{delScale?.name}</b>? Уже запущенные оценки не затронутся.</p>
+      </Modal>
+
+      <Modal open={verModal} onClose={() => setVerModal(false)} title="Новая версия шаблона" footer={
+        <><button className="btn btn-secondary" onClick={() => setVerModal(false)}>Отмена</button><button className="btn btn-primary" onClick={createVersion}>Создать</button></>
+      }>
+        <p className="small muted" style={{ marginBottom: 10 }}>Новая версия — полная копия «{currentVersion?.name}» (компетенции и индикаторы). Оригинал не изменится.</p>
+        <div className="field"><label className="small">Название версии</label>
+          <input className="inp" value={verName} onChange={e => setVerName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createVersion()} autoFocus />
+        </div>
+      </Modal>
+
+      <Modal open={!!delVersion} onClose={() => setDelVersion(null)} title="Удаление версии" footer={
+        <><button className="btn btn-secondary" onClick={() => setDelVersion(null)}>Отмена</button><button className="btn btn-primary" style={{ background: 'var(--err)' }} onClick={doDeleteVersion}>Удалить</button></>
+      }>
+        <p>Удалить версию <b>{delVersion?.name}</b>? Все компетенции и индикаторы этой версии будут удалены. Уже запущенные оценки не затронутся.</p>
       </Modal>
     </div>
   );

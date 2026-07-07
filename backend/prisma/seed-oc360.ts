@@ -80,6 +80,12 @@ export async function seedOc360(db: PrismaClient = prisma) {
     });
   }
 
+  // Версия по умолчанию (набор компетенций)
+  let version = await db.competencyVersion.findFirst({ where: { isDefault: true } });
+  if (!version) {
+    version = await db.competencyVersion.create({ data: { name: 'Версия 1', isDefault: true } });
+  }
+
   // Компетенции с индикаторами (пропускаем уже существующие по имени)
   for (let i = 0; i < competencies.length; i++) {
     const c = competencies[i];
@@ -87,6 +93,7 @@ export async function seedOc360(db: PrismaClient = prisma) {
     if (existing) continue;
     await db.competencyTemplate.create({
       data: {
+        versionId: version.id,
         name: c.name,
         description: c.description,
         category: c.category,
@@ -95,6 +102,9 @@ export async function seedOc360(db: PrismaClient = prisma) {
       },
     });
   }
+
+  // Подцепить компетенции без версии (ранее засеянные)
+  await db.competencyTemplate.updateMany({ where: { versionId: null }, data: { versionId: version.id } });
 }
 
 // Standalone-запуск (без сотрудников)

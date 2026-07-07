@@ -174,9 +174,23 @@ enum RespondentStatus {
   COMPLETED
 }
 
+// Версия набора компетенций (шаблон оценки). Одна из версий — по умолчанию.
+model CompetencyVersion {
+  id           String               @id @default(uuid())
+  name         String
+  isDefault    Boolean              @default(false) @map("is_default")
+  competencies CompetencyTemplate[]
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  @@map("competency_versions")
+}
+
 // Глобальный шаблон (каталог) — источник снапшотов
 model CompetencyTemplate {
   id          String              @id @default(uuid())
+  versionId   String?             @map("version_id")
+  version     CompetencyVersion?  @relation(fields: [versionId], references: [id], onDelete: Cascade)
   name        String
   description String?
   category    String              @default("")

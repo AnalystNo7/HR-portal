@@ -433,7 +433,8 @@ export type RespondentStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 export type EvalZone = 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL' | null;
 
 export interface IndicatorTpl { id: string; competencyId: string; text: string; order: number; }
-export interface CompetencyTpl { id: string; name: string; description: string | null; category: string; order: number; isActive: boolean; indicators: IndicatorTpl[]; }
+export interface CompetencyTpl { id: string; versionId: string | null; name: string; description: string | null; category: string; order: number; isActive: boolean; indicators: IndicatorTpl[]; }
+export interface CompetencyVersion { id: string; name: string; isDefault: boolean; _count?: { competencies: number }; }
 export interface ScalePoint { id?: string; value: number; label: string; }
 export interface ScaleTpl { id: string; name: string; isDefault: boolean; points: ScalePoint[]; }
 
@@ -513,9 +514,15 @@ export interface Results360 {
 export interface Conclusion360 { id: string; text: string; createdAt: string; author?: { firstName: string; lastName: string; middleName: string | null } | null; }
 export interface MySubject360 { subjectId: string; cycle: { id: string; name: string }; publishedAt: string | null; }
 
+// Template — versions
+export const get360Versions = () => fetchApi<CompetencyVersion[]>('/oc360/template/versions');
+export const create360Version = (dto: { name: string; sourceVersionId?: string; isDefault?: boolean }) => fetchApi<CompetencyVersion>('/oc360/template/versions', { method: 'POST', body: JSON.stringify(dto) });
+export const update360Version = (id: string, dto: { name?: string; isDefault?: boolean }) => fetchApi<CompetencyVersion>(`/oc360/template/versions/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const delete360Version = (id: string) => fetchApi<{ success: boolean }>(`/oc360/template/versions/${id}`, { method: 'DELETE' });
+
 // Template
-export const get360Competencies = () => fetchApi<CompetencyTpl[]>('/oc360/template/competencies');
-export const create360Competency = (dto: { name: string; description?: string | null; category?: string; order?: number; isActive?: boolean }) => fetchApi<CompetencyTpl>('/oc360/template/competencies', { method: 'POST', body: JSON.stringify(dto) });
+export const get360Competencies = (versionId?: string) => fetchApi<CompetencyTpl[]>('/oc360/template/competencies' + (versionId ? `?versionId=${versionId}` : ''));
+export const create360Competency = (dto: { name: string; description?: string | null; category?: string; order?: number; isActive?: boolean; versionId?: string }) => fetchApi<CompetencyTpl>('/oc360/template/competencies', { method: 'POST', body: JSON.stringify(dto) });
 export const update360Competency = (id: string, dto: { name?: string; description?: string | null; category?: string; order?: number; isActive?: boolean }) => fetchApi<CompetencyTpl>(`/oc360/template/competencies/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const delete360Competency = (id: string) => fetchApi<{ success: boolean }>(`/oc360/template/competencies/${id}`, { method: 'DELETE' });
 export const add360Indicator = (competencyId: string, dto: { text: string; order?: number }) => fetchApi<IndicatorTpl>(`/oc360/template/competencies/${competencyId}/indicators`, { method: 'POST', body: JSON.stringify(dto) });
@@ -533,7 +540,7 @@ export function get360Cycles(query: { status?: Cycle360Status; page?: number; li
   return fetchApi<PaginatedResult<Cycle360ListItem>>(`/oc360/cycles?${qs.toString()}`);
 }
 export const get360Cycle = (id: string) => fetchApi<Cycle360Detail>(`/oc360/cycles/${id}`);
-export const create360Cycle = (dto: { name: string; description?: string | null; year: number; half: number; scaleId: string; competencyIds?: string[] }) => fetchApi<Cycle360Detail>('/oc360/cycles', { method: 'POST', body: JSON.stringify(dto) });
+export const create360Cycle = (dto: { name: string; description?: string | null; year: number; half: number; scaleId: string; versionId?: string; competencyIds?: string[] }) => fetchApi<Cycle360Detail>('/oc360/cycles', { method: 'POST', body: JSON.stringify(dto) });
 export const update360Cycle = (id: string, dto: { name?: string; description?: string | null; year?: number; half?: number }) => fetchApi<Cycle360Detail>(`/oc360/cycles/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const delete360Cycle = (id: string) => fetchApi<{ success: boolean }>(`/oc360/cycles/${id}`, { method: 'DELETE' });
 export const update360CycleCompetency = (id: string, cid: string, dto: { name?: string; description?: string | null; order?: number }) => fetchApi<unknown>(`/oc360/cycles/${id}/competencies/${cid}`, { method: 'PUT', body: JSON.stringify(dto) });

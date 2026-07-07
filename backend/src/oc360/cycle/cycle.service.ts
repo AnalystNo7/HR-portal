@@ -9,6 +9,7 @@ export interface CreateCycleDto {
   year?: number;
   half?: number;
   scaleId: string;
+  versionId?: string;
   competencyIds?: string[];
 }
 
@@ -88,10 +89,16 @@ export class CycleService {
     });
     if (!scale) throw new NotFoundException('Scale not found');
 
+    const version = dto.versionId
+      ? await this.prisma.competencyVersion.findUnique({ where: { id: dto.versionId } })
+      : await this.prisma.competencyVersion.findFirst({ where: { isDefault: true } });
+    if (!version) throw new NotFoundException('Версия шаблона не найдена');
+
     const competencies = await this.prisma.competencyTemplate.findMany({
-      where: dto.competencyIds?.length
-        ? { id: { in: dto.competencyIds } }
-        : { isActive: true },
+      where: {
+        versionId: version.id,
+        ...(dto.competencyIds?.length ? { id: { in: dto.competencyIds } } : { isActive: true }),
+      },
       orderBy: { order: 'asc' },
       include: { indicators: { orderBy: { order: 'asc' } } },
     });

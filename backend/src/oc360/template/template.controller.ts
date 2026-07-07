@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { KeycloakAuthGuard } from '../../auth/auth.guard';
 import { RolesGuard, Roles } from '../../auth/roles.guard';
 import {
@@ -6,6 +6,7 @@ import {
   CompetencyDto,
   IndicatorDto,
   ScaleDto,
+  VersionDto,
 } from './template.service';
 
 @Controller('oc360/template')
@@ -14,9 +15,30 @@ import {
 export class TemplateController {
   constructor(private readonly templateService: TemplateService) {}
 
+  // ─── Версии ───
+  @Get('versions')
+  listVersions() {
+    return this.templateService.listVersions();
+  }
+
+  @Post('versions')
+  createVersion(@Body() dto: VersionDto) {
+    return this.templateService.createVersion(dto);
+  }
+
+  @Put('versions/:id')
+  updateVersion(@Param('id') id: string, @Body() dto: Partial<VersionDto>) {
+    return this.templateService.updateVersion(id, dto);
+  }
+
+  @Delete('versions/:id')
+  deleteVersion(@Param('id') id: string) {
+    return this.templateService.deleteVersion(id);
+  }
+
   @Get('competencies')
-  listCompetencies() {
-    return this.templateService.listCompetencies();
+  listCompetencies(@Query('versionId') versionId?: string) {
+    return this.templateService.listCompetencies(versionId);
   }
 
   @Post('competencies')
