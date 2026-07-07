@@ -19,7 +19,7 @@ HR-portal/
 ├── nginx/nginx.conf          # роутинг /, /api, /auth
 ├── backend/
 │   ├── prisma/               # schema.prisma, 6 миграций, seed.ts, seed-oc360.ts,
-│   │                         # rename-category-360.ts
+│   │                         # rename-category-360.ts, verify-oc360.ts
 │   └── src/                  # NestJS-модули (см. таблицу)
 └── frontend/
     ├── app/                  # роуты (App Router)
@@ -76,7 +76,6 @@ npm run lint             # eslint (оба пакета)
 - Realm-import идемпотентен («already exists → skipped»): правки `realm-export.json` не применяются к живому realm без его удаления (`kcadm.sh delete realms/hr-portal` + restart).
 
 ### Логика
-- Ручное создание сотрудника (`EmployeesService.createKeycloakUser`) создаёт учётку Keycloak, но **не назначает роль `employee`** — в отличие от импорта. Роли приходится вешать вручную. Незакрыто.
 - `seed.ts` не вызывает `seedOc360` — после сброса БД шаблон 360 пуст, пока не запустишь `db:seed:360` отдельно.
 - Логин импортированных: username = email, пароль = цифры табельного (temporary, смена при первом входе). Строки Excel без email падают с «User name is missing».
 - `catLabel` в `SubjectPanel.tsx` — UI-fallback переименования категории для немигрированных данных; после `db:rename:360cat` можно удалить.
@@ -85,7 +84,7 @@ npm run lint             # eslint (оба пакета)
 ### Mock / незавершённое
 - 9 страниц-заглушек (`StubPage`): adaptation, benefits, docs, events, help, learn, news, org, surveys; `career`/`culture` — статика без API.
 - Хардкод: «Вовлечённость 60%» в Header, 8 фейковых коллег в RightRail, absence-bars на `/manager` (в коде пометка «данные из 1С ЗУП»).
-- `NEXT_PUBLIC_AUTH_MODE=mock` — полный обход Keycloak с переключателем ролей (для дева).
+- AuthContext **поддерживает** mock-режим (`NEXT_PUBLIC_AUTH_MODE=mock`) — полный обход Keycloak с переключателем ролей, но проект сконфигурирован на `keycloak` (дефолт в `AuthContext.tsx`, `keycloak` в compose).
 - Открытый CORS (`enableCors()` без опций), нет ValidationPipe и Swagger — TODO для прода.
 
 ---
