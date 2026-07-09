@@ -194,6 +194,7 @@ function TemplateTab() {
   const [verModal, setVerModal] = useState(false);
   const [verName, setVerName] = useState('');
   const [delVersion, setDelVersion] = useState<CompetencyVersion | null>(null);
+  const [editMode, setEditMode] = useState(false);
 
   // targetVid: сохранить выбранную версию между перезагрузками; иначе — версия по умолчанию.
   const load = useCallback(async (targetVid?: string) => {
@@ -268,14 +269,14 @@ function TemplateTab() {
       <div className="row-2" style={{ alignItems: 'center' }}>
         <input className="inp flex-1" defaultValue={c.name} onBlur={e => e.target.value !== c.name && patchComp(c, { name: e.target.value })} />
         <input className="inp" style={{ width: 200 }} list={CAT_LIST_ID} placeholder="Категория" defaultValue={c.category} onBlur={e => e.target.value !== c.category && patchComp(c, { category: e.target.value })} />
-        <button className="btn btn-ghost btn-sm" onClick={() => removeComp(c.id)}><Icon name="trash" size={14} /></button>
+        {editMode && <button className="btn btn-ghost btn-sm" onClick={() => removeComp(c.id)}><Icon name="trash" size={14} /></button>}
       </div>
       <div className="stack-2" style={{ marginTop: 8, paddingLeft: 8 }}>
         {c.indicators.map(i => (
           <div key={i.id} className="row-2" style={{ alignItems: 'center' }}>
             <span className="small" style={{ color: 'var(--gpc-gray-400)' }}>•</span>
             <input className="inp flex-1" defaultValue={i.text} onBlur={e => e.target.value !== i.text && update360Indicator(i.id, { text: e.target.value }).then(() => load(versionId))} />
-            <button className="btn btn-ghost btn-sm" onClick={() => removeInd(i.id)}><Icon name="close" size={12} /></button>
+            {editMode && <button className="btn btn-ghost btn-sm" onClick={() => removeInd(i.id)}><Icon name="close" size={12} /></button>}
           </div>
         ))}
         <div className="row-2" style={{ alignItems: 'center' }}>
@@ -289,6 +290,13 @@ function TemplateTab() {
   return (
     <div className="stack-4">
       <datalist id={CAT_LIST_ID}>{categories.map(cat => <option key={cat} value={cat} />)}</datalist>
+
+      <div className="mgr-toolbar">
+        <div className="flex-1" />
+        {editMode
+          ? <button className="btn btn-primary btn-sm" onClick={() => setEditMode(false)}>Готово</button>
+          : <button className="btn btn-ghost btn-sm" onClick={() => setEditMode(true)}><Icon name="edit" size={14} /> Редактировать</button>}
+      </div>
 
       <div className="card card-pad">
         <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -308,7 +316,7 @@ function TemplateTab() {
               <button className="btn btn-secondary btn-sm" onClick={makeVersionDefault}>Сделать по умолчанию</button>
             )}
             <button className="btn btn-secondary btn-sm" onClick={() => { setVerName(`${currentVersion?.name ?? 'Версия'} (копия)`); setVerModal(true); }}><Icon name="plus" size={13} /> Создать версию</button>
-            {currentVersion && !currentVersion.isDefault && (
+            {editMode && currentVersion && !currentVersion.isDefault && (
               <button className="btn btn-ghost btn-sm" title="Удалить версию" onClick={() => setDelVersion(currentVersion)}><Icon name="trash" size={14} /></button>
             )}
           </div>
@@ -344,7 +352,7 @@ function TemplateTab() {
               </div>
               <div className="row-2">
                 <button className="btn btn-ghost btn-sm" onClick={() => setScaleModal(s)}><Icon name="edit" size={14} /></button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setDelScale(s)}><Icon name="trash" size={14} /></button>
+                {editMode && <button className="btn btn-ghost btn-sm" onClick={() => setDelScale(s)}><Icon name="trash" size={14} /></button>}
               </div>
             </div>
           ))}
