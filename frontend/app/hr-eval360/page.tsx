@@ -389,17 +389,20 @@ function ScalesTab() {
         </div>
         <div className="stack-2" style={{ marginTop: 12 }}>
           {scales.map(s => (
-            <div key={s.id} className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', borderBottom: '1px solid var(--line)', paddingBottom: 8 }}>
-              <div className="row-2" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                <b>{s.name}{s.isDefault && <span className="pill pill-blue" style={{ marginLeft: 8 }}>по умолчанию</span>}</b>
-                <div className="row-2" style={{ flexWrap: 'wrap' }}>
-                  {s.points.map(p => <span key={p.value} className="pill pill-gray">{p.value} — {p.label}</span>)}
+            <div key={s.id} style={{ borderBottom: '1px solid var(--line)', paddingBottom: 8 }}>
+              <div className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <div className="row-2" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                  <b>{s.name}{s.isDefault && <span className="pill pill-blue" style={{ marginLeft: 8 }}>по умолчанию</span>}</b>
+                  <div className="row-2" style={{ flexWrap: 'wrap' }}>
+                    {s.points.map(p => <span key={p.value} className="pill pill-gray">{p.value} — {p.label}</span>)}
+                  </div>
+                </div>
+                <div className="row-2">
+                  <button className="btn btn-ghost btn-sm" onClick={() => setScaleModal(s)}><Icon name="edit" size={14} /></button>
+                  {editMode && <button className="btn btn-ghost btn-sm" onClick={() => setDelScale(s)}><Icon name="trash" size={14} /></button>}
                 </div>
               </div>
-              <div className="row-2">
-                <button className="btn btn-ghost btn-sm" onClick={() => setScaleModal(s)}><Icon name="edit" size={14} /></button>
-                {editMode && <button className="btn btn-ghost btn-sm" onClick={() => setDelScale(s)}><Icon name="trash" size={14} /></button>}
-              </div>
+              {s.description && <div className="small" style={{ whiteSpace: 'pre-wrap', marginTop: 6, color: 'var(--gpc-gray-600)' }}>{s.description}</div>}
             </div>
           ))}
           {scales.length === 0 && <div className="small muted">Шкал нет. Создайте шкалу, чтобы запускать оценку.</div>}
@@ -421,6 +424,7 @@ function ScalesTab() {
 function ScaleModal({ scale, onClose, onSaved }: { scale: ScaleTpl | null; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const [name, setName] = useState(scale?.name ?? '');
+  const [description, setDescription] = useState(scale?.description ?? '');
   const [isDefault, setIsDefault] = useState(scale?.isDefault ?? false);
   const [points, setPoints] = useState<ScalePoint[]>(scale?.points.map(p => ({ value: p.value, label: p.label })) ?? [
     { value: 1, label: '' }, { value: 2, label: '' },
@@ -439,7 +443,7 @@ function ScaleModal({ scale, onClose, onSaved }: { scale: ScaleTpl | null; onClo
     if (points.some(p => !p.label.trim())) { toast('Заполните подписи всех баллов'); return; }
     setSaving(true);
     try {
-      const dto = { name: name.trim(), isDefault, points: points.map(p => ({ value: p.value, label: p.label.trim() })) };
+      const dto = { name: name.trim(), description: description.trim() || null, isDefault, points: points.map(p => ({ value: p.value, label: p.label.trim() })) };
       if (scale) await update360Scale(scale.id, dto); else await create360Scale(dto);
       onSaved();
     } catch (e) { toast((e as Error).message); } finally { setSaving(false); }
@@ -464,6 +468,9 @@ function ScaleModal({ scale, onClose, onSaved }: { scale: ScaleTpl | null; onClo
           ))}
           <button className="btn btn-secondary btn-sm" onClick={addPoint}><Icon name="plus" size={13} /> Добавить балл</button>
         </div>
+      </div>
+      <div className="field"><label className="small">Описание (необязательно)</label>
+        <textarea className="ta" value={description} onChange={e => setDescription(e.target.value)} placeholder="Например: Шкала обработки результатов…" style={{ minHeight: 120 }} />
       </div>
     </Modal>
   );

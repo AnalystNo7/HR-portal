@@ -28,6 +28,7 @@ export interface ScalePointDto {
 
 export interface ScaleDto {
   name: string;
+  description?: string | null;
   isDefault?: boolean;
   points: ScalePointDto[];
 }
@@ -216,6 +217,7 @@ export class TemplateService implements OnModuleInit {
       return tx.scaleTemplate.create({
         data: {
           name: dto.name,
+          description: dto.description ?? null,
           isDefault: dto.isDefault ?? false,
           points: { create: dto.points.map(p => ({ value: p.value, label: p.label })) },
         },
@@ -239,7 +241,7 @@ export class TemplateService implements OnModuleInit {
       }
       return tx.scaleTemplate.update({
         where: { id },
-        data: { name: dto.name, isDefault: dto.isDefault },
+        data: { name: dto.name, description: dto.description, isDefault: dto.isDefault },
         include: { points: { orderBy: { value: 'asc' } } },
       });
     });

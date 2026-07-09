@@ -436,7 +436,7 @@ export interface IndicatorTpl { id: string; competencyId: string; text: string; 
 export interface CompetencyTpl { id: string; versionId: string | null; name: string; description: string | null; category: string; order: number; isActive: boolean; indicators: IndicatorTpl[]; }
 export interface CompetencyVersion { id: string; name: string; isDefault: boolean; _count?: { competencies: number }; }
 export interface ScalePoint { id?: string; value: number; label: string; }
-export interface ScaleTpl { id: string; name: string; isDefault: boolean; points: ScalePoint[]; }
+export interface ScaleTpl { id: string; name: string; description: string | null; isDefault: boolean; points: ScalePoint[]; }
 
 export interface PersonRef { id: string; firstName: string; lastName: string; middleName: string | null; }
 
@@ -529,8 +529,8 @@ export const add360Indicator = (competencyId: string, dto: { text: string; order
 export const update360Indicator = (id: string, dto: { text?: string; order?: number }) => fetchApi<IndicatorTpl>(`/oc360/template/indicators/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const delete360Indicator = (id: string) => fetchApi<{ success: boolean }>(`/oc360/template/indicators/${id}`, { method: 'DELETE' });
 export const get360Scales = () => fetchApi<ScaleTpl[]>('/oc360/template/scales');
-export const create360Scale = (dto: { name: string; isDefault?: boolean; points: ScalePoint[] }) => fetchApi<ScaleTpl>('/oc360/template/scales', { method: 'POST', body: JSON.stringify(dto) });
-export const update360Scale = (id: string, dto: { name?: string; isDefault?: boolean; points?: ScalePoint[] }) => fetchApi<ScaleTpl>(`/oc360/template/scales/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const create360Scale = (dto: { name: string; description?: string | null; isDefault?: boolean; points: ScalePoint[] }) => fetchApi<ScaleTpl>('/oc360/template/scales', { method: 'POST', body: JSON.stringify(dto) });
+export const update360Scale = (id: string, dto: { name?: string; description?: string | null; isDefault?: boolean; points?: ScalePoint[] }) => fetchApi<ScaleTpl>(`/oc360/template/scales/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const delete360Scale = (id: string) => fetchApi<{ success: boolean }>(`/oc360/template/scales/${id}`, { method: 'DELETE' });
 
 // Cycles

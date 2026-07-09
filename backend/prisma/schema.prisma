@@ -216,10 +216,11 @@ model IndicatorTemplate {
 }
 
 model ScaleTemplate {
-  id        String               @id @default(uuid())
-  name      String               @unique
-  isDefault Boolean              @default(false) @map("is_default")
-  points    ScalePointTemplate[]
+  id          String               @id @default(uuid())
+  name        String               @unique
+  description String?
+  isDefault   Boolean              @default(false) @map("is_default")
+  points      ScalePointTemplate[]
   createdAt DateTime             @default(now()) @map("created_at")
   updatedAt DateTime             @updatedAt @map("updated_at")
 
