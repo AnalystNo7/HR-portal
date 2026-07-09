@@ -357,7 +357,6 @@ function ScalesTab() {
   const [loading, setLoading] = useState(true);
   const [scaleModal, setScaleModal] = useState<ScaleTpl | 'new' | null>(null);
   const [delScale, setDelScale] = useState<ScaleTpl | null>(null);
-  const [editMode, setEditMode] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -375,21 +374,14 @@ function ScalesTab() {
 
   return (
     <div className="stack-4">
-      <div className="mgr-toolbar">
-        <div className="flex-1" />
-        {editMode
-          ? <button className="btn btn-primary btn-sm" onClick={() => setEditMode(false)}>Готово</button>
-          : <button className="btn btn-ghost btn-sm" onClick={() => setEditMode(true)}><Icon name="edit" size={14} /> Редактировать</button>}
-      </div>
-
       <div className="card card-pad">
         <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b>Шкалы оценки</b>
           <button className="btn btn-secondary btn-sm" onClick={() => setScaleModal('new')}><Icon name="plus" size={13} /> Создать шкалу</button>
         </div>
-        <div className="stack-2" style={{ marginTop: 12 }}>
+        <div className="stack-3" style={{ marginTop: 12 }}>
           {scales.map(s => (
-            <div key={s.id} style={{ borderBottom: '1px solid var(--line)', paddingBottom: 8 }}>
+            <div key={s.id} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: 12, background: 'var(--gpc-gray-50)' }}>
               <div className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                 <div className="row-2" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
                   <b>{s.name}{s.isDefault && <span className="pill pill-blue" style={{ marginLeft: 8 }}>по умолчанию</span>}</b>
@@ -397,10 +389,7 @@ function ScalesTab() {
                     {s.points.map(p => <span key={p.value} className="pill pill-gray">{p.value} — {p.label}</span>)}
                   </div>
                 </div>
-                <div className="row-2">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setScaleModal(s)}><Icon name="edit" size={14} /></button>
-                  {editMode && <button className="btn btn-ghost btn-sm" onClick={() => setDelScale(s)}><Icon name="trash" size={14} /></button>}
-                </div>
+                <button className="btn btn-ghost btn-sm" onClick={() => setScaleModal(s)}><Icon name="edit" size={14} /></button>
               </div>
               {s.description && <div className="small" style={{ whiteSpace: 'pre-wrap', marginTop: 6, color: 'var(--gpc-gray-600)' }}>{s.description}</div>}
             </div>
@@ -409,7 +398,7 @@ function ScalesTab() {
         </div>
       </div>
 
-      {scaleModal && <ScaleModal scale={scaleModal === 'new' ? null : scaleModal} onClose={() => setScaleModal(null)} onSaved={() => { setScaleModal(null); load(); toast('Шкала сохранена'); }} />}
+      {scaleModal && <ScaleModal scale={scaleModal === 'new' ? null : scaleModal} onClose={() => setScaleModal(null)} onSaved={() => { setScaleModal(null); load(); toast('Шкала сохранена'); }} onDelete={scaleModal !== 'new' ? () => { const sc = scaleModal; setScaleModal(null); setDelScale(sc); } : undefined} />}
 
       <Modal open={!!delScale} onClose={() => setDelScale(null)} title="Удаление шкалы" footer={
         <><button className="btn btn-secondary" onClick={() => setDelScale(null)}>Отмена</button><button className="btn btn-primary" style={{ background: 'var(--err)' }} onClick={doDeleteScale}>Удалить</button></>
@@ -421,7 +410,7 @@ function ScalesTab() {
 }
 
 // ─── Модалка шкалы ─────────────────────────────────────
-function ScaleModal({ scale, onClose, onSaved }: { scale: ScaleTpl | null; onClose: () => void; onSaved: () => void }) {
+function ScaleModal({ scale, onClose, onSaved, onDelete }: { scale: ScaleTpl | null; onClose: () => void; onSaved: () => void; onDelete?: () => void }) {
   const toast = useToast();
   const [name, setName] = useState(scale?.name ?? '');
   const [description, setDescription] = useState(scale?.description ?? '');
@@ -451,7 +440,11 @@ function ScaleModal({ scale, onClose, onSaved }: { scale: ScaleTpl | null; onClo
 
   return (
     <Modal open onClose={onClose} title={scale ? 'Редактирование шкалы' : 'Новая шкала'} footer={
-      <><button className="btn btn-secondary" onClick={onClose}>Отмена</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить'}</button></>
+      <>
+        {scale && onDelete && <button className="btn btn-ghost btn-sm" style={{ marginRight: 'auto', color: 'var(--err)' }} onClick={onDelete}><Icon name="trash" size={14} /> Удалить</button>}
+        <button className="btn btn-secondary" onClick={onClose}>Отмена</button>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить'}</button>
+      </>
     }>
       <div className="field"><label className="small">Название</label><input className="inp" value={name} onChange={e => setName(e.target.value)} placeholder="Например: Стандартная 1–5" autoFocus /></div>
       <label className="row-2" style={{ alignItems: 'center', cursor: 'pointer', marginBottom: 10 }}>
