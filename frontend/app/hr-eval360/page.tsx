@@ -267,14 +267,14 @@ function TemplateTab() {
   const renderComp = (c: CompetencyTpl) => (
     <div key={c.id} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: 12, background: 'var(--gpc-gray-50)' }}>
       <div className="row-2" style={{ alignItems: 'center' }}>
-        <input className="inp flex-1" defaultValue={c.name} onBlur={e => e.target.value !== c.name && patchComp(c, { name: e.target.value })} />
-        <input className="inp" style={{ width: 200 }} list={CAT_LIST_ID} placeholder="Категория" defaultValue={c.category} onBlur={e => e.target.value !== c.category && patchComp(c, { category: e.target.value })} />
+        <input className="inp flex-1" defaultValue={c.name} readOnly={!editMode} onBlur={e => e.target.value !== c.name && patchComp(c, { name: e.target.value })} />
+        <input className="inp" style={{ width: 200 }} list={CAT_LIST_ID} placeholder="Категория" defaultValue={c.category} readOnly={!editMode} onBlur={e => e.target.value !== c.category && patchComp(c, { category: e.target.value })} />
         {editMode && <button className="btn btn-ghost btn-sm" onClick={() => removeComp(c.id)}><Icon name="trash" size={14} /></button>}
       </div>
-      <div className="stack-2" style={{ marginTop: 8, paddingLeft: 8 }}>
+      <div className="stack-2" style={{ marginTop: 8, paddingLeft: 28 }}>
         {c.indicators.map(i => (
           <div key={i.id} className="row-2" style={{ alignItems: 'center' }}>
-            <input className="inp flex-1" defaultValue={i.text} onBlur={e => e.target.value !== i.text && update360Indicator(i.id, { text: e.target.value }).then(() => load(versionId))} />
+            <input className="inp flex-1" defaultValue={i.text} readOnly={!editMode} onBlur={e => e.target.value !== i.text && update360Indicator(i.id, { text: e.target.value }).then(() => load(versionId))} />
             {editMode && <button className="btn btn-ghost btn-sm" onClick={() => removeInd(i.id)}><Icon name="close" size={12} /></button>}
           </div>
         ))}
@@ -308,7 +308,7 @@ function TemplateTab() {
             </select>
             {currentVersion?.isDefault && <span className="pill pill-blue">по умолчанию</span>}
             {currentVersion && (
-              <input key={versionId} className="inp" style={{ width: 180 }} defaultValue={currentVersion.name}
+              <input key={versionId} className="inp" style={{ width: 180 }} defaultValue={currentVersion.name} readOnly={!editMode}
                 title="Переименовать версию" onBlur={e => renameVersion(e.target.value)} />
             )}
           </div>
