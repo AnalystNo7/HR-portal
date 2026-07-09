@@ -333,7 +333,7 @@ function TemplateTab() {
             <div className="row-2" style={{ alignItems: 'center' }}>
               <input className="inp flex-1" placeholder="Новая компетенция..." value={newComp} onChange={e => setNewComp(e.target.value)} onKeyDown={e => e.key === 'Enter' && addComp()} />
               <input className="inp" style={{ width: 200 }} list={CAT_LIST_ID} placeholder="Категория" value={newCompCat} onChange={e => setNewCompCat(e.target.value)} />
-              <button className="btn btn-primary btn-sm" onClick={addComp}><Icon name="plus" size={14} /> Компетенция</button>
+              <button className="btn btn-primary btn-sm" onClick={addComp}><Icon name="plus" size={14} /> Категория</button>
             </div>
           )}
         </div>
