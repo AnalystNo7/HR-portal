@@ -1,14 +1,14 @@
 /* App shell: sidebar + header + right rail */
 .app {
   display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr var(--rightrail-w);
+  grid-template-columns: var(--sidebar-w) 1fr;
   grid-template-rows: var(--header-h) 1fr;
   grid-template-areas:
-    "sidebar header rightrail"
-    "sidebar main   rightrail";
+    "sidebar header"
+    "sidebar main";
   min-height: 100vh;
 }
-.app[data-sidebar="collapsed"] { grid-template-columns: var(--sidebar-w-collapsed) 1fr var(--rightrail-w); }
+.app[data-sidebar="collapsed"] { grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
 
 /* ========= Sidebar ========= */
 .sidebar {

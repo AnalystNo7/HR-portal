@@ -35,20 +35,7 @@ export function Header() {
         <span className="crumb-current">{sectionTitle}</span>
       </div>
 
-      <div className="hdr-search">
-        <Icon name="search" size={16} />
-        <input placeholder="Поиск по порталу, коллегам, документам..." />
-      </div>
-
       <div className="hdr-spacer" />
-
-      {role !== 'admin' && (
-        <div className="hdr-engagement" title="Уровень вовлечённости">
-          <span>Вовлечённость</span>
-          <b>60%</b>
-          <div className="bar"><i style={{ width: '60%' }} /></div>
-        </div>
-      )}
 
       {role !== 'admin' && (
         <button className="hdr-cta" onClick={() => setFeedbackOpen(true)}>
@@ -66,17 +53,14 @@ export function Header() {
           ))}
         </div>
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="pill pill-blue" style={{ fontSize: 11 }}>{ROLE_LABELS[role]}</span>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={logout}
-            title="Выход"
-            style={{ padding: '0 8px' }}
-          >
-            <Icon name="logout" size={16} />
-          </button>
-        </div>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={logout}
+          title="Выход"
+          style={{ padding: '0 8px' }}
+        >
+          <Icon name="logout" size={16} />
+        </button>
       )}
 
       <button className="hdr-avatar" title={avTitle}>{avInitials}</button>
