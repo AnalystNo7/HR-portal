@@ -15,15 +15,16 @@ const STATUS_PILL: Record<Cycle360Status, string> = { DRAFT: 'pill-gray', ACTIVE
 const STATUS_LABEL: Record<Cycle360Status, string> = { DRAFT: 'Черновик', ACTIVE: 'Идёт оценка', CLOSED: 'Завершён' };
 
 export default function HrEval360Page() {
-  const [tab, setTab] = useState<'cycles' | 'template'>('cycles');
+  const [tab, setTab] = useState<'cycles' | 'template' | 'scales'>('cycles');
   return (
     <div>
       <h2 style={{ fontFamily: 'var(--font-head)', fontSize: 22, marginBottom: 16 }}>Оценка 360</h2>
       <div className="tabs" style={{ marginBottom: 16 }}>
         <button aria-selected={tab === 'cycles'} onClick={() => setTab('cycles')}>Запуски</button>
         <button aria-selected={tab === 'template'} onClick={() => setTab('template')}>Шаблон оценки</button>
+        <button aria-selected={tab === 'scales'} onClick={() => setTab('scales')}>Шкала оценки</button>
       </div>
-      {tab === 'cycles' ? <CyclesTab /> : <TemplateTab />}
+      {tab === 'cycles' ? <CyclesTab /> : tab === 'template' ? <TemplateTab /> : <ScalesTab />}
     </div>
   );
 }
@@ -182,15 +183,12 @@ const CAT_LIST_ID = 'oc360-categories';
 function TemplateTab() {
   const toast = useToast();
   const [comps, setComps] = useState<CompetencyTpl[]>([]);
-  const [scales, setScales] = useState<ScaleTpl[]>([]);
   const [versions, setVersions] = useState<CompetencyVersion[]>([]);
   const [versionId, setVersionId] = useState('');
   const [loading, setLoading] = useState(true);
   const [newComp, setNewComp] = useState('');
   const [newCompCat, setNewCompCat] = useState('');
   const [newInd, setNewInd] = useState<Record<string, string>>({});
-  const [scaleModal, setScaleModal] = useState<ScaleTpl | 'new' | null>(null);
-  const [delScale, setDelScale] = useState<ScaleTpl | null>(null);
   const [verModal, setVerModal] = useState(false);
   const [verName, setVerName] = useState('');
   const [delVersion, setDelVersion] = useState<CompetencyVersion | null>(null);
@@ -200,8 +198,8 @@ function TemplateTab() {
   const load = useCallback(async (targetVid?: string) => {
     setLoading(true);
     try {
-      const [v, s] = await Promise.all([get360Versions(), get360Scales()]);
-      setVersions(v); setScales(s);
+      const v = await get360Versions();
+      setVersions(v);
       const vid = (targetVid && v.some(x => x.id === targetVid)) ? targetVid
         : (v.find(x => x.isDefault)?.id ?? v[0]?.id ?? '');
       setVersionId(vid);
@@ -246,11 +244,6 @@ function TemplateTab() {
     await add360Indicator(cid, { text }); setNewInd(p => ({ ...p, [cid]: '' })); load(versionId);
   };
   const removeInd = async (id: string) => { await delete360Indicator(id); load(versionId); };
-  const doDeleteScale = async () => {
-    if (!delScale) return;
-    try { await delete360Scale(delScale.id); toast('Шкала удалена'); setDelScale(null); load(versionId); }
-    catch (e) { toast((e as Error).message); }
-  };
 
   if (loading) return <div className="card card-pad muted">Загрузка...</div>;
 
@@ -339,6 +332,56 @@ function TemplateTab() {
         </div>
       </div>
 
+      <Modal open={verModal} onClose={() => setVerModal(false)} title="Новая версия шаблона" footer={
+        <><button className="btn btn-secondary" onClick={() => setVerModal(false)}>Отмена</button><button className="btn btn-primary" onClick={createVersion}>Создать</button></>
+      }>
+        <p className="small muted" style={{ marginBottom: 10 }}>Новая версия — полная копия «{currentVersion?.name}» (компетенции и индикаторы). Оригинал не изменится.</p>
+        <div className="field"><label className="small">Название версии</label>
+          <input className="inp" value={verName} onChange={e => setVerName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createVersion()} autoFocus />
+        </div>
+      </Modal>
+
+      <Modal open={!!delVersion} onClose={() => setDelVersion(null)} title="Удаление версии" footer={
+        <><button className="btn btn-secondary" onClick={() => setDelVersion(null)}>Отмена</button><button className="btn btn-primary" style={{ background: 'var(--err)' }} onClick={doDeleteVersion}>Удалить</button></>
+      }>
+        <p>Удалить версию <b>{delVersion?.name}</b>? Все компетенции и индикаторы этой версии будут удалены. Уже запущенные оценки не затронутся.</p>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── Шкалы ─────────────────────────────────────────────
+function ScalesTab() {
+  const toast = useToast();
+  const [scales, setScales] = useState<ScaleTpl[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [scaleModal, setScaleModal] = useState<ScaleTpl | 'new' | null>(null);
+  const [delScale, setDelScale] = useState<ScaleTpl | null>(null);
+  const [editMode, setEditMode] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setScales(await get360Scales()); } catch {} finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const doDeleteScale = async () => {
+    if (!delScale) return;
+    try { await delete360Scale(delScale.id); toast('Шкала удалена'); setDelScale(null); load(); }
+    catch (e) { toast((e as Error).message); }
+  };
+
+  if (loading) return <div className="card card-pad muted">Загрузка...</div>;
+
+  return (
+    <div className="stack-4">
+      <div className="mgr-toolbar">
+        <div className="flex-1" />
+        {editMode
+          ? <button className="btn btn-primary btn-sm" onClick={() => setEditMode(false)}>Готово</button>
+          : <button className="btn btn-ghost btn-sm" onClick={() => setEditMode(true)}><Icon name="edit" size={14} /> Редактировать</button>}
+      </div>
+
       <div className="card card-pad">
         <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b>Шкалы оценки</b>
@@ -369,21 +412,6 @@ function TemplateTab() {
         <><button className="btn btn-secondary" onClick={() => setDelScale(null)}>Отмена</button><button className="btn btn-primary" style={{ background: 'var(--err)' }} onClick={doDeleteScale}>Удалить</button></>
       }>
         <p>Удалить шкалу <b>{delScale?.name}</b>? Уже запущенные оценки не затронутся.</p>
-      </Modal>
-
-      <Modal open={verModal} onClose={() => setVerModal(false)} title="Новая версия шаблона" footer={
-        <><button className="btn btn-secondary" onClick={() => setVerModal(false)}>Отмена</button><button className="btn btn-primary" onClick={createVersion}>Создать</button></>
-      }>
-        <p className="small muted" style={{ marginBottom: 10 }}>Новая версия — полная копия «{currentVersion?.name}» (компетенции и индикаторы). Оригинал не изменится.</p>
-        <div className="field"><label className="small">Название версии</label>
-          <input className="inp" value={verName} onChange={e => setVerName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createVersion()} autoFocus />
-        </div>
-      </Modal>
-
-      <Modal open={!!delVersion} onClose={() => setDelVersion(null)} title="Удаление версии" footer={
-        <><button className="btn btn-secondary" onClick={() => setDelVersion(null)}>Отмена</button><button className="btn btn-primary" style={{ background: 'var(--err)' }} onClick={doDeleteVersion}>Удалить</button></>
-      }>
-        <p>Удалить версию <b>{delVersion?.name}</b>? Все компетенции и индикаторы этой версии будут удалены. Уже запущенные оценки не затронутся.</p>
       </Modal>
     </div>
   );
