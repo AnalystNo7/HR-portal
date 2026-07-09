@@ -265,7 +265,7 @@ function TemplateTab() {
   }
 
   const renderComp = (c: CompetencyTpl) => (
-    <div key={c.id} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: 12 }}>
+    <div key={c.id} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: 12, background: 'var(--gpc-gray-50)' }}>
       <div className="row-2" style={{ alignItems: 'center' }}>
         <input className="inp flex-1" defaultValue={c.name} onBlur={e => e.target.value !== c.name && patchComp(c, { name: e.target.value })} />
         <input className="inp" style={{ width: 200 }} list={CAT_LIST_ID} placeholder="Категория" defaultValue={c.category} onBlur={e => e.target.value !== c.category && patchComp(c, { category: e.target.value })} />
@@ -274,15 +274,16 @@ function TemplateTab() {
       <div className="stack-2" style={{ marginTop: 8, paddingLeft: 8 }}>
         {c.indicators.map(i => (
           <div key={i.id} className="row-2" style={{ alignItems: 'center' }}>
-            <span className="small" style={{ color: 'var(--gpc-gray-400)' }}>•</span>
             <input className="inp flex-1" defaultValue={i.text} onBlur={e => e.target.value !== i.text && update360Indicator(i.id, { text: e.target.value }).then(() => load(versionId))} />
             {editMode && <button className="btn btn-ghost btn-sm" onClick={() => removeInd(i.id)}><Icon name="close" size={12} /></button>}
           </div>
         ))}
-        <div className="row-2" style={{ alignItems: 'center' }}>
-          <input className="inp flex-1" placeholder="Новый индикатор..." value={newInd[c.id] || ''} onChange={e => setNewInd(p => ({ ...p, [c.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addInd(c.id)} />
-          <button className="btn btn-secondary btn-sm" onClick={() => addInd(c.id)}>Добавить</button>
-        </div>
+        {editMode && (
+          <div className="row-2" style={{ alignItems: 'center' }}>
+            <input className="inp flex-1" placeholder="Новый индикатор..." value={newInd[c.id] || ''} onChange={e => setNewInd(p => ({ ...p, [c.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addInd(c.id)} />
+            <button className="btn btn-secondary btn-sm" onClick={() => addInd(c.id)}>Добавить</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -328,11 +329,13 @@ function TemplateTab() {
               {g.items.map(renderComp)}
             </div>
           ))}
-          <div className="row-2" style={{ alignItems: 'center' }}>
-            <input className="inp flex-1" placeholder="Новая компетенция..." value={newComp} onChange={e => setNewComp(e.target.value)} onKeyDown={e => e.key === 'Enter' && addComp()} />
-            <input className="inp" style={{ width: 200 }} list={CAT_LIST_ID} placeholder="Категория" value={newCompCat} onChange={e => setNewCompCat(e.target.value)} />
-            <button className="btn btn-primary btn-sm" onClick={addComp}><Icon name="plus" size={14} /> Компетенция</button>
-          </div>
+          {editMode && (
+            <div className="row-2" style={{ alignItems: 'center' }}>
+              <input className="inp flex-1" placeholder="Новая компетенция..." value={newComp} onChange={e => setNewComp(e.target.value)} onKeyDown={e => e.key === 'Enter' && addComp()} />
+              <input className="inp" style={{ width: 200 }} list={CAT_LIST_ID} placeholder="Категория" value={newCompCat} onChange={e => setNewCompCat(e.target.value)} />
+              <button className="btn btn-primary btn-sm" onClick={addComp}><Icon name="plus" size={14} /> Компетенция</button>
+            </div>
+          )}
         </div>
       </div>
 
