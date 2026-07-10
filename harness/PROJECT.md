@@ -1,7 +1,7 @@
 # Карта проекта: HR-портал «Газпром ЦПС»
 
 ## Что это
-Корпоративный HR-портал для сотрудников: личный кабинет, справочник сотрудников с импортом из Excel, обращения к HR и полный цикл оценки 360 (шаблоны компетенций → циклы → опрос респондентов → результаты с radar-дашбордом → выводы). Роли: employee / manager / hr / admin через Keycloak SSO. Прод: https://sitehrportal.ru (деплой через Dokploy, ветка `mvp`).
+Корпоративный HR-портал для сотрудников: личный кабинет, справочник сотрудников с импортом из Excel, обращения к HR и полный цикл оценки 360 (версионируемые наборы компетенций + шкалы с описанием → циклы → опрос респондентов → результаты с radar-дашбордом → выводы). Роли: employee / manager / hr / admin через Keycloak SSO. Прод: https://sitehrportal.ru (деплой через Dokploy, ветка `mvp`).
 
 ## Стек
 **Frontend:** Next.js 14.2.35 (App Router), React ^18, TypeScript ^5, keycloak-js ^26.2.3. Без UI-библиотек — свой CSS (токены + утилиты), графики — свой SVG (`RadarChart`).
@@ -18,12 +18,13 @@ HR-portal/
 ├── keycloak/realm-export.json# realm: роли, клиент, маппер realm_roles, тестовые юзеры
 ├── nginx/nginx.conf          # роутинг /, /api, /auth
 ├── backend/
-│   ├── prisma/               # schema.prisma, 6 миграций, seed.ts, seed-oc360.ts,
-│   │                         # rename-category-360.ts, verify-oc360.ts
+│   ├── prisma/               # schema.prisma, 8 миграций, seed.ts, seed-oc360.ts,
+│   │                         # rename-category-360.ts, backfill-version-360.ts, verify-oc360.ts
 │   └── src/                  # NestJS-модули (см. таблицу)
 └── frontend/
     ├── app/                  # роуты (App Router)
-    │   ├── hr-eval360/[cycleId]/  # ядро 360: SubjectPanel, RadarChart
+    │   ├── hr-eval360/       # админ 360: page.tsx (вкладки Запуски/Шаблон/Шкала),
+    │   │                     # [cycleId]/ (SubjectPanel, RadarChart)
     │   └── admin/            # employees, departments, positions, import
     ├── components/           # primitives/ (Modal, Icon, Toast…), layout/ (AppShell…)
     ├── contexts/AuthContext.tsx
@@ -33,7 +34,8 @@ HR-portal/
 ## Ключевые модули и точки входа
 | Модуль | Где | За что отвечает |
 |--------|-----|-----------------|
-| oc360 | `backend/src/oc360/` (cycle/, respondent/, results/, template/) | Весь цикл оценки 360: шаблоны, циклы, респонденты, результаты, выводы |
+| oc360 | `backend/src/oc360/` (cycle/, respondent/, results/, template/) | Весь цикл оценки 360: версии наборов компетенций, шаблоны, шкалы, циклы, респонденты, результаты, выводы. `template.service.ts` — CRUD компетенций/индикаторов/шкал + версии (`ensureDefaultVersion` в `onModuleInit`) |
+| 360-админка | `frontend/app/hr-eval360/page.tsx` | Вкладки «Запуски» / «Шаблон оценки» / «Шкала оценки»: версии наборов компетенций (`CompetencyVersion`), inline-CRUD, DnD-перестановка, шкалы с описанием |
 | auth | `backend/src/auth/` | JWT-валидация через JWKS Keycloak (`keycloak.strategy.ts`), гарды ролей (`roles.guard.ts`) |
 | import | `backend/src/import/` | Импорт сотрудников из Excel + создание учёток Keycloak (роль `admin`) |
 | employees, departments, positions | `backend/src/…` | CRUD орг-структуры; ручное создание тоже заводит учётку Keycloak |
@@ -44,7 +46,7 @@ HR-portal/
 | AuthContext | `frontend/contexts/AuthContext.tsx` | Keycloak-логин, роли из токена; есть mock-режим (`NEXT_PUBLIC_AUTH_MODE=mock`) |
 | API-клиент | `frontend/lib/api.ts` | fetch-обёртка с bearer-токеном, все типы API |
 
-**Prisma-модели по доменам:** орг-структура (Department, Position, Employee, WorkExperience, Education) · обращения (Appeal, AppealComment, AppealFile) · шаблоны 360 (CompetencyTemplate, IndicatorTemplate, ScaleTemplate, ScalePointTemplate) · циклы 360 (Cycle360 + Competency/Indicator/ScalePoint/Subject/Respondent/IndicatorResponse/OpenAnswer/Conclusion).
+**Prisma-модели по доменам:** орг-структура (Department, Position, Employee, WorkExperience, Education) · обращения (Appeal, AppealComment, AppealFile) · шаблоны 360 (**CompetencyVersion** — версии наборов, CompetencyTemplate + `versionId`, IndicatorTemplate, ScaleTemplate + `description`, ScalePointTemplate) · циклы 360 (Cycle360 + Competency/Indicator/ScalePoint/Subject/Respondent/IndicatorResponse/OpenAnswer/Conclusion).
 
 ## Как запустить / проверить
 ```bash
@@ -56,6 +58,7 @@ cd frontend && npm run dev             # Next.js на :3001
 npm run db:seed          # 20 тестовых сотрудников + орг-структура (НЕ сеет шаблон 360!)
 npm run db:seed:360      # шкала + компетенции 360 (отдельно, идемпотентно)
 npm run db:rename:360cat # разовая миграция категории «Управленческие компетенции»→«Компетенции»
+npm run db:backfill:360ver # «Версия 1» (по умолчанию) + привязка компетенций без версии
 
 # Проверки
 npx tsc --noEmit         # в frontend/ и backend/ — основная проверка в проекте
@@ -80,10 +83,11 @@ npm run lint             # eslint (оба пакета)
 - Логин импортированных: username = email, пароль = цифры табельного (temporary, смена при первом входе). Строки Excel без email падают с «User name is missing».
 - `catLabel` в `SubjectPanel.tsx` — UI-fallback переименования категории для немигрированных данных; после `db:rename:360cat` можно удалить.
 - ESM/CJS: `require.main === module` в сидерах не работал в ts-node на сервере — стоит fallback через `process.argv`.
+- Аддитивные миграции на непустых таблицах (паттерн из-за `prisma db push` на проде): новая колонка **nullable** + бэкфилл в коде на старте (напр. `TemplateService.onModuleInit` → `ensureDefaultVersion` создаёт «Версия 1» и привязывает компетенции). NOT NULL на живых данных не вводим.
 
 ### Mock / незавершённое
 - 9 страниц-заглушек (`StubPage`): adaptation, benefits, docs, events, help, learn, news, org, surveys; `career`/`culture` — статика без API.
-- Хардкод: «Вовлечённость 60%» в Header, 8 фейковых коллег в RightRail, absence-bars на `/manager` (в коде пометка «данные из 1С ЗУП»).
+- Хардкод absence-bars на `/manager` («данные из 1С ЗУП»). Поиск, «Вовлечённость», плашка роли и правая панель «Команда» (RightRail) убраны из оболочки (`Header`/`AppShell`/грид `.app`); `RightRail.tsx` остался неиспользуемым.
 - AuthContext **поддерживает** mock-режим (`NEXT_PUBLIC_AUTH_MODE=mock`) — полный обход Keycloak с переключателем ролей, но проект сконфигурирован на `keycloak` (дефолт в `AuthContext.tsx`, `keycloak` в compose).
 - Открытый CORS (`enableCors()` без опций), нет ValidationPipe и Swagger — TODO для прода.
 
