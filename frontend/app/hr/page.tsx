@@ -105,8 +105,6 @@ function HRAllTab() {
           {departments.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
         <div className="flex-1" />
-        <button className="btn btn-secondary btn-sm"><Icon name="download" size={14} /> Экспорт</button>
-        <button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Новый сотрудник</button>
       </div>
       <div className="card" style={{ padding: 0 }}>
         <table className="tbl">
