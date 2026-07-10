@@ -193,6 +193,8 @@ function TemplateTab() {
   const [verName, setVerName] = useState('');
   const [delVersion, setDelVersion] = useState<CompetencyVersion | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   // targetVid: сохранить выбранную версию между перезагрузками; иначе — версия по умолчанию.
   const load = useCallback(async (targetVid?: string) => {
@@ -245,6 +247,42 @@ function TemplateTab() {
   };
   const removeInd = async (id: string) => { await delete360Indicator(id); load(versionId); };
 
+  // ── Drag-and-drop компетенций (только в edit-режиме, внутри своей категории) ──
+  const sameCat = (a: CompetencyTpl, b: CompetencyTpl) => (a.category || '') === (b.category || '');
+  const onCompDragStart = (e: React.DragEvent, c: CompetencyTpl) => {
+    // тянем только за «серые» области бокса; на полях/кнопках — обычное поведение
+    if ((e.target as HTMLElement).closest('input, textarea, button')) { e.preventDefault(); return; }
+    setDragId(c.id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', c.id);
+  };
+  const onCompDragOver = (e: React.DragEvent, c: CompetencyTpl) => {
+    if (!dragId || dragId === c.id) return;
+    const dragged = comps.find(x => x.id === dragId);
+    if (!dragged || !sameCat(dragged, c)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (overId !== c.id) setOverId(c.id);
+  };
+  const onCompDrop = async (e: React.DragEvent, c: CompetencyTpl) => {
+    e.preventDefault();
+    const fromId = dragId;
+    setDragId(null); setOverId(null);
+    if (!fromId || fromId === c.id) return;
+    const dragged = comps.find(x => x.id === fromId);
+    if (!dragged || !sameCat(dragged, c)) return;
+    const list = comps.filter(x => x.id !== fromId);
+    const targetIdx = list.findIndex(x => x.id === c.id);
+    list.splice(targetIdx, 0, dragged);
+    const withOrder = list.map((x, i) => ({ ...x, order: i }));
+    setComps(withOrder); // оптимистично
+    const changed = withOrder.filter(x => (comps.find(o => o.id === x.id)?.order ?? -1) !== x.order);
+    try { await Promise.all(changed.map(x => update360Competency(x.id, { order: x.order }))); }
+    catch (err) { toast((err as Error).message); }
+    load(versionId);
+  };
+  const onCompDragEnd = () => { setDragId(null); setOverId(null); };
+
   if (loading) return <div className="card card-pad muted">Загрузка...</div>;
 
   // существующие категории (для datalist) + группировка
@@ -258,7 +296,20 @@ function TemplateTab() {
   }
 
   const renderComp = (c: CompetencyTpl) => (
-    <div key={c.id} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: 12, background: 'var(--gpc-gray-50)' }}>
+    <div
+      key={c.id}
+      draggable={editMode}
+      onDragStart={editMode ? e => onCompDragStart(e, c) : undefined}
+      onDragOver={editMode ? e => onCompDragOver(e, c) : undefined}
+      onDrop={editMode ? e => onCompDrop(e, c) : undefined}
+      onDragEnd={editMode ? onCompDragEnd : undefined}
+      style={{
+        border: '1px solid var(--line)', borderRadius: 8, padding: 12, background: 'var(--gpc-gray-50)',
+        cursor: editMode ? 'grab' : 'default',
+        opacity: dragId === c.id ? 0.5 : 1,
+        boxShadow: overId === c.id ? 'inset 0 3px 0 0 var(--gpc-blue)' : undefined,
+      }}
+    >
       <div className="row-2" style={{ alignItems: 'center' }}>
         <input className="inp flex-1" defaultValue={c.name} readOnly={!editMode} onBlur={e => e.target.value !== c.name && patchComp(c, { name: e.target.value })} />
         <input className="inp" style={{ width: 200 }} list={CAT_LIST_ID} placeholder="Категория" defaultValue={c.category} readOnly={!editMode} onBlur={e => e.target.value !== c.category && patchComp(c, { category: e.target.value })} />
