@@ -2,13 +2,14 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { EvaluatorRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { fio } from '../oc360.helpers';
-
-const ZONE_EPS = 0.5;
-
-function avg(nums: number[]): number | null {
-  if (!nums.length) return null;
-  return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 100) / 100;
-}
+import {
+  avg,
+  buildAnalytics,
+  round2,
+  AnalyticsInput,
+  DEFAULT_TARGET_LEVEL,
+  ZONE_EPS,
+} from './analytics';
 
 @Injectable()
 export class ResultsService {
@@ -16,7 +17,13 @@ export class ResultsService {
 
   /** Полная аналитика для HR (с поимённой расшифровкой открытых ответов руководителя/самооценки). */
   async getResults(cycleId: string, subjectId: string) {
-    return this.computeResults(cycleId, subjectId, false);
+    return this.computeResults(cycleId, subjectId, false, true);
+  }
+
+  /** Аналитика по методике для генерации отчёта (комментарии без имён). */
+  async getAnalytics(cycleId: string, subjectId: string) {
+    const res = await this.computeResults(cycleId, subjectId, true, true);
+    return { subject: res.subject, analytics: res.analytics!, progress: res.progress };
   }
 
   /** Свои опубликованные результаты — агрегированно и анонимно. */
@@ -41,7 +48,12 @@ export class ResultsService {
     return subjects.map(s => ({ subjectId: s.id, cycle: s.cycle, publishedAt: s.resultsPublishedAt }));
   }
 
-  private async computeResults(cycleId: string, subjectId: string, anonymized: boolean) {
+  private async computeResults(
+    cycleId: string,
+    subjectId: string,
+    anonymized: boolean,
+    withAnalytics = false,
+  ) {
     const subject = await this.prisma.cycle360Subject.findFirst({
       where: { id: subjectId, cycleId },
       include: {
@@ -97,7 +109,7 @@ export class ResultsService {
         ...laneScores('SUBORDINATE', c.id),
       ];
       const othersAvg = avg(othersScores);
-      const gap = self != null && othersAvg != null ? Math.round((self - othersAvg) * 100) / 100 : null;
+      const gap = self != null && othersAvg != null ? round2(self - othersAvg) : null;
       // «Итоговая (средняя)» — среднее доступных групповых оценок (само + руководитель + коллеги + подчинённые)
       const total = avg([self, manager, peers, subordinates].filter((v): v is number => v != null));
       let zone: 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL' | null = null;
@@ -116,7 +128,7 @@ export class ResultsService {
     const overall = {
       selfAvg,
       othersAvg,
-      gap: selfAvg != null && othersAvg != null ? Math.round((selfAvg - othersAvg) * 100) / 100 : null,
+      gap: selfAvg != null && othersAvg != null ? round2(selfAvg - othersAvg) : null,
     };
 
     // открытые ответы по дорожкам; в анонимном виде PEER/SUBORDINATE без имён
@@ -140,7 +152,76 @@ export class ResultsService {
       return { role, completed: all.filter(r => r.status === 'COMPLETED').length, total: all.length };
     });
 
+    // аналитика по методике (дисперсия, категории Δ, целевой уровень, выбросы) —
+    // для HR-вида и промпта генерации отчёта; сотруднику не отдаётся
+    let targetLevel: number | undefined;
+    let analytics: ReturnType<typeof buildAnalytics> | undefined;
+    if (withAnalytics) {
+      targetLevel = subject.cycle.targetLevel ?? DEFAULT_TARGET_LEVEL;
+      const indicatorText = new Map<string, string>();
+      for (const c of subject.cycle.competencies) {
+        for (const i of c.indicators) indicatorText.set(i.id, i.text);
+      }
+      // средние каждого респондента по компетенции + баллы индикаторов (для выбросов)
+      const respondentMeans = new Map<string, Map<EvaluatorRole, number[]>>();
+      const indicatorScores = new Map<string, { role: EvaluatorRole; indicatorText: string; score: number }[]>();
+      for (const r of completed) {
+        const perComp = new Map<string, number[]>();
+        for (const resp of r.responses) {
+          const compId = indicatorToComp.get(resp.indicatorId);
+          if (!compId) continue;
+          if (!perComp.has(compId)) perComp.set(compId, []);
+          perComp.get(compId)!.push(resp.score);
+          if (!indicatorScores.has(compId)) indicatorScores.set(compId, []);
+          indicatorScores.get(compId)!.push({
+            role: r.role,
+            indicatorText: indicatorText.get(resp.indicatorId) ?? '',
+            score: resp.score,
+          });
+        }
+        for (const [compId, scores] of perComp) {
+          if (!respondentMeans.has(compId)) respondentMeans.set(compId, new Map());
+          const byRole = respondentMeans.get(compId)!;
+          if (!byRole.has(r.role)) byRole.set(r.role, []);
+          byRole.get(r.role)!.push(round2(scores.reduce((a, b) => a + b, 0) / scores.length));
+        }
+      }
+      const roles = ['SELF', 'MANAGER', 'PEER', 'SUBORDINATE'] as EvaluatorRole[];
+      const scaleValues = subject.cycle.scalePoints.map(p => p.value);
+      const input: AnalyticsInput = {
+        targetLevel,
+        scaleMin: scaleValues.length ? Math.min(...scaleValues) : 1,
+        scaleMax: scaleValues.length ? Math.max(...scaleValues) : 4,
+        competencies: subject.cycle.competencies.map(c => ({
+          id: c.id,
+          name: c.name,
+          category: c.category,
+          description: c.description,
+          scoresByRole: Object.fromEntries(
+            roles.map(role => [role, laneScores(role, c.id)]),
+          ) as Record<EvaluatorRole, number[]>,
+          respondentMeansByRole: Object.fromEntries(
+            roles.map(role => [role, respondentMeans.get(c.id)?.get(role) ?? []]),
+          ) as Record<EvaluatorRole, number[]>,
+          indicatorScores: indicatorScores.get(c.id) ?? [],
+        })),
+        openAnswers: roles.map(role => {
+          const lane = completed.filter(r => r.role === role && r.openAnswer);
+          return {
+            role,
+            strengths: lane.map(r => r.openAnswer!.strengths).filter((s): s is string => !!s),
+            toChange: lane.map(r => r.openAnswer!.toChange).filter((s): s is string => !!s),
+            toDevelop: lane.map(r => r.openAnswer!.toDevelop).filter((s): s is string => !!s),
+          };
+        }),
+      };
+      analytics = buildAnalytics(input);
+    }
+
     return {
+      // undefined-поля отбрасываются при JSON-сериализации (только для HR-вида)
+      targetLevel,
+      analytics,
       subject: { id: subject.id, employee: subject.employee, name: fio(subject.employee), status: subject.status },
       published: subject.resultsPublishedAt != null,
       scalePoints: subject.cycle.scalePoints,

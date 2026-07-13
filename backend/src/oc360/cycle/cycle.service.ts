@@ -11,6 +11,7 @@ export interface CreateCycleDto {
   scaleId: string;
   versionId?: string;
   competencyIds?: string[];
+  targetLevel?: number | null;
 }
 
 export interface CycleListQuery {
@@ -115,6 +116,7 @@ export class CycleService {
         description: dto.description ?? null,
         year: dto.year,
         half: dto.half,
+        targetLevel: dto.targetLevel ?? null,
         createdById: createdById ?? null,
         scalePoints: { create: scale.points.map(p => ({ value: p.value, label: p.label })) },
         competencies: {
@@ -137,11 +139,20 @@ export class CycleService {
     });
   }
 
-  async update(id: string, dto: { name?: string; description?: string | null; year?: number; half?: number }) {
+  async update(
+    id: string,
+    dto: { name?: string; description?: string | null; year?: number; half?: number; targetLevel?: number | null },
+  ) {
     await this.ensureNotClosed(id);
     return this.prisma.cycle360.update({
       where: { id },
-      data: { name: dto.name, description: dto.description, year: dto.year, half: dto.half },
+      data: {
+        name: dto.name,
+        description: dto.description,
+        year: dto.year,
+        half: dto.half,
+        targetLevel: dto.targetLevel,
+      },
     });
   }
 

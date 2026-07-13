@@ -40,7 +40,10 @@ export class CycleController {
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() dto: { name?: string; description?: string | null; year?: number; half?: number }) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: { name?: string; description?: string | null; year?: number; half?: number; targetLevel?: number | null },
+  ) {
     return this.cycleService.update(id, dto);
   }
 
