@@ -536,6 +536,13 @@ export interface ReportPairFinding { kind: DeltaKind; competency: string; delta:
 export interface ReportGroupPair { pair: GroupPairKey; title: string; items: ReportPairFinding[]; }
 export interface ReportRecommendationTheme { title: string; subtopics: { title: string; text: string }[]; }
 
+/** Правленая HR копия открытых ответов; null — показывать исходные цитаты из оценки. */
+export interface ReportOpenAnswers {
+  strengths: string[];
+  toChange: string[];
+  toDevelop: string[];
+}
+
 export interface Report360Sections {
   strengths: ReportNarrativeItem[];
   developmentAreas: ReportNarrativeItem[];
@@ -543,6 +550,7 @@ export interface Report360Sections {
   hiddenPotential: ReportZoneItem[];
   groupComparison: ReportGroupPair[];
   recommendations: ReportRecommendationTheme[];
+  openAnswers?: ReportOpenAnswers | null;
 }
 
 export interface Report360 {

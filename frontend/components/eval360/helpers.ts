@@ -85,5 +85,6 @@ export function emptyReport360Sections(): Report360Sections {
       title: '',
       subtopics: Array.from({ length: 4 }, () => ({ title: '', text: '' })),
     })),
+    openAnswers: null,
   };
 }

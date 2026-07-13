@@ -14,14 +14,14 @@ const STATUS_PILL: Record<Report360Status, string> = { DRAFT: 'pill-yellow', REA
 export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subjectId: string; res: Results360 }) {
   const toast = useToast();
   const [env, setEnv] = useState<Report360Envelope | null>(null);
-  const [sections, setSections] = useState<Report360Sections | null>(null);
+  // для HR разделы видны всегда: пока отчёта нет — пустой шаблон, первое «Готово» создаст отчёт
+  const [sections, setSections] = useState<Report360Sections>(emptyReport360Sections());
   const [status, setStatus] = useState<Report360Status>('DRAFT');
-  const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState<'generate' | 'save' | null>(null);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [printMode, setPrintMode] = useState(false);
 
-  // на время печати отчёт переключается в read-only (textarea печатаются некрасиво)
+  // на время печати отчёт переключается в read-only (поля ввода печатаются некрасиво)
   useEffect(() => {
     if (!printMode) return;
     const done = () => setPrintMode(false);
@@ -34,9 +34,8 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
     try {
       const e = await get360Report(cycleId, subjectId);
       setEnv(e);
-      setSections(e.report?.sections ?? null);
+      setSections(e.report?.sections ?? emptyReport360Sections());
       setStatus(e.report?.status ?? 'DRAFT');
-      setDirty(false);
     } catch (err) { toast((err as Error).message); }
   }, [cycleId, subjectId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [load]);
@@ -49,7 +48,6 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
       setEnv(e => (e ? { ...e, report: r } : e));
       setSections(r.sections);
       setStatus(r.status);
-      setDirty(false);
       toast('Черновик отчёта сгенерирован');
     } catch (err) {
       toast((err as Error).message);
@@ -58,27 +56,25 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
     } finally { setBusy(null); }
   };
 
-  const save = async (nextStatus?: Report360Status) => {
-    if (!sections) return;
+  /** Сохранение — при нажатии «Готово» на блоке (создаёт отчёт при первом сохранении). */
+  const commit = async (s: Report360Sections) => {
     setBusy('save');
     try {
-      const r = await save360Report(cycleId, subjectId, { sections, ...(nextStatus ? { status: nextStatus } : {}) });
-      setStatus(r.status);
-      setDirty(false);
-      toast(nextStatus === 'READY' ? 'Отчёт отмечен готовым' : nextStatus === 'DRAFT' ? 'Отчёт возвращён в черновик' : 'Отчёт сохранён');
-    } catch (err) { toast((err as Error).message); } finally { setBusy(null); }
-  };
-
-  // ручное заполнение без ИИ: создаём пустой шаблон отчёта
-  const startManual = async () => {
-    setBusy('save');
-    try {
-      const r = await save360Report(cycleId, subjectId, { sections: emptyReport360Sections() });
+      const r = await save360Report(cycleId, subjectId, { sections: s });
       setEnv(e => (e ? { ...e, report: r } : e));
       setSections(r.sections);
       setStatus(r.status);
-      setDirty(false);
-      toast('Создан пустой отчёт — заполните разделы и сохраните');
+      toast('Сохранено');
+    } catch (err) { toast((err as Error).message); } finally { setBusy(null); }
+  };
+
+  const setReportStatus = async (nextStatus: Report360Status) => {
+    setBusy('save');
+    try {
+      const r = await save360Report(cycleId, subjectId, { sections, status: nextStatus });
+      setEnv(e => (e ? { ...e, report: r } : e));
+      setStatus(r.status);
+      toast(nextStatus === 'READY' ? 'Отчёт отмечен готовым' : 'Отчёт возвращён в черновик');
     } catch (err) { toast((err as Error).message); } finally { setBusy(null); }
   };
 
@@ -86,60 +82,46 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
 
   const report = env.report;
   const controls = (
-    <div className="card card-pad">
+    <div className="card card-pad stack-2">
       {!env.configured && (
-        <div className="small muted" style={{ marginBottom: report ? 10 : 0 }}>
-          Генерация отчёта недоступна: не настроено подключение к модели ИИ
-          (LLM_BASE_URL, LLM_API_KEY, LLM_MODEL). Обратитесь к администратору.
-          {report ? ' Существующий отчёт можно редактировать.' : ''}
+        <div className="small muted">
+          Генерация отчёта через ИИ недоступна: не настроено подключение к модели
+          (LLM_BASE_URL, LLM_API_KEY, LLM_MODEL). Разделы отчёта можно заполнить вручную —
+          нажмите значок карандаша на блоке.
         </div>
       )}
-      {!report ? (
-        <div className="stack-2">
-          <div className="row-2" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-            {env.configured && (
-              <button className="btn btn-primary" disabled={busy != null} onClick={generate}>
-                {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'Сгенерировать отчёт'}
-              </button>
-            )}
-            <button className="btn btn-secondary" disabled={busy != null} onClick={startManual}>Заполнить вручную</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setPrintMode(true)}>Скачать PDF</button>
-          </div>
+      <div className="row-2" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        {report
+          ? <span className={`pill ${STATUS_PILL[status]}`}>{STATUS_LABEL[status]}</span>
+          : <span className="pill pill-gray">Не создан</span>}
+        {report && (
           <span className="small muted">
-            {env.configured
-              ? 'ИИ подготовит черновик интерпретации по методике — его можно будет отредактировать. Либо заполните разделы отчёта вручную.'
-              : 'Заполните разделы отчёта вручную — они появятся ниже, под диаграммами.'}
+            {report.generatedAt
+              ? `Сгенерирован ${new Date(report.generatedAt).toLocaleString('ru-RU')}${report.model ? ` · ${report.model}` : ''}`
+              : 'Заполняется вручную'}
           </span>
-        </div>
-      ) : (
-        <div className="stack-2">
-          <div className="row-2" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <span className={`pill ${STATUS_PILL[status]}`}>{STATUS_LABEL[status]}</span>
-            <span className="small muted">
-              Сгенерирован {report.generatedAt ? new Date(report.generatedAt).toLocaleString('ru-RU') : '—'}
-              {report.model ? ` · ${report.model}` : ''}
-            </span>
-          </div>
-          <div className="row-2" style={{ flexWrap: 'wrap', gap: 8 }}>
-            <button className="btn btn-primary btn-sm" disabled={busy != null || !dirty} onClick={() => save()}>
-              {busy === 'save' ? 'Сохранение...' : 'Сохранить'}
-            </button>
-            {status === 'DRAFT'
-              ? <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => save('READY')}>Отметить готовым</button>
-              : <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => save('DRAFT')}>Вернуть в черновик</button>}
-            {env.configured && (
-              <button className="btn btn-ghost btn-sm" disabled={busy != null} onClick={() => setConfirmRegen(true)}>
+        )}
+      </div>
+      <div className="row-2" style={{ flexWrap: 'wrap', gap: 8 }}>
+        {env.configured && (
+          report
+            ? <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setConfirmRegen(true)}>
                 {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'Перегенерировать'}
               </button>
-            )}
-            <button className="btn btn-ghost btn-sm" onClick={() => setPrintMode(true)}>Скачать PDF</button>
-          </div>
-          <div className="small muted">
-            Сотрудник увидит отчёт после публикации результатов и только в статусе «Готов к публикации».
-            Проверьте, что текст не раскрывает авторов оценок.
-          </div>
-        </div>
-      )}
+            : <button className="btn btn-primary btn-sm" disabled={busy != null} onClick={generate}>
+                {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'Сгенерировать отчёт'}
+              </button>
+        )}
+        {report && (status === 'DRAFT'
+          ? <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setReportStatus('READY')}>Отметить готовым</button>
+          : <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setReportStatus('DRAFT')}>Вернуть в черновик</button>)}
+        <button className="btn btn-ghost btn-sm" onClick={() => setPrintMode(true)}>Скачать PDF</button>
+      </div>
+      <div className="small muted">
+        Редактирование — по значку карандаша на блоке; «Готово» сохраняет изменения.
+        Сотрудник увидит отчёт после публикации результатов и только в статусе «Готов к публикации».
+        Проверьте, что текст не раскрывает авторов оценок.
+      </div>
     </div>
   );
 
@@ -150,7 +132,8 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
         res={res}
         sections={sections}
         editable={!printMode}
-        onChange={s => { setSections(s); setDirty(true); }}
+        onChange={setSections}
+        onCommit={commit}
       />
       {confirmRegen && (
         <Modal open onClose={() => setConfirmRegen(false)} title="Перегенерировать отчёт?"
@@ -160,7 +143,7 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
               <button className="btn btn-primary btn-sm" onClick={generate}>Перегенерировать</button>
             </div>
           }>
-          <div>Текущий черновик, включая ваши правки, будет полностью заменён новым текстом от ИИ. Продолжить?</div>
+          <div>Текущее содержимое отчёта, включая ваши правки, будет полностью заменено новым текстом от ИИ. Продолжить?</div>
         </Modal>
       )}
     </div>
