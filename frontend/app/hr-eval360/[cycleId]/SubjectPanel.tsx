@@ -4,32 +4,20 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Icon, Modal, useToast } from '@/components/primitives';
 import {
   get360Workflow, Workflow, get360Results, Results360,
-  publish360, unpublish360, add360Conclusion, update360Conclusion, delete360Conclusion,
-  RespondentStatus, EvalZone, EvaluatorRole, CompetencyResult,
+  publish360, unpublish360,
+  RespondentStatus, CompetencyResult,
 } from '@/lib/api';
-import { RadarChart } from '@/components/eval360';
+import {
+  RadarChart, ROLE_LABEL, ZONE_LABEL, ZONE_PILL, SCALE, SERIES, SeriesKey,
+  groupByCategory, num, scaleColor, catLabel,
+} from '@/components/eval360';
+import { ReportView } from './ReportView';
 
-const ROLE_LABEL: Record<EvaluatorRole, string> = { SELF: 'Самооценка', MANAGER: 'Руководитель', PEER: 'Коллеги', SUBORDINATE: 'Подчинённые' };
-const ZONE_LABEL: Record<Exclude<EvalZone, null>, string> = { CONSENSUS: 'Согласие', BLIND_SPOT: 'Слепая зона', HIDDEN_POTENTIAL: 'Скрытый потенциал' };
-const ZONE_PILL: Record<Exclude<EvalZone, null>, string> = { CONSENSUS: 'pill-green', BLIND_SPOT: 'pill-red', HIDDEN_POTENTIAL: 'pill-blue' };
 const ST_LABEL: Record<RespondentStatus, string> = { PENDING: 'ожидает', IN_PROGRESS: 'заполняет', COMPLETED: 'готово' };
-
-const num = (n: number | null) => (n == null ? '—' : n.toFixed(2));
-
-function groupByCategory<T extends { category: string }>(items: T[]): { cat: string; items: T[] }[] {
-  const groups: { cat: string; items: T[] }[] = [];
-  for (const it of items) {
-    const key = it.category || '';
-    let g = groups.find(x => x.cat === key);
-    if (!g) { g = { cat: key, items: [] }; groups.push(g); }
-    g.items.push(it);
-  }
-  return groups;
-}
 
 export function SubjectPanel({ cycleId, subjectId, onChange }: { cycleId: string; subjectId: string; onChange: () => void }) {
   const toast = useToast();
-  const [tab, setTab] = useState<'workflow' | 'results' | 'dashboard' | 'conclusions'>('workflow');
+  const [tab, setTab] = useState<'workflow' | 'results' | 'dashboard' | 'report'>('workflow');
   const [wf, setWf] = useState<Workflow | null>(null);
   const [res, setRes] = useState<Results360 | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,13 +56,13 @@ export function SubjectPanel({ cycleId, subjectId, onChange }: { cycleId: string
         <button aria-selected={tab === 'workflow'} onClick={() => setTab('workflow')}>Воркфлоу</button>
         <button aria-selected={tab === 'results'} onClick={() => setTab('results')}>Результаты</button>
         <button aria-selected={tab === 'dashboard'} onClick={() => setTab('dashboard')}>Дашборд</button>
-        <button aria-selected={tab === 'conclusions'} onClick={() => setTab('conclusions')}>Выводы</button>
+        <button aria-selected={tab === 'report'} onClick={() => setTab('report')}>Отчёт</button>
       </div>
 
       {tab === 'workflow' && <WorkflowView wf={wf} />}
       {tab === 'results' && <ResultsView res={res} />}
       {tab === 'dashboard' && <DashboardView res={res} />}
-      {tab === 'conclusions' && <ConclusionsView cycleId={cycleId} subjectId={subjectId} res={res} reload={load} />}
+      {tab === 'report' && <ReportView cycleId={cycleId} subjectId={subjectId} res={res} />}
     </div>
   );
 }
@@ -174,29 +162,6 @@ function OpenAnswersView({ res }: { res: Results360 }) {
     </div>
   );
 }
-
-type SeriesKey = 'total' | 'peers' | 'subordinates' | 'manager' | 'self';
-const SERIES: { key: SeriesKey; label: string; color: string }[] = [
-  { key: 'total', label: 'Итоговая (средняя)', color: 'var(--gpc-blue-800)' },
-  { key: 'peers', label: 'Коллега', color: 'var(--gpc-cyan)' },
-  { key: 'subordinates', label: 'Подчинённый', color: 'var(--gpc-peach)' },
-  { key: 'manager', label: 'Руководитель', color: 'var(--gpc-blue)' },
-  { key: 'self', label: 'Самооценка', color: 'var(--gpc-orange)' },
-];
-const SCALE = [
-  { label: 'менее 2', cls: 'pill-red', desc: 'компетенция на этапе развития, требуется обучение и поддержка' },
-  { label: '2,0 – 3,5', cls: 'pill-yellow', desc: 'в целом соответствует ожиданиям, есть потенциал для роста' },
-  { label: 'более 3,5', cls: 'pill-green', desc: 'высокий уровень развития, лучшие практики' },
-];
-
-function scaleColor(v: number | null): string {
-  if (v == null) return 'var(--gpc-gray-400)';
-  if (v < 2) return 'var(--err)';
-  if (v <= 3.5) return 'var(--warn)';
-  return 'var(--ok-green)';
-}
-
-const catLabel = (cat: string) => cat === 'Управленческие компетенции' ? 'Компетенции' : (cat || 'Компетенции');
 
 function DashboardView({ res }: { res: Results360 }) {
   const [active, setActive] = useState<Set<SeriesKey>>(new Set<SeriesKey>(['total']));
@@ -350,53 +315,3 @@ function ChartZoomModal({ title, grp, picker, scaleLegend, renderChart, onClose 
   );
 }
 
-function ConclusionsView({ cycleId, subjectId, res, reload }: { cycleId: string; subjectId: string; res: Results360; reload: () => void }) {
-  const toast = useToast();
-  const [text, setText] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
-
-  const add = async () => {
-    if (!text.trim()) return;
-    setSaving(true);
-    try { await add360Conclusion(cycleId, subjectId, text.trim()); setText(''); toast('Вывод сохранён'); reload(); }
-    finally { setSaving(false); }
-  };
-  const saveEdit = async () => {
-    if (!editId) return;
-    await update360Conclusion(editId, editText.trim()); setEditId(null); reload();
-  };
-  const remove = async (id: string) => { await delete360Conclusion(id); reload(); };
-
-  return (
-    <div className="stack-3">
-      {res.conclusions.map(c => (
-        <div key={c.id} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: 12 }}>
-          {editId === c.id ? (
-            <div className="stack-2">
-              <textarea className="ta" value={editText} onChange={e => setEditText(e.target.value)} rows={3} />
-              <div className="row-2"><button className="btn btn-primary btn-sm" onClick={saveEdit}>Сохранить</button><button className="btn btn-secondary btn-sm" onClick={() => setEditId(null)}>Отмена</button></div>
-            </div>
-          ) : (
-            <>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{c.text}</div>
-              <div className="row-2" style={{ marginTop: 6, justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="small muted">{c.author || ''} · {new Date(c.createdAt).toLocaleDateString('ru-RU')}</span>
-                <span className="row-2">
-                  <button className="btn btn-ghost btn-sm" onClick={() => { setEditId(c.id); setEditText(c.text); }}><Icon name="edit" size={13} /></button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => remove(c.id)}><Icon name="trash" size={13} /></button>
-                </span>
-              </div>
-            </>
-          )}
-        </div>
-      ))}
-      <div className="field">
-        <label className="small">Новый вывод / рекомендация</label>
-        <textarea className="ta" value={text} onChange={e => setText(e.target.value)} rows={3} placeholder="Например: сильные лидерские качества, рекомендуется развивать делегирование..." />
-        <div style={{ marginTop: 8 }}><button className="btn btn-primary btn-sm" onClick={add} disabled={saving}>{saving ? 'Сохранение...' : 'Добавить вывод'}</button></div>
-      </div>
-    </div>
-  );
-}

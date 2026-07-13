@@ -45,6 +45,7 @@ function CyclesTab() {
   const [half, setHalf] = useState(1);
   const [scaleId, setScaleId] = useState('');
   const [versionId, setVersionId] = useState('');
+  const [targetLevel, setTargetLevel] = useState('3.0');
   const [selectedComps, setSelectedComps] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,9 +85,11 @@ function CyclesTab() {
   const handleCreate = async () => {
     if (!name.trim() || !scaleId || !versionId || selectedComps.size === 0) { setError('Заполните название, шкалу, версию и хотя бы одну компетенцию'); return; }
     if (!year || (half !== 1 && half !== 2)) { setError('Укажите год и полугодие'); return; }
+    const target = targetLevel.trim() === '' ? null : Number(targetLevel.replace(',', '.'));
+    if (target != null && !Number.isFinite(target)) { setError('Целевой уровень — число, например 3.0'); return; }
     setSaving(true); setError(null);
     try {
-      const cycle = await create360Cycle({ name: name.trim(), description: description.trim() || null, year, half, scaleId, versionId, competencyIds: Array.from(selectedComps) });
+      const cycle = await create360Cycle({ name: name.trim(), description: description.trim() || null, year, half, scaleId, versionId, competencyIds: Array.from(selectedComps), targetLevel: target });
       toast('Запуск создан');
       router.push(`/hr-eval360/${cycle.id}`);
     } catch (e) { setError((e as Error).message); } finally { setSaving(false); }
@@ -155,6 +158,10 @@ function CyclesTab() {
           <select className="sel" value={scaleId} onChange={e => setScaleId(e.target.value)}>
             {scales.map(s => <option key={s.id} value={s.id}>{s.name} ({s.points.length} баллов)</option>)}
           </select>
+        </div>
+        <div className="field">
+          <label className="small">Целевой уровень компетенций (для интерпретации отчёта)</label>
+          <input className="inp" type="number" step={0.1} placeholder="3.0" value={targetLevel} onChange={e => setTargetLevel(e.target.value)} />
         </div>
         <div className="field"><label className="small">Версия шаблона</label>
           <select className="sel" value={versionId} onChange={e => changeVersion(e.target.value)}>
