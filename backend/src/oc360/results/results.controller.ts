@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { KeycloakAuthGuard } from '../../auth/auth.guard';
 import { RolesGuard, Roles } from '../../auth/roles.guard';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -29,36 +29,6 @@ export class ResultsController {
   @Roles('hr', 'admin')
   unpublish(@Param('id') id: string, @Param('sid') sid: string) {
     return this.resultsService.unpublish(id, sid);
-  }
-
-  @Get('cycles/:id/subjects/:sid/conclusions')
-  @Roles('hr', 'admin')
-  listConclusions(@Param('id') id: string, @Param('sid') sid: string) {
-    return this.resultsService.listConclusions(id, sid);
-  }
-
-  @Post('cycles/:id/subjects/:sid/conclusions')
-  @Roles('hr', 'admin')
-  async addConclusion(
-    @Req() req: any,
-    @Param('id') id: string,
-    @Param('sid') sid: string,
-    @Body() dto: { text: string; authorId?: string },
-  ) {
-    const authorId = await resolveCurrentEmployeeId(this.prisma, req, dto.authorId);
-    return this.resultsService.addConclusion(id, sid, dto.text, authorId);
-  }
-
-  @Put('conclusions/:id')
-  @Roles('hr', 'admin')
-  updateConclusion(@Param('id') id: string, @Body() dto: { text: string }) {
-    return this.resultsService.updateConclusion(id, dto.text);
-  }
-
-  @Delete('conclusions/:id')
-  @Roles('hr', 'admin')
-  deleteConclusion(@Param('id') id: string) {
-    return this.resultsService.deleteConclusion(id);
   }
 
   // Свои результаты — доступно любому аутентифицированному сотруднику

@@ -35,7 +35,16 @@ export class ResultsService {
     if (!subject) throw new NotFoundException('Subject not found');
     if (subject.employeeId !== employeeId) throw new ForbiddenException('Нет доступа');
     if (!subject.resultsPublishedAt) throw new ForbiddenException('Результаты ещё не опубликованы');
-    return this.computeResults(cycleId, subjectId, true);
+    const res = await this.computeResults(cycleId, subjectId, true);
+    // отчёт виден сотруднику только в статусе READY
+    const report = await this.prisma.cycle360Report.findUnique({ where: { subjectId } });
+    return {
+      ...res,
+      report:
+        report && report.status === 'READY'
+          ? { sections: report.sections, generatedAt: report.generatedAt }
+          : null,
+    };
   }
 
   /** Список «моих» субъектов с признаком публикации (для вкладки сотрудника). */
@@ -71,7 +80,6 @@ export class ResultsService {
             evaluator: { select: { id: true, firstName: true, lastName: true, middleName: true } },
           },
         },
-        conclusions: { orderBy: { createdAt: 'asc' }, include: { author: { select: { firstName: true, lastName: true, middleName: true } } } },
       },
     });
     if (!subject) throw new NotFoundException('Subject not found');
@@ -229,14 +237,6 @@ export class ResultsService {
       overall,
       openAnswers,
       progress,
-      conclusions: anonymized
-        ? subject.conclusions.map(c => ({ id: c.id, text: c.text, createdAt: c.createdAt }))
-        : subject.conclusions.map(c => ({
-            id: c.id,
-            text: c.text,
-            createdAt: c.createdAt,
-            author: c.author ? fio(c.author as any) : null,
-          })),
     };
   }
 
@@ -279,36 +279,6 @@ export class ResultsService {
       });
     }
     return updated;
-  }
-
-  // ─── Выводы HR ─────────────────────────────────
-  async listConclusions(cycleId: string, subjectId: string) {
-    const subject = await this.ensureSubject(cycleId, subjectId);
-    return this.prisma.cycle360Conclusion.findMany({
-      where: { subjectId: subject.id },
-      orderBy: { createdAt: 'asc' },
-      include: { author: { select: { firstName: true, lastName: true, middleName: true } } },
-    });
-  }
-
-  async addConclusion(cycleId: string, subjectId: string, text: string, authorId: string | null) {
-    const subject = await this.ensureSubject(cycleId, subjectId);
-    return this.prisma.cycle360Conclusion.create({
-      data: { subjectId: subject.id, text, authorId },
-    });
-  }
-
-  async updateConclusion(id: string, text: string) {
-    const exists = await this.prisma.cycle360Conclusion.findUnique({ where: { id } });
-    if (!exists) throw new NotFoundException('Conclusion not found');
-    return this.prisma.cycle360Conclusion.update({ where: { id }, data: { text } });
-  }
-
-  async deleteConclusion(id: string) {
-    const exists = await this.prisma.cycle360Conclusion.findUnique({ where: { id } });
-    if (!exists) throw new NotFoundException('Conclusion not found');
-    await this.prisma.cycle360Conclusion.delete({ where: { id } });
-    return { success: true };
   }
 
   private async ensureSubject(cycleId: string, subjectId: string) {
