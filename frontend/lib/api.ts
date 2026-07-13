@@ -510,13 +510,11 @@ export interface Results360 {
   overall: { selfAvg: number | null; othersAvg: number | null; gap: number | null };
   openAnswers: OpenAnswerGroup[];
   progress: { role: EvaluatorRole; completed: number; total: number }[];
-  conclusions: { id: string; text: string; createdAt: string; author?: string | null }[];
   /** Целевой уровень цикла — только в HR-выдаче. */
   targetLevel?: number | null;
   /** Опубликованный отчёт (READY) — только в my-results. */
   report?: { sections: Report360Sections; generatedAt: string | null } | null;
 }
-export interface Conclusion360 { id: string; text: string; createdAt: string; author?: { firstName: string; lastName: string; middleName: string | null } | null; }
 export interface MySubject360 { subjectId: string; cycle: { id: string; name: string }; publishedAt: string | null; }
 
 // ─── Отчёт 360 (интерпретация) — зеркало backend/src/oc360/report/report.types.ts ───
@@ -609,14 +607,10 @@ export const addPeer = (subjectId: string, dto: { evaluatorId: string; employeeI
 export const removePeer = (subjectId: string, respondentId: string, employeeId: string) => fetchApi<{ success: boolean }>(`/oc360/assignments/peers/${subjectId}/${respondentId}?employeeId=${employeeId}`, { method: 'DELETE' });
 export const confirmPeers = (subjectId: string, employeeId: string) => fetchApi<{ success: boolean }>(`/oc360/assignments/peers/${subjectId}/confirm`, { method: 'POST', body: JSON.stringify({ employeeId }) });
 
-// Results / publish / conclusions
+// Results / publish
 export const get360Results = (id: string, sid: string) => fetchApi<Results360>(`/oc360/cycles/${id}/subjects/${sid}/results`);
 export const publish360 = (id: string, sid: string) => fetchApi<unknown>(`/oc360/cycles/${id}/subjects/${sid}/publish`, { method: 'POST' });
 export const unpublish360 = (id: string, sid: string) => fetchApi<unknown>(`/oc360/cycles/${id}/subjects/${sid}/unpublish`, { method: 'POST' });
-export const get360Conclusions = (id: string, sid: string) => fetchApi<Conclusion360[]>(`/oc360/cycles/${id}/subjects/${sid}/conclusions`);
-export const add360Conclusion = (id: string, sid: string, text: string) => fetchApi<Conclusion360>(`/oc360/cycles/${id}/subjects/${sid}/conclusions`, { method: 'POST', body: JSON.stringify({ text }) });
-export const update360Conclusion = (id: string, text: string) => fetchApi<Conclusion360>(`/oc360/conclusions/${id}`, { method: 'PUT', body: JSON.stringify({ text }) });
-export const delete360Conclusion = (id: string) => fetchApi<{ success: boolean }>(`/oc360/conclusions/${id}`, { method: 'DELETE' });
 export const get360MyResults = (employeeId: string) => fetchApi<MySubject360[]>(`/oc360/my-results?employeeId=${employeeId}`);
 export const get360MyResult = (cycleId: string, sid: string, employeeId: string) => fetchApi<Results360>(`/oc360/my-results/${cycleId}/${sid}?employeeId=${employeeId}`);
 

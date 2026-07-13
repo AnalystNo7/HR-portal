@@ -5,9 +5,10 @@ import { Icon, Modal, useToast } from '@/components/primitives';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   get360Assignments, Assignment, get360Assignment, AssignmentForm, submit360Assignment,
-  get360MyResults, MySubject360, get360MyResult, Results360, RespondentStatus, EvaluatorRole, EvalZone,
+  get360MyResults, MySubject360, get360MyResult, Results360, RespondentStatus,
   listPeers, addPeer, removePeer, confirmPeers, PeerRespondent, getEmployees, Employee,
 } from '@/lib/api';
+import { Report360View } from '@/components/eval360';
 
 const ST_PILL: Record<RespondentStatus, string> = { PENDING: 'pill-gray', IN_PROGRESS: 'pill-yellow', COMPLETED: 'pill-green' };
 const ST_LABEL: Record<RespondentStatus, string> = { PENDING: 'Не начато', IN_PROGRESS: 'В работе', COMPLETED: 'Завершено' };
@@ -260,21 +261,6 @@ function FillForm({ respondentId, employeeId, onBack }: { respondentId: string; 
 }
 
 // ─── Мои результаты ────────────────────────────────────
-const ROLE_LABEL: Record<EvaluatorRole, string> = { SELF: 'Самооценка', MANAGER: 'Руководитель', PEER: 'Коллеги', SUBORDINATE: 'Подчинённые' };
-const ZONE_LABEL: Record<Exclude<EvalZone, null>, string> = { CONSENSUS: 'Согласие', BLIND_SPOT: 'Слепая зона', HIDDEN_POTENTIAL: 'Скрытый потенциал' };
-const ZONE_PILL: Record<Exclude<EvalZone, null>, string> = { CONSENSUS: 'pill-green', BLIND_SPOT: 'pill-red', HIDDEN_POTENTIAL: 'pill-blue' };
-const num = (n: number | null) => (n == null ? '—' : n.toFixed(2));
-
-function groupByCategory<T extends { category: string }>(items: T[]): { cat: string; items: T[] }[] {
-  const groups: { cat: string; items: T[] }[] = [];
-  for (const it of items) {
-    const key = it.category || '';
-    let g = groups.find(x => x.cat === key);
-    if (!g) { g = { cat: key, items: [] }; groups.push(g); }
-    g.items.push(it);
-  }
-  return groups;
-}
 
 function MyResultsTab() {
   const { user } = useAuth();
@@ -314,38 +300,16 @@ function MyResultDetail({ cycleId, sid, employeeId, onBack }: { cycleId: string;
   return (
     <div>
       <button className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }} onClick={onBack}><Icon name="chevron_left" size={14} /> Назад</button>
-      <div className="card card-pad">
-        <table className="tbl">
-          <thead><tr><th>Ценность/Компетенция</th><th>Само</th><th>Окруж.</th><th>Итоговая</th><th>Gap</th><th>Зона</th></tr></thead>
-          <tbody>
-            {groupByCategory(res.competencyResults).map(g => (
-              <React.Fragment key={g.cat || '—'}>
-                {g.cat && <tr><td colSpan={6} style={{ background: 'var(--gpc-gray-50)', fontWeight: 600 }}>{g.cat}</td></tr>}
-                {g.items.map(c => (
-                  <tr key={c.id}>
-                    <td><b>{c.name}</b></td>
-                    <td className="tabular">{num(c.self)}</td>
-                    <td className="tabular">{num(c.othersAvg)}</td>
-                    <td className="tabular"><b>{num(c.total)}</b></td>
-                    <td className="tabular">{c.gap == null ? '—' : (c.gap > 0 ? '+' : '') + c.gap.toFixed(2)}</td>
-                    <td>{c.zone && <span className={`pill ${ZONE_PILL[c.zone]}`}>{ZONE_LABEL[c.zone]}</span>}</td>
-                  </tr>
-                ))}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-        <div className="small muted" style={{ marginTop: 8 }}>Оценки коллег и подчинённых показаны обобщённо и анонимно.</div>
-      </div>
-
-      {res.conclusions.length > 0 && (
-        <div className="card card-pad" style={{ marginTop: 12 }}>
-          <b>Выводы и рекомендации HR</b>
-          <div className="stack-2" style={{ marginTop: 8 }}>
-            {res.conclusions.map(c => <div key={c.id} style={{ whiteSpace: 'pre-wrap' }}>{c.text}</div>)}
+      <div className="stack-3">
+        <div className="card card-pad">
+          <b style={{ fontSize: 18 }}>Результаты оценки 360</b>
+          <div className="small muted" style={{ marginTop: 4 }}>
+            Результаты основаны на анонимных оценках коллег, руководителя и подчинённых.
+            Данные представлены в обобщённом виде: оценки коллег и подчинённых показаны анонимно.
           </div>
         </div>
-      )}
+        <Report360View res={res} sections={res.report?.sections ?? null} />
+      </div>
     </div>
   );
 }
