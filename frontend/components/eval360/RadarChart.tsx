@@ -25,7 +25,7 @@ export function RadarChart({ axes, series, min, max, size = 520, showValues = fa
     axes.map((_, i) => { const p = point(i, r); return `${p.x},${p.y}`; }).join(' ');
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ maxWidth: '100%', height: 'auto' }}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ maxWidth: '100%', height: 'auto', overflow: 'visible' }}>
       {/* кольца сетки + подписи уровней */}
       {levels.map(lv => (
         <polygon key={lv} points={ring(radius(lv))} fill="none" stroke="var(--line)" strokeWidth={1} />

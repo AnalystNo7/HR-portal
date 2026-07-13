@@ -57,6 +57,14 @@ export function scaleColor(v: number | null): string {
   return 'var(--ok-green)';
 }
 
+/** Светлая фоновая заливка ячейки по шкале (как в PDF-отчёте). */
+export function scaleBg(v: number | null): string {
+  if (v == null) return 'transparent';
+  if (v < 2) return '#fbdcdc';
+  if (v <= 3.5) return '#fdf3b3';
+  return '#cdf2cd';
+}
+
 /** UI-fallback переименования категории для немигрированных данных. */
 export const catLabel = (cat: string) =>
   cat === 'Управленческие компетенции' ? 'Компетенции' : (cat || 'Компетенции');

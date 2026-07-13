@@ -537,7 +537,6 @@ export interface ReportGroupPair { pair: GroupPairKey; title: string; items: Rep
 export interface ReportRecommendationTheme { title: string; subtopics: { title: string; text: string }[]; }
 
 export interface Report360Sections {
-  intro: string;
   strengths: ReportNarrativeItem[];
   developmentAreas: ReportNarrativeItem[];
   blindSpots: ReportZoneItem[];

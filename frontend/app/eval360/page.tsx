@@ -300,16 +300,7 @@ function MyResultDetail({ cycleId, sid, employeeId, onBack }: { cycleId: string;
   return (
     <div>
       <button className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }} onClick={onBack}><Icon name="chevron_left" size={14} /> Назад</button>
-      <div className="stack-3">
-        <div className="card card-pad">
-          <b style={{ fontSize: 18 }}>Результаты оценки 360</b>
-          <div className="small muted" style={{ marginTop: 4 }}>
-            Результаты основаны на анонимных оценках коллег, руководителя и подчинённых.
-            Данные представлены в обобщённом виде: оценки коллег и подчинённых показаны анонимно.
-          </div>
-        </div>
-        <Report360View res={res} sections={res.report?.sections ?? null} />
-      </div>
+      <Report360View res={res} sections={res.report?.sections ?? null} />
     </div>
   );
 }
