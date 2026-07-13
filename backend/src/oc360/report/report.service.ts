@@ -99,6 +99,7 @@ export class ReportService {
     return toDto(report);
   }
 
+  /** Сохранение правок HR. Если отчёта ещё нет — создаёт его (ручное заполнение без ИИ). */
   async update(
     cycleId: string,
     subjectId: string,
@@ -106,14 +107,18 @@ export class ReportService {
     authorId: string | null,
   ): Promise<ReportDto> {
     await this.ensureSubject(cycleId, subjectId);
-    const exists = await this.prisma.cycle360Report.findUnique({ where: { subjectId } });
-    if (!exists) throw new NotFoundException('Отчёт ещё не создан');
     if (dto.status && dto.status !== 'DRAFT' && dto.status !== 'READY') {
       throw new BadRequestException('Некорректный статус отчёта');
     }
-    const report = await this.prisma.cycle360Report.update({
+    const report = await this.prisma.cycle360Report.upsert({
       where: { subjectId },
-      data: {
+      create: {
+        subjectId,
+        sections: normalizeSections(dto.sections ?? {}) as any,
+        status: dto.status ?? 'DRAFT',
+        authorId,
+      },
+      update: {
         ...(dto.sections !== undefined ? { sections: normalizeSections(dto.sections) as any } : {}),
         ...(dto.status ? { status: dto.status } : {}),
         authorId,
