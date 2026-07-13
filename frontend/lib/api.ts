@@ -458,6 +458,7 @@ export interface Cycle360SubjectSummary {
 }
 export interface Cycle360Detail {
   id: string; name: string; description: string | null; year: number | null; half: number | null; status: Cycle360Status;
+  targetLevel: number | null;
   competencies: Cycle360Competency[];
   scalePoints: ScalePoint[];
   subjects: Cycle360SubjectSummary[];
@@ -510,9 +511,54 @@ export interface Results360 {
   openAnswers: OpenAnswerGroup[];
   progress: { role: EvaluatorRole; completed: number; total: number }[];
   conclusions: { id: string; text: string; createdAt: string; author?: string | null }[];
+  /** Целевой уровень цикла — только в HR-выдаче. */
+  targetLevel?: number | null;
+  /** Опубликованный отчёт (READY) — только в my-results. */
+  report?: { sections: Report360Sections; generatedAt: string | null } | null;
 }
 export interface Conclusion360 { id: string; text: string; createdAt: string; author?: { firstName: string; lastName: string; middleName: string | null } | null; }
 export interface MySubject360 { subjectId: string; cycle: { id: string; name: string }; publishedAt: string | null; }
+
+// ─── Отчёт 360 (интерпретация) — зеркало backend/src/oc360/report/report.types.ts ───
+
+export type Report360Status = 'DRAFT' | 'READY';
+export type DeltaKind = 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL';
+export type GroupPairKey = 'SELF_MANAGER' | 'SELF_PEER' | 'SELF_SUBORDINATE';
+
+export interface ReportNarrativeItem { competency: string; text: string; }
+export interface ReportZoneItem {
+  competency: string;
+  selfScore: number | null;
+  othersScore: number | null;
+  delta: number | null;
+  text: string;
+  conclusion: string;
+}
+export interface ReportPairFinding { kind: DeltaKind; competency: string; delta: number | null; text: string; }
+export interface ReportGroupPair { pair: GroupPairKey; title: string; items: ReportPairFinding[]; }
+export interface ReportRecommendationTheme { title: string; subtopics: { title: string; text: string }[]; }
+
+export interface Report360Sections {
+  intro: string;
+  strengths: ReportNarrativeItem[];
+  developmentAreas: ReportNarrativeItem[];
+  blindSpots: ReportZoneItem[];
+  hiddenPotential: ReportZoneItem[];
+  groupComparison: ReportGroupPair[];
+  recommendations: ReportRecommendationTheme[];
+}
+
+export interface Report360 {
+  id: string;
+  subjectId: string;
+  status: Report360Status;
+  sections: Report360Sections;
+  model: string | null;
+  generatedAt: string | null;
+  updatedAt: string;
+}
+
+export interface Report360Envelope { configured: boolean; report: Report360 | null; }
 
 // Template — versions
 export const get360Versions = () => fetchApi<CompetencyVersion[]>('/oc360/template/versions');
@@ -540,8 +586,8 @@ export function get360Cycles(query: { status?: Cycle360Status; page?: number; li
   return fetchApi<PaginatedResult<Cycle360ListItem>>(`/oc360/cycles?${qs.toString()}`);
 }
 export const get360Cycle = (id: string) => fetchApi<Cycle360Detail>(`/oc360/cycles/${id}`);
-export const create360Cycle = (dto: { name: string; description?: string | null; year: number; half: number; scaleId: string; versionId?: string; competencyIds?: string[] }) => fetchApi<Cycle360Detail>('/oc360/cycles', { method: 'POST', body: JSON.stringify(dto) });
-export const update360Cycle = (id: string, dto: { name?: string; description?: string | null; year?: number; half?: number }) => fetchApi<Cycle360Detail>(`/oc360/cycles/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const create360Cycle = (dto: { name: string; description?: string | null; year: number; half: number; scaleId: string; versionId?: string; competencyIds?: string[]; targetLevel?: number | null }) => fetchApi<Cycle360Detail>('/oc360/cycles', { method: 'POST', body: JSON.stringify(dto) });
+export const update360Cycle = (id: string, dto: { name?: string; description?: string | null; year?: number; half?: number; targetLevel?: number | null }) => fetchApi<Cycle360Detail>(`/oc360/cycles/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const delete360Cycle = (id: string) => fetchApi<{ success: boolean }>(`/oc360/cycles/${id}`, { method: 'DELETE' });
 export const update360CycleCompetency = (id: string, cid: string, dto: { name?: string; description?: string | null; order?: number }) => fetchApi<unknown>(`/oc360/cycles/${id}/competencies/${cid}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const update360CycleIndicator = (id: string, iid: string, dto: { text?: string; order?: number }) => fetchApi<unknown>(`/oc360/cycles/${id}/indicators/${iid}`, { method: 'PUT', body: JSON.stringify(dto) });
@@ -573,3 +619,8 @@ export const update360Conclusion = (id: string, text: string) => fetchApi<Conclu
 export const delete360Conclusion = (id: string) => fetchApi<{ success: boolean }>(`/oc360/conclusions/${id}`, { method: 'DELETE' });
 export const get360MyResults = (employeeId: string) => fetchApi<MySubject360[]>(`/oc360/my-results?employeeId=${employeeId}`);
 export const get360MyResult = (cycleId: string, sid: string, employeeId: string) => fetchApi<Results360>(`/oc360/my-results/${cycleId}/${sid}?employeeId=${employeeId}`);
+
+// Отчёт 360 (HR)
+export const get360Report = (id: string, sid: string) => fetchApi<Report360Envelope>(`/oc360/cycles/${id}/subjects/${sid}/report`);
+export const generate360Report = (id: string, sid: string) => fetchApi<Report360>(`/oc360/cycles/${id}/subjects/${sid}/report/generate`, { method: 'POST' });
+export const save360Report = (id: string, sid: string, dto: { sections?: Report360Sections; status?: Report360Status }) => fetchApi<Report360>(`/oc360/cycles/${id}/subjects/${sid}/report`, { method: 'PUT', body: JSON.stringify(dto) });

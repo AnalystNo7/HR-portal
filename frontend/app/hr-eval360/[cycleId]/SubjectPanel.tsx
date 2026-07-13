@@ -7,7 +7,7 @@ import {
   publish360, unpublish360, add360Conclusion, update360Conclusion, delete360Conclusion,
   RespondentStatus, EvalZone, EvaluatorRole, CompetencyResult,
 } from '@/lib/api';
-import { RadarChart } from './RadarChart';
+import { RadarChart } from '@/components/eval360';
 
 const ROLE_LABEL: Record<EvaluatorRole, string> = { SELF: 'Самооценка', MANAGER: 'Руководитель', PEER: 'Коллеги', SUBORDINATE: 'Подчинённые' };
 const ZONE_LABEL: Record<Exclude<EvalZone, null>, string> = { CONSENSUS: 'Согласие', BLIND_SPOT: 'Слепая зона', HIDDEN_POTENTIAL: 'Скрытый потенциал' };
