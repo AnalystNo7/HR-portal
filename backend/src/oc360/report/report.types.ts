@@ -38,7 +38,6 @@ export interface ReportRecommendationTheme {
 }
 
 export interface Report360Sections {
-  intro: string;
   strengths: ReportNarrativeItem[];
   developmentAreas: ReportNarrativeItem[];
   blindSpots: ReportZoneItem[];
@@ -126,7 +125,6 @@ export function normalizeSections(raw: unknown): Report360Sections {
   }
 
   return {
-    intro: str(root.intro),
     strengths: narrativeItems(root.strengths),
     developmentAreas: narrativeItems(root.developmentAreas),
     blindSpots: zoneItems(root.blindSpots),
@@ -139,7 +137,6 @@ export function normalizeSections(raw: unknown): Report360Sections {
 /** Отчёт считается пустым, если модель не заполнила ни одного содержательного раздела. */
 export function isEmptySections(s: Report360Sections): boolean {
   return (
-    !s.intro &&
     !s.strengths.length &&
     !s.developmentAreas.length &&
     !s.blindSpots.length &&
