@@ -299,7 +299,10 @@ function MyResultDetail({ cycleId, sid, employeeId, onBack }: { cycleId: string;
 
   return (
     <div>
-      <button className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }} onClick={onBack}><Icon name="chevron_left" size={14} /> Назад</button>
+      <div className="row-2" style={{ marginBottom: 12, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <button className="btn btn-ghost btn-sm" onClick={onBack}><Icon name="chevron_left" size={14} /> Назад</button>
+        <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>Скачать PDF</button>
+      </div>
       <Report360View res={res} sections={res.report?.sections ?? null} />
     </div>
   );

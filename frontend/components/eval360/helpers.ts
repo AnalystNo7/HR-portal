@@ -1,7 +1,7 @@
 // Общие константы и хелперы модуля «Оценка 360»
 // (используются HR-админкой и страницей сотрудника).
 
-import type { EvaluatorRole, EvalZone } from '@/lib/api';
+import type { EvaluatorRole, EvalZone, Report360Sections } from '@/lib/api';
 
 export const ROLE_LABEL: Record<EvaluatorRole, string> = {
   SELF: 'Самооценка',
@@ -68,3 +68,22 @@ export function scaleBg(v: number | null): string {
 /** UI-fallback переименования категории для немигрированных данных. */
 export const catLabel = (cat: string) =>
   cat === 'Управленческие компетенции' ? 'Компетенции' : (cat || 'Компетенции');
+
+/** Пустой шаблон отчёта для ручного заполнения без ИИ (зеркало normalizeSections({}) на backend). */
+export function emptyReport360Sections(): Report360Sections {
+  return {
+    strengths: [],
+    developmentAreas: [],
+    blindSpots: [],
+    hiddenPotential: [],
+    groupComparison: [
+      { pair: 'SELF_MANAGER', title: 'Самооценка и оценка руководителя', items: [] },
+      { pair: 'SELF_PEER', title: 'Самооценка и оценка коллег', items: [] },
+      { pair: 'SELF_SUBORDINATE', title: 'Самооценка и оценка подчинённых', items: [] },
+    ],
+    recommendations: Array.from({ length: 4 }, () => ({
+      title: '',
+      subtopics: Array.from({ length: 4 }, () => ({ title: '', text: '' })),
+    })),
+  };
+}

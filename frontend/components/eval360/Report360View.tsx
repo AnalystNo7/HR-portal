@@ -468,7 +468,7 @@ export function Report360View({ res, sections, editable = false, onChange, heade
   const pairIndex = (key: GroupPairKey) => sections?.groupComparison.findIndex(p => p.pair === key) ?? -1;
 
   return (
-    <div className="stack-3">
+    <div className="stack-3 print-area">
       {/* 1–2. Титул, вводный текст, шкала оценок */}
       <TitleBlock res={res} />
       {/* 3. Сводная таблица */}
