@@ -169,26 +169,35 @@ function ChartBlock({ res, title, keys }: { res: Results360; title: string; keys
   const vals = res.scalePoints.map(p => p.value);
   const min = vals.length ? Math.min(...vals) : 0;
   const max = vals.length ? Math.max(...vals) : 4;
-  const active = SERIES.filter(s => keys.includes(s.key))
-    .filter(s => res.competencyResults.some(c => c[s.key] != null));
+  const requested = SERIES.filter(s => keys.includes(s.key));
+  const active = requested.filter(s => res.competencyResults.some(c => c[s.key] != null));
+  const missing = requested.filter(s => !active.includes(s));
   const groups = groupByCategory(res.competencyResults);
-  if (active.length < Math.min(2, keys.length)) return null; // нет данных второй группы — блок не информативен
   return (
     <div className="card card-pad">
       <BigTitle title={title} />
       <SeriesLegend series={active} />
-      <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'stretch' }}>
-        {groups.map(g => (
-          <CategoryRadarCard
-            key={g.cat || '—'}
-            cat={g.cat}
-            items={g.items}
-            series={active.map(s => ({ label: s.label, color: s.color, values: g.items.map(c => c[s.key]) }))}
-            min={min}
-            max={max}
-          />
-        ))}
-      </div>
+      {missing.length > 0 && (
+        <div className="small muted" style={{ textAlign: 'center', marginBottom: 10 }}>
+          {missing.map(s => s.label).join(', ')}: нет завершённых оценок этой группы
+        </div>
+      )}
+      {active.length === 0 ? (
+        <div className="small muted" style={{ textAlign: 'center' }}>Нет данных для диаграммы</div>
+      ) : (
+        <div className="row-2" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'stretch' }}>
+          {groups.map(g => (
+            <CategoryRadarCard
+              key={g.cat || '—'}
+              cat={g.cat}
+              items={g.items}
+              series={active.map(s => ({ label: s.label, color: s.color, values: g.items.map(c => c[s.key]) }))}
+              min={min}
+              max={max}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -470,33 +479,33 @@ export function Report360View({ res, sections, editable = false, onChange, heade
       <ChartBlock res={res} title="Диаграмма сравнительных оценок по всем категориям респондентов"
         keys={['self', 'manager', 'peers', 'subordinates']} />
       {header}
+      {/* 6. Интерпретация по итогам оценки окружения (только при наличии отчёта) */}
       {sections && (
         <>
-          {/* 6. Интерпретация по итогам оценки окружения */}
           <NarrativeSection sec={sections} listKey="strengths" title="Сильные стороны" ctx={ctx} />
           <NarrativeSection sec={sections} listKey="developmentAreas" title="Зоны развития" ctx={ctx} />
           <ZoneSection sec={sections} listKey="blindSpots" title="Слепые зоны" ctx={ctx} />
           <ZoneSection sec={sections} listKey="hiddenPotential" title="Скрытые возможности" ctx={ctx} />
-          {/* 7. Пары групп: диаграмма + разбор */}
-          {PAIR_BLOCKS.map(block => {
-            const idx = pairIndex(block.pair);
-            const pair = idx >= 0 ? sections.groupComparison[idx] : null;
-            const hasFindings = !!pair && (ctx.editable || pair.items.length > 0);
-            return (
-              <React.Fragment key={block.pair}>
-                <ChartBlock res={res} title={block.chartTitle} keys={block.keys} />
-                {hasFindings && pair && (
-                  <div className="card card-pad">
-                    <PairFindings pair={pair} pairIndex={idx} genitive={block.genitive} ctx={ctx} />
-                  </div>
-                )}
-              </React.Fragment>
-            );
-          })}
-          {/* 8. Рекомендации */}
-          <RecommendationsSection sec={sections} ctx={ctx} />
         </>
       )}
+      {/* 7. Пары групп: диаграммы — всегда (автоматическая часть), разбор — при наличии отчёта */}
+      {PAIR_BLOCKS.map(block => {
+        const idx = pairIndex(block.pair);
+        const pair = sections && idx >= 0 ? sections.groupComparison[idx] : null;
+        const hasFindings = !!pair && (ctx.editable || pair.items.length > 0);
+        return (
+          <React.Fragment key={block.pair}>
+            <ChartBlock res={res} title={block.chartTitle} keys={block.keys} />
+            {hasFindings && pair && (
+              <div className="card card-pad">
+                <PairFindings pair={pair} pairIndex={idx} genitive={block.genitive} ctx={ctx} />
+              </div>
+            )}
+          </React.Fragment>
+        );
+      })}
+      {/* 8. Рекомендации */}
+      {sections && <RecommendationsSection sec={sections} ctx={ctx} />}
     </div>
   );
 }
