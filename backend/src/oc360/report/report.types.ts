@@ -37,6 +37,13 @@ export interface ReportRecommendationTheme {
   subtopics: { title: string; text: string }[];
 }
 
+/** Правленая HR копия открытых ответов; null — показывать исходные цитаты из оценки. */
+export interface ReportOpenAnswers {
+  strengths: string[];
+  toChange: string[];
+  toDevelop: string[];
+}
+
 export interface Report360Sections {
   strengths: ReportNarrativeItem[];
   developmentAreas: ReportNarrativeItem[];
@@ -44,6 +51,7 @@ export interface Report360Sections {
   hiddenPotential: ReportZoneItem[];
   groupComparison: ReportGroupPair[];
   recommendations: ReportRecommendationTheme[];
+  openAnswers?: ReportOpenAnswers | null;
 }
 
 export const GROUP_PAIR_TITLES: Record<GroupPairKey, string> = {
@@ -124,6 +132,18 @@ export function normalizeSections(raw: unknown): Report360Sections {
     recommendations.push({ title: str(theme.title), subtopics });
   }
 
+  const rawOpen = root.openAnswers;
+  const strList = (v: unknown): string[] =>
+    arr(v).map(x => str(x)).filter(Boolean);
+  const openAnswers =
+    rawOpen && typeof rawOpen === 'object' && !Array.isArray(rawOpen)
+      ? {
+          strengths: strList((rawOpen as Record<string, unknown>).strengths),
+          toChange: strList((rawOpen as Record<string, unknown>).toChange),
+          toDevelop: strList((rawOpen as Record<string, unknown>).toDevelop),
+        }
+      : null;
+
   return {
     strengths: narrativeItems(root.strengths),
     developmentAreas: narrativeItems(root.developmentAreas),
@@ -131,6 +151,7 @@ export function normalizeSections(raw: unknown): Report360Sections {
     hiddenPotential: zoneItems(root.hiddenPotential),
     groupComparison: pairs,
     recommendations,
+    openAnswers,
   };
 }
 
