@@ -55,6 +55,12 @@ services:
       KEYCLOAK_CLIENT_ID: hr-portal-app
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Подключение к LLM для генерации отчётов 360 (опционально —
+      # без этих переменных портал работает, генерация отключена)
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-}
     ports:
       - "4100:4000"
     depends_on:

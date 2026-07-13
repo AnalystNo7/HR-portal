@@ -98,8 +98,21 @@ KEYCLOAK_ADMIN=admin
 KEYCLOAK_ADMIN_PASSWORD=<сильный_пароль>
 
 KEYCLOAK_PUBLIC_URL=https://sitehrportal.ru/auth
+
+# Подключение к модели ИИ для генерации отчётов 360 (опционально).
+# Любой OpenAI-совместимый API: OpenAI, DeepSeek, OpenRouter, локальный vLLM/Ollama и т.п.
+# Без этих переменных портал работает полностью, отключена только генерация отчётов.
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_API_KEY=<ключ_API>
+LLM_MODEL=gpt-4o
+# LLM_TEMPERATURE=0.3   # необязательно, по умолчанию 0.3
 ```
 Публичные `NEXT_PUBLIC_*` для frontend зашиты в `docker-compose.yml` (build args на домен `sitehrportal.ru`) — отдельно задавать не нужно.
+
+**Важно для генерации отчётов:** запрос к LLM может идти до 2 минут — таймаут чтения
+reverse-proxy для пути `/api` должен быть не меньше 180 секунд
+(в `nginx/nginx.conf` уже задан `proxy_read_timeout 180s`; при использовании
+Traefik в Dokploy проверьте аналогичную настройку).
 
 ### 4. Домен
 В Dokploy привяжите домен `sitehrportal.ru` к сервису frontend (порт 3001),
