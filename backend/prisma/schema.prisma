@@ -52,6 +52,7 @@ model Employee {
   subject360       Cycle360Subject[]    @relation("Subject360")
   evaluations360   Cycle360Respondent[] @relation("Evaluator360")
   conclusions360   Cycle360Conclusion[] @relation("Conclusion360Author")
+  reports360       Cycle360Report[]     @relation("Report360Author")
   keycloakId     String?          @unique @map("keycloak_id")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
@@ -174,6 +175,11 @@ enum RespondentStatus {
   COMPLETED
 }
 
+enum Report360Status {
+  DRAFT
+  READY
+}
+
 // Версия набора компетенций (шаблон оценки). Одна из версий — по умолчанию.
 model CompetencyVersion {
   id           String               @id @default(uuid())
@@ -245,6 +251,8 @@ model Cycle360 {
   year         Int?
   half         Int?
   status       Cycle360Status       @default(DRAFT)
+  // Целевой уровень компетенций по методике; null = 3.0 (DEFAULT_TARGET_LEVEL в коде)
+  targetLevel  Float?               @map("target_level")
   startedAt    DateTime?            @map("started_at")
   closedAt     DateTime?            @map("closed_at")
   createdById  String?              @map("created_by_id")
@@ -306,6 +314,7 @@ model Cycle360Subject {
   peersConfirmed     Boolean              @default(false) @map("peers_confirmed")
   respondents        Cycle360Respondent[]
   conclusions        Cycle360Conclusion[]
+  report             Cycle360Report?
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
 
@@ -354,6 +363,8 @@ model Cycle360OpenAnswer {
   @@map("cycle360_open_answers")
 }
 
+// Deprecated: функционал «Выводы» заменён отчётом (Cycle360Report).
+// Модель оставлена, чтобы prisma db push на проде не дропнул таблицу с данными.
 model Cycle360Conclusion {
   id        String          @id @default(uuid())
   subjectId String          @map("subject_id")
@@ -365,4 +376,22 @@ model Cycle360Conclusion {
   updatedAt DateTime        @updatedAt @map("updated_at")
 
   @@map("cycle360_conclusions")
+}
+
+// Интерпретационный отчёт по оценке 360: черновик генерирует LLM, HR правит.
+// Сотрудник видит отчёт при resultsPublishedAt != null И status == READY.
+model Cycle360Report {
+  id          String          @id @default(uuid())
+  subjectId   String          @unique @map("subject_id")
+  subject     Cycle360Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  status      Report360Status @default(DRAFT)
+  sections    Json
+  model       String?
+  generatedAt DateTime?       @map("generated_at")
+  authorId    String?         @map("author_id")
+  author      Employee?       @relation("Report360Author", fields: [authorId], references: [id])
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@map("cycle360_reports")
 }
