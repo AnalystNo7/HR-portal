@@ -10,7 +10,7 @@ import {
   get360Respondents, RespondentLane, remove360Respondent, add360Respondent, EvaluatorRole,
   getEmployees, Employee,
 } from '@/lib/api';
-import { SubjectPanel } from './SubjectPanel';
+import { SubjectPanel, SubjectPanelTab } from './SubjectPanel';
 
 const STATUS_PILL: Record<Cycle360Status, string> = { DRAFT: 'pill-gray', ACTIVE: 'pill-green', CLOSED: 'pill-blue' };
 const STATUS_LABEL: Record<Cycle360Status, string> = { DRAFT: 'Черновик', ACTIVE: 'Идёт оценка', CLOSED: 'Завершён' };
@@ -41,6 +41,7 @@ function Eval360CyclePage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(searchParams.get('edit') === '1');
+  const [panelTab, setPanelTab] = useState<SubjectPanelTab>('workflow');
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
@@ -51,6 +52,11 @@ function Eval360CyclePage() {
     try { setCycle(await get360Cycle(cycleId)); } catch {} finally { setLoading(false); }
   }, [cycleId]);
   useEffect(() => { load(); }, [load]);
+
+  // при уходе с вкладки «Воркфлоу» или снятии выбора сотрудника режим правки завершается
+  useEffect(() => {
+    if (editMode && (panelTab !== 'workflow' || !selected)) setEditMode(false);
+  }, [editMode, panelTab, selected]);
 
   const activate = async () => {
     setBusy(true);
@@ -64,6 +70,8 @@ function Eval360CyclePage() {
   const isActive = cycle.status === 'ACTIVE';
   // Редактор доступен: в DRAFT всегда, в ACTIVE — только в режиме редактирования.
   const showEditor = isDraft || (isActive && editMode);
+  // Правка активного запуска — только на вкладке «Воркфлоу» выбранного сотрудника
+  const canEditActive = isActive && selected != null && panelTab === 'workflow';
 
   return (
     <div>
@@ -86,8 +94,8 @@ function Eval360CyclePage() {
             <button className="btn btn-ghost btn-sm" onClick={() => setDelOpen(true)}><Icon name="trash" size={14} /> Удалить</button>
             <button className="btn btn-primary" disabled={busy || cycle.subjects.length === 0} onClick={activate}>Запустить оценку</button>
           </>}
-          {isActive && !editMode && <button className="btn btn-ghost btn-sm" onClick={() => setEditMode(true)}><Icon name="edit" size={14} /> Редактировать</button>}
-          {isActive && editMode && <>
+          {canEditActive && !editMode && <button className="btn btn-ghost btn-sm" onClick={() => setEditMode(true)}><Icon name="edit" size={14} /> Редактировать</button>}
+          {canEditActive && editMode && <>
             <button className="btn btn-ghost btn-sm" onClick={() => setEditOpen(true)}><Icon name="edit" size={14} /> Изменить название</button>
             <button className="btn btn-ghost btn-sm" onClick={() => setDelOpen(true)}><Icon name="trash" size={14} /> Удалить</button>
             <button className="btn btn-primary btn-sm" onClick={() => setEditMode(false)}>Готово</button>
@@ -126,7 +134,7 @@ function Eval360CyclePage() {
           {!selected && <div className="card card-pad muted">Выберите сотрудника слева, чтобы {isDraft ? 'настроить оценивающих' : 'увидеть воркфлоу и результаты'}.</div>}
           {selected && isDraft && <DraftRespondentsEditor cycleId={cycleId} subjectId={selected} managerEditsPeers={cycle.subjects.find(s => s.id === selected)?.managerEditsPeers} onChange={load} />}
           {selected && !isDraft && <>
-            <SubjectPanel cycleId={cycleId} subjectId={selected} onChange={load} />
+            <SubjectPanel cycleId={cycleId} subjectId={selected} onChange={load} onTabChange={setPanelTab} />
             {isActive && editMode && <div style={{ marginTop: 16 }}><DraftRespondentsEditor cycleId={cycleId} subjectId={selected} managerEditsPeers={cycle.subjects.find(s => s.id === selected)?.managerEditsPeers} onChange={load} /></div>}
           </>}
         </div>

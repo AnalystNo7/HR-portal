@@ -15,9 +15,19 @@ import { ReportView } from './ReportView';
 
 const ST_LABEL: Record<RespondentStatus, string> = { PENDING: 'ожидает', IN_PROGRESS: 'заполняет', COMPLETED: 'готово' };
 
-export function SubjectPanel({ cycleId, subjectId, onChange }: { cycleId: string; subjectId: string; onChange: () => void }) {
+export type SubjectPanelTab = 'workflow' | 'results' | 'dashboard' | 'report';
+
+export function SubjectPanel({ cycleId, subjectId, onChange, onTabChange }: {
+  cycleId: string;
+  subjectId: string;
+  onChange: () => void;
+  /** Уведомляет страницу о текущей вкладке (кнопки редактирования запуска видны только на «Воркфлоу»). */
+  onTabChange?: (tab: SubjectPanelTab) => void;
+}) {
   const toast = useToast();
-  const [tab, setTab] = useState<'workflow' | 'results' | 'dashboard' | 'report'>('workflow');
+  const [tab, setTabState] = useState<SubjectPanelTab>('workflow');
+  const setTab = (t: SubjectPanelTab) => { setTabState(t); onTabChange?.(t); };
+  useEffect(() => { onTabChange?.(tab); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [wf, setWf] = useState<Workflow | null>(null);
   const [res, setRes] = useState<Results360 | null>(null);
   const [loading, setLoading] = useState(true);
