@@ -10,12 +10,13 @@ import {
   get360Scales, create360Scale, update360Scale, delete360Scale, ScaleTpl, ScalePoint,
   get360Versions, create360Version, update360Version, delete360Version, CompetencyVersion,
 } from '@/lib/api';
+import { KnowledgeTab } from './KnowledgeTab';
 
 const STATUS_PILL: Record<Cycle360Status, string> = { DRAFT: 'pill-gray', ACTIVE: 'pill-green', CLOSED: 'pill-blue' };
 const STATUS_LABEL: Record<Cycle360Status, string> = { DRAFT: 'Черновик', ACTIVE: 'Идёт оценка', CLOSED: 'Завершён' };
 
 export default function HrEval360Page() {
-  const [tab, setTab] = useState<'cycles' | 'template' | 'scales'>('cycles');
+  const [tab, setTab] = useState<'cycles' | 'template' | 'scales' | 'knowledge'>('cycles');
   return (
     <div>
       <h2 style={{ fontFamily: 'var(--font-head)', fontSize: 22, marginBottom: 16 }}>Оценка 360</h2>
@@ -23,8 +24,9 @@ export default function HrEval360Page() {
         <button aria-selected={tab === 'cycles'} onClick={() => setTab('cycles')}>Запуски</button>
         <button aria-selected={tab === 'template'} onClick={() => setTab('template')}>Шаблон оценки</button>
         <button aria-selected={tab === 'scales'} onClick={() => setTab('scales')}>Шкала оценки</button>
+        <button aria-selected={tab === 'knowledge'} onClick={() => setTab('knowledge')}>База знаний</button>
       </div>
-      {tab === 'cycles' ? <CyclesTab /> : tab === 'template' ? <TemplateTab /> : <ScalesTab />}
+      {tab === 'cycles' ? <CyclesTab /> : tab === 'template' ? <TemplateTab /> : tab === 'scales' ? <ScalesTab /> : <KnowledgeTab />}
     </div>
   );
 }

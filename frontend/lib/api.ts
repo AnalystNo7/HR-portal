@@ -626,6 +626,19 @@ export const get360Report = (id: string, sid: string) => fetchApi<Report360Envel
 export const generate360Report = (id: string, sid: string) => fetchApi<Report360>(`/oc360/cycles/${id}/subjects/${sid}/report/generate`, { method: 'POST' });
 export const save360Report = (id: string, sid: string, dto: { sections?: Report360Sections; status?: Report360Status }) => fetchApi<Report360>(`/oc360/cycles/${id}/subjects/${sid}/report`, { method: 'PUT', body: JSON.stringify(dto) });
 
+// ─── База знаний 360 (hr/admin) ────────────────────────
+export interface KnowledgeDoc { id: string; name: string; charCount: number; isActive: boolean; createdAt: string; }
+export interface KnowledgeList { docs: KnowledgeDoc[]; activeChars: number; maxContextChars: number; }
+export interface ReportPromptView { text: string | null; defaultText: string; technicalText: string; isCustom: boolean; }
+
+export const getKnowledgeDocs = () => fetchApi<KnowledgeList>('/oc360/knowledge');
+export const uploadKnowledgeDoc = (file: File) => uploadFile<KnowledgeDoc>('/oc360/knowledge/docs', file);
+export const getKnowledgeDocText = (id: string) => fetchApi<{ id: string; name: string; text: string }>(`/oc360/knowledge/docs/${id}`);
+export const updateKnowledgeDoc = (id: string, dto: { isActive?: boolean; name?: string }) => fetchApi<KnowledgeDoc>(`/oc360/knowledge/docs/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const deleteKnowledgeDoc = (id: string) => fetchApi<{ success: boolean }>(`/oc360/knowledge/docs/${id}`, { method: 'DELETE' });
+export const getReportPrompt = () => fetchApi<ReportPromptView>('/oc360/knowledge/prompt');
+export const saveReportPrompt = (text: string | null) => fetchApi<ReportPromptView>('/oc360/knowledge/prompt', { method: 'PUT', body: JSON.stringify({ text }) });
+
 // ─── Настройки LLM (админка) ───────────────────────────
 export interface LlmSettingsView {
   baseUrl: string;
