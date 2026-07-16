@@ -10,10 +10,12 @@ import { ResultsService } from './results/results.service';
 import { ReportController } from './report/report.controller';
 import { ReportService } from './report/report.service';
 import { LlmService } from './report/llm.client';
+import { KnowledgeController } from './knowledge/knowledge.controller';
+import { KnowledgeService } from './knowledge/knowledge.service';
 
 @Module({
-  controllers: [TemplateController, CycleController, RespondentController, ResultsController, ReportController],
-  providers: [TemplateService, CycleService, RespondentService, ResultsService, ReportService, LlmService],
+  controllers: [TemplateController, CycleController, RespondentController, ResultsController, ReportController, KnowledgeController],
+  providers: [TemplateService, CycleService, RespondentService, ResultsService, ReportService, LlmService, KnowledgeService],
   exports: [LlmService], // используется SettingsModule (настройка/тест подключения)
 })
 export class Oc360Module {}

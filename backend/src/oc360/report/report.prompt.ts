@@ -1,12 +1,17 @@
 import { ReportAnalytics } from '../results/analytics';
 
-/** System-промпт: методика интерпретации 360 + строгая JSON-схема отчёта. */
-export function buildSystemPrompt(a: ReportAnalytics): string {
-  return `Ты — эксперт по оценке персонала методом «360 градусов». Составь черновик
+/** Лимит суммарного текста методических документов в промпте (символы). */
+export const MAX_CONTEXT_CHARS = 150_000;
+
+/**
+ * Методическая часть системного промпта (редактируется HR во вкладке «База знаний»).
+ * Плейсхолдеры {{scale_min}}, {{scale_max}}, {{target_level}} подставляются при генерации.
+ */
+export const DEFAULT_METHODOLOGY = `Ты — эксперт по оценке персонала методом «360 градусов». Составь черновик
 интерпретационного отчёта по результатам оценки сотрудника для HR-специалиста.
 
 Методология:
-- Шкала оценок: от ${a.scale.min} до ${a.scale.max}. Целевой уровень развития компетенций: ${a.targetLevel}.
+- Шкала оценок: от {{scale_min}} до {{scale_max}}. Целевой уровень развития компетенций: {{target_level}}.
 - Категории расхождений |Δ| между самооценкой и оценкой группы:
   0.0–0.1 — практически полное совпадение; 0.2–0.3 — «шум» шкалы, незначимо;
   0.4–0.5 — зона внимания; 0.6–0.7 — выраженное расхождение;
@@ -35,9 +40,13 @@ export function buildSystemPrompt(a: ReportAnalytics): string {
   "text" — 1–3 предложения в стиле «Сотрудник и руководитель одинаково высоко оценивают
   уровень развития этой компетенции» с трактовкой причины расхождения/совпадения.
 - В recommendations — РОВНО 4 темы развития, в каждой РОВНО 4 подтемы; темы выводи из
-  зон развития и слепых зон.
+  зон развития и слепых зон.`;
 
-Верни СТРОГО JSON без пояснений и без markdown, по схеме:
+/**
+ * Защищённая техническая часть: формат ответа. НЕ редактируется из UI —
+ * её нарушение ломает разбор ответа модели (normalizeSections).
+ */
+export const TECHNICAL_PROMPT = `Верни СТРОГО JSON без пояснений и без markdown, по схеме:
 {
   "strengths": [ { "competency": "название", "text": "абзац интерпретации с цифрами и опорой на комментарии" } ],
   "developmentAreas": [ { "competency": "название", "text": "абзац интерпретации" } ],
@@ -53,6 +62,49 @@ export function buildSystemPrompt(a: ReportAnalytics): string {
     { "title": "Тема развития", "subtopics": [ { "title": "подтема", "text": "1–2 предложения, что и как развивать" } ] }
   ]
 }`;
+
+export interface KnowledgeDocInput {
+  name: string;
+  text: string;
+}
+
+/** Подстановка плейсхолдеров методической части. */
+export function fillMethodology(methodology: string, a: ReportAnalytics): string {
+  return methodology
+    .replaceAll('{{scale_min}}', String(a.scale.min))
+    .replaceAll('{{scale_max}}', String(a.scale.max))
+    .replaceAll('{{target_level}}', String(a.targetLevel));
+}
+
+/** Блок методических документов с обрезкой по общему лимиту. */
+export function buildDocsBlock(docs: KnowledgeDocInput[]): string {
+  if (!docs.length) return '';
+  const parts: string[] = ['Методические документы (используй их положения при интерпретации):'];
+  let budget = MAX_CONTEXT_CHARS;
+  for (const d of docs) {
+    if (budget <= 0) break;
+    let text = d.text;
+    if (text.length > budget) text = text.slice(0, budget) + '\n[документ обрезан по лимиту объёма]';
+    budget -= text.length;
+    parts.push(`### ${d.name}\n${text}`);
+  }
+  return parts.join('\n\n');
+}
+
+/**
+ * System-промпт целиком: методическая часть (кастомная или стандартная)
+ * + методические документы + защищённая техническая часть.
+ */
+export function buildSystemPrompt(
+  a: ReportAnalytics,
+  methodology: string = DEFAULT_METHODOLOGY,
+  docs: KnowledgeDocInput[] = [],
+): string {
+  const blocks = [fillMethodology(methodology, a)];
+  const docsBlock = buildDocsBlock(docs);
+  if (docsBlock) blocks.push(docsBlock);
+  blocks.push(TECHNICAL_PROMPT);
+  return blocks.join('\n\n');
 }
 
 export interface ReportPromptSubject {

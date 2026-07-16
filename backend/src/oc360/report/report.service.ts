@@ -3,6 +3,7 @@ import { Cycle360Report, Report360Status } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { fio } from '../oc360.helpers';
 import { ResultsService } from '../results/results.service';
+import { KnowledgeService } from '../knowledge/knowledge.service';
 import { LlmService } from './llm.client';
 import { buildSystemPrompt, buildUserPrompt } from './report.prompt';
 import { isEmptySections, normalizeSections, Report360Sections } from './report.types';
@@ -35,6 +36,7 @@ export class ReportService {
     private prisma: PrismaService,
     private results: ResultsService,
     private llm: LlmService,
+    private knowledge: KnowledgeService,
   ) {}
 
   async getReport(cycleId: string, subjectId: string) {
@@ -67,8 +69,10 @@ export class ReportService {
     if (!subj) throw new NotFoundException('Subject not found');
 
     const cfg = await this.llm.getConfig();
+    // база знаний: кастомная/стандартная методика + активные документы
+    const ctx = await this.knowledge.getGenerationContext();
     const raw = await this.llm.completeJson(
-      buildSystemPrompt(analytics),
+      buildSystemPrompt(analytics, ctx.methodology, ctx.docs),
       buildUserPrompt(
         { name: fio(subj.employee), position: subj.employee.position?.name ?? null, cycleName: subj.cycle.name },
         analytics,
