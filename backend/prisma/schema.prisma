@@ -392,6 +392,32 @@ model Cycle360Conclusion {
   @@map("cycle360_conclusions")
 }
 
+// База знаний 360: методические документы, подставляемые в промпт генерации.
+model KnowledgeDoc {
+  id           String   @id @default(uuid())
+  name         String
+  mimeType     String?  @map("mime_type")
+  text         String
+  charCount    Int      @map("char_count")
+  isActive     Boolean  @default(true) @map("is_active")
+  uploadedById String?  @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("knowledge_docs")
+}
+
+// Кастомная методическая часть системного промпта генерации (singleton, id="default").
+// text = null — используется стандартная (встроенная) методика.
+model ReportPrompt {
+  id          String   @id @default("default")
+  text        String?
+  updatedById String?  @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("report_prompts")
+}
+
 // Интерпретационный отчёт по оценке 360: черновик генерирует LLM, HR правит.
 // Сотрудник видит отчёт при resultsPublishedAt != null И status == READY.
 model Cycle360Report {
