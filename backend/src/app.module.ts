@@ -10,9 +10,10 @@ import { ImportModule } from './import/import.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { PositionsModule } from './positions/positions.module';
 import { Oc360Module } from './oc360/oc360.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, EmployeesModule, ProfileModule, AppealsModule, MeModule, ImportModule, DepartmentsModule, PositionsModule, Oc360Module],
+  imports: [PrismaModule, AuthModule, EmployeesModule, ProfileModule, AppealsModule, MeModule, ImportModule, DepartmentsModule, PositionsModule, Oc360Module, SettingsModule],
   controllers: [AppController],
 })
 export class AppModule {}

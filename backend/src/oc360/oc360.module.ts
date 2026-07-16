@@ -14,5 +14,6 @@ import { LlmService } from './report/llm.client';
 @Module({
   controllers: [TemplateController, CycleController, RespondentController, ResultsController, ReportController],
   providers: [TemplateService, CycleService, RespondentService, ResultsService, ReportService, LlmService],
+  exports: [LlmService], // используется SettingsModule (настройка/тест подключения)
 })
 export class Oc360Module {}

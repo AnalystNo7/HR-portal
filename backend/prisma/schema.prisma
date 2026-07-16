@@ -7,6 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Настройки подключения к LLM для генерации отчётов 360 (одна строка id="default").
+// Пустые поля добираются из env (LLM_BASE_URL/LLM_API_KEY/LLM_MODEL/LLM_TEMPERATURE).
+model LlmSettings {
+  id          String   @id @default("default")
+  baseUrl     String?  @map("base_url")
+  apiKey      String?  @map("api_key")
+  model       String?
+  temperature Float?
+  updatedById String?  @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("llm_settings")
+}
+
 model Department {
   id        String     @id @default(uuid())
   name      String     @unique

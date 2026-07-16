@@ -40,7 +40,7 @@ export class ReportService {
   async getReport(cycleId: string, subjectId: string) {
     const subject = await this.ensureSubject(cycleId, subjectId);
     const report = await this.prisma.cycle360Report.findUnique({ where: { subjectId: subject.id } });
-    return { configured: this.llm.isConfigured(), report: report ? toDto(report) : null };
+    return { configured: await this.llm.isConfigured(), report: report ? toDto(report) : null };
   }
 
   /** Генерация черновика LLM. Повторный вызов перезаписывает черновик (статус → DRAFT). */
@@ -66,6 +66,7 @@ export class ReportService {
     });
     if (!subj) throw new NotFoundException('Subject not found');
 
+    const cfg = await this.llm.getConfig();
     const raw = await this.llm.completeJson(
       buildSystemPrompt(analytics),
       buildUserPrompt(
@@ -84,14 +85,14 @@ export class ReportService {
         subjectId,
         sections: sections as any,
         status: 'DRAFT',
-        model: this.llm.model,
+        model: cfg?.model ?? null,
         generatedAt: new Date(),
         authorId,
       },
       update: {
         sections: sections as any,
         status: 'DRAFT',
-        model: this.llm.model,
+        model: cfg?.model ?? null,
         generatedAt: new Date(),
         authorId,
       },

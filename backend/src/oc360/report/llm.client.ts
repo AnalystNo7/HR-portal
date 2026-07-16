@@ -4,11 +4,14 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { LlmConfig, loadLlmSettings, resolveLlmConfig } from './llm.config';
 
 /**
  * Клиент OpenAI-совместимого chat-completions API на нативном fetch
  * (без новых зависимостей, по образцу Keycloak-вызовов в import.service.ts).
- * Конфигурация через env: LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_TEMPERATURE.
+ * Конфигурация: настройки из БД (админка) с fallback на env
+ * (LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_TEMPERATURE).
  */
 @Injectable()
 export class LlmService {
@@ -16,24 +19,28 @@ export class LlmService {
 
   private static readonly TIMEOUT_MS = 120_000;
 
-  isConfigured(): boolean {
-    return !!(process.env.LLM_BASE_URL && process.env.LLM_API_KEY && process.env.LLM_MODEL);
+  constructor(private prisma: PrismaService) {}
+
+  /** Итоговый конфиг: БД → env. null, если не заданы обязательные поля. */
+  async getConfig(): Promise<LlmConfig | null> {
+    return resolveLlmConfig(await loadLlmSettings(this.prisma));
   }
 
-  get model(): string {
-    return process.env.LLM_MODEL || '';
+  async isConfigured(): Promise<boolean> {
+    return (await this.getConfig()) != null;
   }
 
   /** Отправляет system+user и возвращает распарсенный JSON-объект из ответа модели. */
   async completeJson(system: string, user: string): Promise<unknown> {
-    if (!this.isConfigured()) {
+    const cfg = await this.getConfig();
+    if (!cfg) {
       throw new ServiceUnavailableException(
-        'Генерация отчётов не настроена: задайте LLM_BASE_URL, LLM_API_KEY и LLM_MODEL',
+        'Генерация отчётов не настроена: задайте подключение к модели в панели администратора',
       );
     }
     const body = {
-      model: this.model,
-      temperature: Number(process.env.LLM_TEMPERATURE ?? 0.3),
+      model: cfg.model,
+      temperature: cfg.temperature,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
@@ -41,10 +48,10 @@ export class LlmService {
     };
 
     // response_format поддерживают не все совместимые провайдеры — при 400 повторяем без него
-    let res = await this.post({ ...body, response_format: { type: 'json_object' } });
+    let res = await this.post(cfg, { ...body, response_format: { type: 'json_object' } });
     if (res.status === 400) {
       this.logger.warn('LLM вернул 400 на response_format=json_object, повтор без него');
-      res = await this.post(body);
+      res = await this.post(cfg, body);
     }
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -61,14 +68,36 @@ export class LlmService {
     return this.parseJson(content);
   }
 
-  private async post(body: unknown): Promise<Response> {
-    const baseUrl = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
+  /**
+   * Пробное подключение к модели заданным конфигом (для кнопки «Проверить подключение»).
+   * Возвращает {ok:false, error} вместо исключения, чтобы UI показал текст ошибки.
+   */
+  async test(cfg: LlmConfig): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const res = await this.post(cfg, {
+        model: cfg.model,
+        temperature: cfg.temperature,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'ping' }],
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        return { ok: false, error: `HTTP ${res.status}${text ? `: ${text.slice(0, 200)}` : ''}` };
+      }
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'сетевая ошибка' };
+    }
+  }
+
+  private async post(cfg: LlmConfig, body: unknown): Promise<Response> {
+    const baseUrl = cfg.baseUrl.replace(/\/+$/, '');
     try {
       return await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.LLM_API_KEY}`,
+          Authorization: `Bearer ${cfg.apiKey}`,
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(LlmService.TIMEOUT_MS),
