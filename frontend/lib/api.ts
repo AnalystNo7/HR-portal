@@ -625,3 +625,19 @@ export const get360MyResult = (cycleId: string, sid: string, employeeId: string)
 export const get360Report = (id: string, sid: string) => fetchApi<Report360Envelope>(`/oc360/cycles/${id}/subjects/${sid}/report`);
 export const generate360Report = (id: string, sid: string) => fetchApi<Report360>(`/oc360/cycles/${id}/subjects/${sid}/report/generate`, { method: 'POST' });
 export const save360Report = (id: string, sid: string, dto: { sections?: Report360Sections; status?: Report360Status }) => fetchApi<Report360>(`/oc360/cycles/${id}/subjects/${sid}/report`, { method: 'PUT', body: JSON.stringify(dto) });
+
+// ─── Настройки LLM (админка) ───────────────────────────
+export interface LlmSettingsView {
+  baseUrl: string;
+  apiKeyMasked: string;
+  apiKeySet: boolean;
+  model: string;
+  temperature: number | null;
+  configured: boolean;
+  source: 'db' | 'env' | 'none';
+}
+export interface SaveLlmDto { baseUrl?: string | null; apiKey?: string | null; model?: string | null; temperature?: number | null; }
+
+export const getLlmSettings = () => fetchApi<LlmSettingsView>('/settings/llm');
+export const saveLlmSettings = (dto: SaveLlmDto) => fetchApi<LlmSettingsView>('/settings/llm', { method: 'PUT', body: JSON.stringify(dto) });
+export const testLlmConnection = (dto: SaveLlmDto = {}) => fetchApi<{ ok: boolean; error?: string }>('/settings/llm/test', { method: 'POST', body: JSON.stringify(dto) });

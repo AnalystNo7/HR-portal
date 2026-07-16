@@ -70,6 +70,7 @@ const NAV: Record<UserRole, NavSection[]> = {
       { id: '/admin/positions', label: 'Должности', icon: 'briefcase' },
       { id: '/hr-eval360', label: 'Оценка 360', icon: 'compass' },
       { id: '/admin/import', label: 'Импорт', icon: 'upload' },
+      { id: '/admin/llm', label: 'Генерация отчётов (ИИ)', icon: 'settings' },
     ]},
   ],
 };
@@ -91,6 +92,7 @@ const NAV_LABELS: Record<string, string> = {
   '/admin/departments': 'Подразделения',
   '/admin/positions': 'Должности',
   '/admin/import': 'Импорт сотрудников',
+  '/admin/llm': 'Генерация отчётов (ИИ)',
 };
 
 export { NAV_LABELS };
