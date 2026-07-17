@@ -5,7 +5,7 @@ import { Modal, useToast } from '@/components/primitives';
 import { Report360View, emptyReport360Sections } from '@/components/eval360';
 import {
   Report360Envelope, Report360Sections, Report360Status, Results360,
-  generate360Report, get360Report, save360Report,
+  generate360Report, get360Report, save360Report, reset360Report,
 } from '@/lib/api';
 
 const STATUS_LABEL: Record<Report360Status, string> = { DRAFT: 'Черновик', READY: 'Готов к публикации' };
@@ -17,8 +17,9 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
   // для HR разделы видны всегда: пока отчёта нет — пустой шаблон, первое «Готово» создаст отчёт
   const [sections, setSections] = useState<Report360Sections>(emptyReport360Sections());
   const [status, setStatus] = useState<Report360Status>('DRAFT');
-  const [busy, setBusy] = useState<'generate' | 'save' | null>(null);
+  const [busy, setBusy] = useState<'generate' | 'save' | 'reset' | null>(null);
   const [confirmRegen, setConfirmRegen] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const [printMode, setPrintMode] = useState(false);
 
   // на время печати отчёт переключается в read-only (поля ввода печатаются некрасиво)
@@ -54,6 +55,16 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
       // при обрыве соединения генерация могла успеть завершиться на сервере
       load();
     } finally { setBusy(null); }
+  };
+
+  const reset = async () => {
+    setConfirmReset(false);
+    setBusy('reset');
+    try {
+      await reset360Report(cycleId, subjectId);
+      await load(); // перечитать состояние: отчёт до генерации либо «Не создан»
+      toast('Отчёт возвращён к состоянию до генерации');
+    } catch (err) { toast((err as Error).message); } finally { setBusy(null); }
   };
 
   /** Сохранение — при нажатии «Готово» на блоке (создаёт отчёт при первом сохранении). */
@@ -112,6 +123,11 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
                 {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'Сгенерировать отчёт'}
               </button>
         )}
+        {report?.canReset && (
+          <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setConfirmReset(true)}>
+            {busy === 'reset' ? 'Сброс...' : 'Сброс'}
+          </button>
+        )}
         {report && (status === 'DRAFT'
           ? <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setReportStatus('READY')}>Отметить готовым</button>
           : <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setReportStatus('DRAFT')}>Вернуть в черновик</button>)}
@@ -144,6 +160,17 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
             </div>
           }>
           <div>Текущее содержимое отчёта, включая ваши правки, будет полностью заменено новым текстом от ИИ. Продолжить?</div>
+        </Modal>
+      )}
+      {confirmReset && (
+        <Modal open onClose={() => setConfirmReset(false)} title="Сбросить отчёт?"
+          footer={
+            <div className="row-2" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setConfirmReset(false)}>Отмена</button>
+              <button className="btn btn-primary btn-sm" onClick={reset}>Сбросить</button>
+            </div>
+          }>
+          <div>Отчёт вернётся к состоянию до последней генерации. Текущий текст, включая правки после генерации, будет потерян. Продолжить?</div>
         </Modal>
       )}
     </div>

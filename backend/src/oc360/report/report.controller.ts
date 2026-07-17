@@ -27,6 +27,13 @@ export class ReportController {
     return this.reportService.generate(id, sid, authorId);
   }
 
+  @Post('cycles/:id/subjects/:sid/report/reset')
+  @Roles('hr', 'admin')
+  async reset(@Req() req: any, @Param('id') id: string, @Param('sid') sid: string) {
+    const authorId = await resolveCurrentEmployeeId(this.prisma, req);
+    return this.reportService.reset(id, sid, authorId);
+  }
+
   @Put('cycles/:id/subjects/:sid/report')
   @Roles('hr', 'admin')
   async update(

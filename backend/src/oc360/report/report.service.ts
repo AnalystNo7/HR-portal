@@ -1,5 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Cycle360Report, Report360Status } from '@prisma/client';
+import { Cycle360Report, Prisma, Report360Status } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { fio } from '../oc360.helpers';
 import { ResultsService } from '../results/results.service';
@@ -16,6 +16,17 @@ export interface ReportDto {
   model: string | null;
   generatedAt: Date | null;
   updatedAt: Date;
+  /** Есть ли снимок «до генерации» — можно ли откатить кнопкой «Сброс». */
+  canReset: boolean;
+}
+
+/** Снимок состояния отчёта до генерации (хранится в preGenSnapshot). */
+interface PreGenSnapshot {
+  existed: boolean;
+  sections?: Report360Sections;
+  status?: Report360Status;
+  model?: string | null;
+  generatedAt?: string | null;
 }
 
 function toDto(r: Cycle360Report): ReportDto {
@@ -27,6 +38,7 @@ function toDto(r: Cycle360Report): ReportDto {
     model: r.model,
     generatedAt: r.generatedAt,
     updatedAt: r.updatedAt,
+    canReset: r.preGenSnapshot != null,
   };
 }
 
@@ -83,6 +95,18 @@ export class ReportService {
       throw new BadGatewayException('Модель вернула пустой отчёт — попробуйте ещё раз');
     }
 
+    // снимок состояния до генерации — для кнопки «Сброс»
+    const prev = await this.prisma.cycle360Report.findUnique({ where: { subjectId } });
+    const snapshot: PreGenSnapshot = prev
+      ? {
+          existed: true,
+          sections: prev.sections as unknown as Report360Sections,
+          status: prev.status,
+          model: prev.model,
+          generatedAt: prev.generatedAt ? prev.generatedAt.toISOString() : null,
+        }
+      : { existed: false };
+
     const report = await this.prisma.cycle360Report.upsert({
       where: { subjectId },
       create: {
@@ -92,6 +116,7 @@ export class ReportService {
         model: cfg?.model ?? null,
         generatedAt: new Date(),
         authorId,
+        preGenSnapshot: snapshot as any,
       },
       update: {
         sections: sections as any,
@@ -99,9 +124,40 @@ export class ReportService {
         model: cfg?.model ?? null,
         generatedAt: new Date(),
         authorId,
+        preGenSnapshot: snapshot as any,
       },
     });
     return toDto(report);
+  }
+
+  /** Откат отчёта к состоянию до последней генерации (кнопка «Сброс»). */
+  async reset(cycleId: string, subjectId: string, authorId: string | null): Promise<ReportDto | null> {
+    await this.ensureSubject(cycleId, subjectId);
+    const report = await this.prisma.cycle360Report.findUnique({ where: { subjectId } });
+    if (!report || report.preGenSnapshot == null) {
+      throw new BadRequestException('Нет предыдущего состояния для отката');
+    }
+    const snap = report.preGenSnapshot as unknown as PreGenSnapshot;
+
+    // до генерации отчёта не было — возвращаемся к «Не создан»
+    if (!snap.existed) {
+      await this.prisma.cycle360Report.delete({ where: { subjectId } });
+      return null;
+    }
+
+    // восстанавливаем прежнее содержимое и обнуляем снимок (откат израсходован)
+    const restored = await this.prisma.cycle360Report.update({
+      where: { subjectId },
+      data: {
+        sections: normalizeSections(snap.sections ?? {}) as any,
+        status: snap.status ?? 'DRAFT',
+        model: snap.model ?? null,
+        generatedAt: snap.generatedAt ? new Date(snap.generatedAt) : null,
+        authorId,
+        preGenSnapshot: Prisma.DbNull,
+      },
+    });
+    return toDto(restored);
   }
 
   /** Сохранение правок HR. Если отчёта ещё нет — создаёт его (ручное заполнение без ИИ). */

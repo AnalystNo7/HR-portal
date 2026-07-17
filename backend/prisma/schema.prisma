@@ -428,6 +428,8 @@ model Cycle360Report {
   sections    Json
   model       String?
   generatedAt DateTime?       @map("generated_at")
+  // снимок состояния до последней генерации для кнопки «Сброс»: { existed, sections?, status?, model?, generatedAt? }
+  preGenSnapshot Json?        @map("pre_gen_snapshot")
   authorId    String?         @map("author_id")
   author      Employee?       @relation("Report360Author", fields: [authorId], references: [id])
   createdAt   DateTime        @default(now()) @map("created_at")
