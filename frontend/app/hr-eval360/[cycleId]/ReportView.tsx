@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, useToast } from '@/components/primitives';
-import { Report360View, emptyReport360Sections, reportPdfTitle } from '@/components/eval360';
+import { Report360View, emptyReport360Sections, reportPdfTitle, expectedGenMs, recordGenDuration } from '@/components/eval360';
 import {
   Report360Envelope, Report360Sections, Report360Status, ReportResetMode, Results360,
   generate360Report, get360Report, save360Report, reset360Report,
@@ -21,6 +21,10 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [printMode, setPrintMode] = useState(false);
+  // визуализация генерации: оценочный прогресс/остаток и статус «Отчёт готов»
+  const [progress, setProgress] = useState<number | null>(null);
+  const [remainingSec, setRemainingSec] = useState<number | null>(null);
+  const [justDone, setJustDone] = useState(false);
 
   // на время печати отчёт переключается в read-only (поля ввода печатаются некрасиво)
   useEffect(() => {
@@ -46,17 +50,37 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
   const generate = async () => {
     setConfirmRegen(false);
     setBusy('generate');
+    setJustDone(false);
+    const start = Date.now();
+    const expected = expectedGenMs();
+    setProgress(1);
+    setRemainingSec(Math.ceil(expected / 1000));
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - start;
+      setProgress(Math.min(95, (elapsed / expected) * 100));
+      setRemainingSec(Math.max(0, Math.ceil((expected - elapsed) / 1000)));
+    }, 500);
     try {
       const r = await generate360Report(cycleId, subjectId);
+      recordGenDuration(Date.now() - start); // адаптивная оценка на будущее
       setEnv(e => (e ? { ...e, report: r } : e));
       setSections(r.sections);
       setStatus(r.status);
+      setProgress(100);
+      setRemainingSec(0);
+      setJustDone(true);
+      setTimeout(() => setJustDone(false), 10_000); // «Отчёт готов» держится 10 с
       toast('Черновик отчёта сгенерирован');
     } catch (err) {
       toast((err as Error).message);
       // при обрыве соединения генерация могла успеть завершиться на сервере
       load();
-    } finally { setBusy(null); }
+    } finally {
+      clearInterval(timer);
+      setBusy(null);
+      setProgress(null);
+      setRemainingSec(null);
+    }
   };
 
   const reset = async (mode: ReportResetMode) => {
@@ -94,6 +118,9 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
   if (!env) return <div className="card card-pad muted">Загрузка...</div>;
 
   const report = env.report;
+  const genLabel = busy === 'generate' ? 'Генерация…' : justDone ? '✓ Отчёт готов' : 'AI генерация отчета';
+  const genDisabled = busy != null || justDone;
+  const doneStyle = justDone ? { background: 'var(--ok-green-bg)', color: 'var(--ok-green)', borderColor: 'var(--ok-green)' } : undefined;
   const controls = (
     <div className="card card-pad stack-2">
       {!env.configured && (
@@ -118,11 +145,11 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
       <div className="row-2" style={{ flexWrap: 'wrap', gap: 8 }}>
         {env.configured && (
           report
-            ? <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setConfirmRegen(true)}>
-                {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'AI генерация отчета'}
+            ? <button className="btn btn-secondary btn-sm" style={doneStyle} disabled={genDisabled} onClick={() => setConfirmRegen(true)}>
+                {genLabel}
               </button>
-            : <button className="btn btn-primary btn-sm" disabled={busy != null} onClick={generate}>
-                {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'AI генерация отчета'}
+            : <button className="btn btn-primary btn-sm" style={doneStyle} disabled={genDisabled} onClick={generate}>
+                {genLabel}
               </button>
         )}
         {report && (report.canResetInitial || report.canResetPrevious) && (
@@ -135,6 +162,16 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
           : <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setReportStatus('DRAFT')}>Вернуть в черновик</button>)}
         <button className="btn btn-ghost btn-sm" onClick={() => setPrintMode(true)}>Скачать PDF</button>
       </div>
+      {busy === 'generate' && progress != null && (
+        <div className="stack-2">
+          <div className="small muted">
+            Генерация отчёта… {remainingSec != null && remainingSec > 0 ? `осталось ~${remainingSec} с` : 'почти готово'}
+          </div>
+          <div style={{ height: 6, background: 'var(--gpc-gray-100)', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${progress}%`, background: 'var(--gpc-blue)', borderRadius: 4, transition: 'width .4s ease' }} />
+          </div>
+        </div>
+      )}
       <div className="small muted">
         Редактирование — по значку карандаша на блоке; «Готово» сохраняет изменения.
         Сотрудник увидит отчёт после публикации результатов и только в статусе «Готов к публикации».

@@ -7,6 +7,39 @@ import type { EvaluatorRole, EvalZone, Report360Sections } from '@/lib/api';
 export const reportPdfTitle = (subjectName: string) =>
   `${subjectName}_Результаты оценки 360`.replace(/\s+/g, '_');
 
+// ─── Оценка времени AI-генерации отчёта (для полосы прогресса) ───
+// Сервер не отдаёт промежуточный прогресс — оцениваем по длительности прошлых генераций.
+
+const GEN_DUR_KEY = 'oc360.genDurations';
+const GEN_DUR_KEEP = 5;              // сколько последних длительностей хранить
+const GEN_MS_DEFAULT = 90_000;       // дефолт, если истории нет (~90 с)
+const GEN_MS_MIN = 15_000;
+const GEN_MS_MAX = 300_000;
+
+const clampMs = (ms: number) => Math.min(GEN_MS_MAX, Math.max(GEN_MS_MIN, ms));
+
+/** Ожидаемая длительность генерации (мс): среднее последних замеров или дефолт. */
+export function expectedGenMs(): number {
+  try {
+    const arr = JSON.parse(localStorage.getItem(GEN_DUR_KEY) || '[]');
+    const nums = Array.isArray(arr) ? arr.filter((n: unknown) => typeof n === 'number' && Number.isFinite(n)) : [];
+    if (nums.length) return clampMs(nums.reduce((a: number, b: number) => a + b, 0) / nums.length);
+  } catch { /* localStorage недоступен — используем дефолт */ }
+  return GEN_MS_DEFAULT;
+}
+
+/** Запомнить длительность завершённой генерации (мс) для адаптивной оценки. */
+export function recordGenDuration(ms: number): void {
+  if (!Number.isFinite(ms) || ms <= 0) return;
+  try {
+    const arr = JSON.parse(localStorage.getItem(GEN_DUR_KEY) || '[]');
+    const next = (Array.isArray(arr) ? arr.filter((n: unknown) => typeof n === 'number') : []) as number[];
+    next.push(ms);
+    while (next.length > GEN_DUR_KEEP) next.shift();
+    localStorage.setItem(GEN_DUR_KEY, JSON.stringify(next));
+  } catch { /* игнорируем */ }
+}
+
 export const ROLE_LABEL: Record<EvaluatorRole, string> = {
   SELF: 'Самооценка',
   MANAGER: 'Руководитель',
