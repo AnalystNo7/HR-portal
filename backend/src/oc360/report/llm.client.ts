@@ -19,6 +19,12 @@ export class LlmService {
 
   private static readonly TIMEOUT_MS = 120_000;
 
+  /**
+   * Лимит вывода. Reasoning-модели (напр. Gonka MiniMax-M2) без явного лимита
+   * рискуют упереться в дефолт провайдера и оборваться на рассуждениях, не дойдя до JSON.
+   */
+  private static readonly MAX_TOKENS = 8000;
+
   constructor(private prisma: PrismaService) {}
 
   /** Итоговый конфиг: БД → env. null, если не заданы обязательные поля. */
@@ -41,6 +47,7 @@ export class LlmService {
     const body = {
       model: cfg.model,
       temperature: cfg.temperature,
+      max_tokens: LlmService.MAX_TOKENS,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
@@ -60,12 +67,19 @@ export class LlmService {
     }
 
     const data: any = await res.json().catch(() => null);
-    const content: unknown = data?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || !content.trim()) {
+    const msg = data?.choices?.[0]?.message;
+    // reasoning-модели кладут рассуждения в content (<think>…</think>) либо в reasoning_content;
+    // ответ ищем сначала в content, при пустом — в reasoning_content как запас.
+    const content: unknown = msg?.content;
+    const fallback: unknown = msg?.reasoning_content ?? msg?.reasoning;
+    const raw = typeof content === 'string' && content.trim() ? content
+      : typeof fallback === 'string' && fallback.trim() ? fallback
+      : null;
+    if (!raw) {
       this.logger.error(`LLM: пустой ответ: ${JSON.stringify(data).slice(0, 500)}`);
       throw new BadGatewayException('Модель вернула пустой ответ');
     }
-    return this.parseJson(content);
+    return this.parseJson(raw);
   }
 
   /**
@@ -109,19 +123,42 @@ export class LlmService {
     }
   }
 
-  /** Извлекает первый JSON-объект из текста (модель может обернуть его в ```json ... ```). */
+  /** Извлекает JSON-объект из ответа модели (см. extractJsonObject); логирует и оборачивает ошибки. */
   private parseJson(content: string): unknown {
-    const start = content.indexOf('{');
-    const end = content.lastIndexOf('}');
-    if (start === -1 || end <= start) {
-      this.logger.warn(`LLM: в ответе нет JSON: ${content.slice(0, 300)}`);
-      throw new BadGatewayException('Модель вернула некорректный ответ (нет JSON)');
-    }
     try {
-      return JSON.parse(content.slice(start, end + 1));
-    } catch {
-      this.logger.warn(`LLM: не удалось распарсить JSON: ${content.slice(0, 300)}`);
-      throw new BadGatewayException('Модель вернула некорректный JSON');
+      return extractJsonObject(content);
+    } catch (e: any) {
+      this.logger.warn(`LLM: ${e?.message ?? 'ошибка разбора'}: ${content.slice(0, 300)}`);
+      throw new BadGatewayException(e?.message ?? 'Модель вернула некорректный ответ');
     }
+  }
+}
+
+/**
+ * Убирает рассуждения reasoning-моделей: закрытые блоки <think>…</think> и
+ * «висячий» незакрытый <think> при обрыве ответа. Остаётся финальный ответ модели.
+ */
+export function stripReasoning(content: string): string {
+  let s = content.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  const open = s.search(/<think>/i);
+  if (open !== -1) s = s.slice(0, open); // незакрытый <think> — дальше только рассуждения
+  return s.trim();
+}
+
+/**
+ * Достаёт первый JSON-объект из ответа модели. Сначала срезает рассуждения
+ * (иначе фигурные скобки внутри <think> ломают разбор), затем берёт объект по скобкам.
+ * Бросает Error с человеко-понятным сообщением при неудаче.
+ */
+export function extractJsonObject(content: string): unknown {
+  const cleaned = stripReasoning(content);
+  if (!cleaned) throw new Error('Модель вернула только рассуждения без JSON (увеличьте лимит токенов или смените модель)');
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end <= start) throw new Error('Модель вернула ответ без JSON');
+  try {
+    return JSON.parse(cleaned.slice(start, end + 1));
+  } catch {
+    throw new Error('Модель вернула некорректный JSON');
   }
 }
