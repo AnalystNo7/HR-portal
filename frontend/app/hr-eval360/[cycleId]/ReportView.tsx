@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, useToast } from '@/components/primitives';
 import { Report360View, emptyReport360Sections } from '@/components/eval360';
 import {
-  Report360Envelope, Report360Sections, Report360Status, Results360,
+  Report360Envelope, Report360Sections, Report360Status, ReportResetMode, Results360,
   generate360Report, get360Report, save360Report, reset360Report,
 } from '@/lib/api';
 
@@ -57,13 +57,13 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
     } finally { setBusy(null); }
   };
 
-  const reset = async () => {
+  const reset = async (mode: ReportResetMode) => {
     setConfirmReset(false);
     setBusy('reset');
     try {
-      await reset360Report(cycleId, subjectId);
-      await load(); // перечитать состояние: отчёт до генерации либо «Не создан»
-      toast('Отчёт возвращён к состоянию до генерации');
+      await reset360Report(cycleId, subjectId, mode);
+      await load(); // перечитать состояние: выбранный снимок либо «Не создан»
+      toast(mode === 'initial' ? 'Отчёт возвращён к первоначальному состоянию' : 'Отчёт возвращён к предыдущей версии');
     } catch (err) { toast((err as Error).message); } finally { setBusy(null); }
   };
 
@@ -123,7 +123,7 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
                 {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'Сгенерировать отчёт'}
               </button>
         )}
-        {report?.canReset && (
+        {report && (report.canResetInitial || report.canResetPrevious) && (
           <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setConfirmReset(true)}>
             {busy === 'reset' ? 'Сброс...' : 'Сброс'}
           </button>
@@ -162,15 +162,32 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
           <div>Текущее содержимое отчёта, включая ваши правки, будет полностью заменено новым текстом от ИИ. Продолжить?</div>
         </Modal>
       )}
-      {confirmReset && (
-        <Modal open onClose={() => setConfirmReset(false)} title="Сбросить отчёт?"
+      {confirmReset && report && (
+        <Modal open onClose={() => setConfirmReset(false)} title="Сброс отчёта"
           footer={
             <div className="row-2" style={{ justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary btn-sm" onClick={() => setConfirmReset(false)}>Отмена</button>
-              <button className="btn btn-primary btn-sm" onClick={reset}>Сбросить</button>
             </div>
           }>
-          <div>Отчёт вернётся к состоянию до последней генерации. Текущий текст, включая правки после генерации, будет потерян. Продолжить?</div>
+          <div className="stack-3">
+            <div>Выберите, к какому состоянию вернуть отчёт. Текущий текст, включая правки после генерации, будет заменён.</div>
+            <div className="row-2" style={{ gap: 8, flexWrap: 'wrap' }}>
+              {report.canResetInitial && (
+                <button className="btn btn-primary btn-sm" disabled={busy != null} onClick={() => reset('initial')}>
+                  Сброс до первоначального состояния
+                </button>
+              )}
+              {report.canResetPrevious && (
+                <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => reset('previous')}>
+                  Сброс до предыдущей версии
+                </button>
+              )}
+            </div>
+            <div className="small muted">
+              Первоначальное состояние — до всех генераций (как оценки пришли к HR).
+              Предыдущая версия — состояние перед последней генерацией.
+            </div>
+          </div>
         </Modal>
       )}
     </div>

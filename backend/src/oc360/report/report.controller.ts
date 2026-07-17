@@ -4,7 +4,7 @@ import { KeycloakAuthGuard } from '../../auth/auth.guard';
 import { RolesGuard, Roles } from '../../auth/roles.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { resolveCurrentEmployeeId } from '../oc360.helpers';
-import { ReportService } from './report.service';
+import { ReportResetMode, ReportService } from './report.service';
 
 @Controller('oc360')
 @UseGuards(KeycloakAuthGuard, RolesGuard)
@@ -29,9 +29,15 @@ export class ReportController {
 
   @Post('cycles/:id/subjects/:sid/report/reset')
   @Roles('hr', 'admin')
-  async reset(@Req() req: any, @Param('id') id: string, @Param('sid') sid: string) {
+  async reset(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('sid') sid: string,
+    @Body() dto: { mode?: ReportResetMode },
+  ) {
     const authorId = await resolveCurrentEmployeeId(this.prisma, req);
-    return this.reportService.reset(id, sid, authorId);
+    const mode: ReportResetMode = dto?.mode === 'initial' ? 'initial' : 'previous';
+    return this.reportService.reset(id, sid, authorId, mode);
   }
 
   @Put('cycles/:id/subjects/:sid/report')

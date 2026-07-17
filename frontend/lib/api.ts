@@ -561,9 +561,13 @@ export interface Report360 {
   model: string | null;
   generatedAt: string | null;
   updatedAt: string;
-  /** Есть ли снимок «до генерации» — доступен ли откат кнопкой «Сброс». */
-  canReset: boolean;
+  /** Доступен ли откат к первоначальному состоянию (до всех генераций). */
+  canResetInitial: boolean;
+  /** Доступен ли откат к предыдущей версии (перед последней генерацией). */
+  canResetPrevious: boolean;
 }
+
+export type ReportResetMode = 'initial' | 'previous';
 
 export interface Report360Envelope { configured: boolean; report: Report360 | null; }
 
@@ -626,7 +630,7 @@ export const get360MyResult = (cycleId: string, sid: string, employeeId: string)
 // Отчёт 360 (HR)
 export const get360Report = (id: string, sid: string) => fetchApi<Report360Envelope>(`/oc360/cycles/${id}/subjects/${sid}/report`);
 export const generate360Report = (id: string, sid: string) => fetchApi<Report360>(`/oc360/cycles/${id}/subjects/${sid}/report/generate`, { method: 'POST' });
-export const reset360Report = (id: string, sid: string) => fetchApi<Report360 | null>(`/oc360/cycles/${id}/subjects/${sid}/report/reset`, { method: 'POST' });
+export const reset360Report = (id: string, sid: string, mode: ReportResetMode) => fetchApi<Report360 | null>(`/oc360/cycles/${id}/subjects/${sid}/report/reset`, { method: 'POST', body: JSON.stringify({ mode }) });
 export const save360Report = (id: string, sid: string, dto: { sections?: Report360Sections; status?: Report360Status }) => fetchApi<Report360>(`/oc360/cycles/${id}/subjects/${sid}/report`, { method: 'PUT', body: JSON.stringify(dto) });
 
 // ─── База знаний 360 (hr/admin) ────────────────────────
