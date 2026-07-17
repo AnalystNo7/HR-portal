@@ -3,6 +3,10 @@
 
 import type { EvaluatorRole, EvalZone, Report360Sections } from '@/lib/api';
 
+/** Имя файла по умолчанию при печати отчёта в PDF (пробелы → подчёркивания). */
+export const reportPdfTitle = (subjectName: string) =>
+  `${subjectName}_Результаты оценки 360`.replace(/\s+/g, '_');
+
 export const ROLE_LABEL: Record<EvaluatorRole, string> = {
   SELF: 'Самооценка',
   MANAGER: 'Руководитель',

@@ -8,7 +8,7 @@ import {
   get360MyResults, MySubject360, get360MyResult, Results360, RespondentStatus,
   listPeers, addPeer, removePeer, confirmPeers, PeerRespondent, getEmployees, Employee,
 } from '@/lib/api';
-import { Report360View } from '@/components/eval360';
+import { Report360View, reportPdfTitle } from '@/components/eval360';
 
 const ST_PILL: Record<RespondentStatus, string> = { PENDING: 'pill-gray', IN_PROGRESS: 'pill-yellow', COMPLETED: 'pill-green' };
 const ST_LABEL: Record<RespondentStatus, string> = { PENDING: 'Не начато', IN_PROGRESS: 'В работе', COMPLETED: 'Завершено' };
@@ -297,11 +297,19 @@ function MyResultDetail({ cycleId, sid, employeeId, onBack }: { cycleId: string;
   useEffect(() => { get360MyResult(cycleId, sid, employeeId).then(setRes).catch(() => {}); }, [cycleId, sid, employeeId]);
   if (!res) return <div className="card card-pad muted">Загрузка...</div>;
 
+  const printPdf = () => {
+    const prevTitle = document.title;
+    document.title = reportPdfTitle(res.subject.name); // имя файла PDF по умолчанию
+    const restore = () => { document.title = prevTitle; window.removeEventListener('afterprint', restore); };
+    window.addEventListener('afterprint', restore);
+    window.print();
+  };
+
   return (
     <div>
       <div className="row-2" style={{ marginBottom: 12, justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <button className="btn btn-ghost btn-sm" onClick={onBack}><Icon name="chevron_left" size={14} /> Назад</button>
-        <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>Скачать PDF</button>
+        <button className="btn btn-secondary btn-sm" onClick={printPdf}>Скачать PDF</button>
       </div>
       <Report360View res={res} sections={res.report?.sections ?? null} />
     </div>

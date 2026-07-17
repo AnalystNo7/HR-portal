@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, useToast } from '@/components/primitives';
-import { Report360View, emptyReport360Sections } from '@/components/eval360';
+import { Report360View, emptyReport360Sections, reportPdfTitle } from '@/components/eval360';
 import {
   Report360Envelope, Report360Sections, Report360Status, ReportResetMode, Results360,
   generate360Report, get360Report, save360Report, reset360Report,
@@ -25,11 +25,13 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
   // на время печати отчёт переключается в read-only (поля ввода печатаются некрасиво)
   useEffect(() => {
     if (!printMode) return;
+    const prevTitle = document.title;
+    document.title = reportPdfTitle(res.subject.name); // имя файла PDF по умолчанию
     const done = () => setPrintMode(false);
     window.addEventListener('afterprint', done);
     const raf = requestAnimationFrame(() => window.print());
-    return () => { window.removeEventListener('afterprint', done); cancelAnimationFrame(raf); };
-  }, [printMode]);
+    return () => { window.removeEventListener('afterprint', done); cancelAnimationFrame(raf); document.title = prevTitle; };
+  }, [printMode, res.subject.name]);
 
   const load = useCallback(async () => {
     try {
