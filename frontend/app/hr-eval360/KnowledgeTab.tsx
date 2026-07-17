@@ -10,10 +10,17 @@ import {
 
 const fmtChars = (n: number) => n.toLocaleString('ru-RU');
 
-export function KnowledgeTab() {
+export function MethodDocsTab() {
   return (
     <div className="stack-3" style={{ maxWidth: 960 }}>
       <DocsSection />
+    </div>
+  );
+}
+
+export function SettingsTab() {
+  return (
+    <div className="stack-3" style={{ maxWidth: 960 }}>
       <PromptSection />
     </div>
   );
@@ -94,7 +101,7 @@ function DocsSection() {
             <div className="small muted">{fmtChars(d.charCount)} симв. · загружен {new Date(d.createdAt).toLocaleDateString('ru-RU')}</div>
           </div>
           <div className="row-2" style={{ alignItems: 'center', gap: 10 }}>
-            <label className="chk" title="Подставлять документ в промпт при генерации">
+            <label className="chk" title="Подставлять документ в промт при генерации">
               <input type="checkbox" checked={d.isActive} onChange={() => toggle(d)} />
               <span className="small">использовать при генерации</span>
             </label>
@@ -125,7 +132,7 @@ function DocsSection() {
   );
 }
 
-// ─── Системный промпт генерации ────────────────────────
+// ─── Системный промт ───────────────────────────────────
 
 function PromptSection() {
   const toast = useToast();
@@ -150,7 +157,7 @@ function PromptSection() {
       const v = await saveReportPrompt(text.trim() || null);
       setView(v);
       setText(v.text ?? v.defaultText);
-      toast(v.isCustom ? 'Промпт сохранён' : 'Промпт совпал со стандартным — используется стандартный');
+      toast(v.isCustom ? 'Промт сохранён' : 'Промт совпал со стандартным — используется стандартный');
     } catch (e) { toast((e as Error).message); } finally { setSaving(false); }
   };
 
@@ -161,7 +168,7 @@ function PromptSection() {
       const v = await saveReportPrompt(null);
       setView(v);
       setText(v.defaultText);
-      toast('Возвращён стандартный промпт');
+      toast('Возвращён стандартный промт');
     } catch (e) { toast((e as Error).message); } finally { setSaving(false); }
   };
 
@@ -171,7 +178,7 @@ function PromptSection() {
     <div className="card card-pad stack-3">
       <div className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <b>Системный промпт генерации</b>
+          <b>Системный промт</b>
           <div className="small muted">Методическая часть инструкции для модели — как интерпретировать результаты оценки</div>
         </div>
         <span className={`pill ${view.isCustom ? 'pill-yellow' : 'pill-green'}`}>{view.isCustom ? 'Изменён' : 'Стандартный'}</span>
@@ -182,31 +189,31 @@ function PromptSection() {
 
       <div className="small muted">
         Плейсхолдеры: {'{{scale_min}}'} и {'{{scale_max}}'} — границы шкалы, {'{{target_level}}'} — целевой уровень цикла;
-        подставляются автоматически при генерации. Активные документы базы знаний добавляются к промпту.
+        подставляются автоматически при генерации. Активные документы базы знаний добавляются к промту.
       </div>
 
       <div className="row-2" style={{ gap: 8, flexWrap: 'wrap' }}>
         <button className="btn btn-primary btn-sm" disabled={saving} onClick={save}>{saving ? 'Сохранение...' : 'Сохранить'}</button>
         {view.isCustom && <button className="btn btn-secondary btn-sm" disabled={saving} onClick={() => setConfirmReset(true)}>Сбросить к стандартному</button>}
         <button className="btn btn-ghost btn-sm" onClick={() => setShowTech(s => !s)}>
-          {showTech ? 'Скрыть техническую часть' : 'Показать техническую часть'}
+          Технический промт
         </button>
       </div>
 
       {showTech && (
         <div style={{ border: '1px solid var(--line)', borderRadius: 8, padding: 12, background: 'var(--gpc-gray-50)' }}>
           <div className="small muted" style={{ marginBottom: 6 }}>
-            Техническая часть добавляется к промпту автоматически и не редактируется — она задаёт формат ответа модели (JSON-схему отчёта).
+            Технический промт добавляется автоматически и не редактируется — он задаёт формат ответа модели (JSON-схему отчёта).
           </div>
           <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'ui-monospace, monospace', fontSize: 12, maxHeight: 260, overflowY: 'auto' }}>{view.technicalText}</div>
         </div>
       )}
 
-      <Modal open={confirmReset} onClose={() => setConfirmReset(false)} title="Сбросить промпт?" footer={
+      <Modal open={confirmReset} onClose={() => setConfirmReset(false)} title="Сбросить промт?" footer={
         <><button className="btn btn-secondary" onClick={() => setConfirmReset(false)}>Отмена</button>
         <button className="btn btn-primary" onClick={reset}>Сбросить</button></>
       }>
-        <p>Ваши правки методической части будут удалены, вернётся стандартный промпт. Продолжить?</p>
+        <p>Ваши правки методической части будут удалены, вернётся стандартный промт. Продолжить?</p>
       </Modal>
     </div>
   );

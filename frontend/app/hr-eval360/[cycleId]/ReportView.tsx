@@ -117,10 +117,10 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
         {env.configured && (
           report
             ? <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setConfirmRegen(true)}>
-                {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'Перегенерировать'}
+                {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'AI генерация отчета'}
               </button>
             : <button className="btn btn-primary btn-sm" disabled={busy != null} onClick={generate}>
-                {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'Сгенерировать отчёт'}
+                {busy === 'generate' ? 'Генерация... до 1–2 минут' : 'AI генерация отчета'}
               </button>
         )}
         {report && (report.canResetInitial || report.canResetPrevious) && (
@@ -152,11 +152,11 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
         onCommit={commit}
       />
       {confirmRegen && (
-        <Modal open onClose={() => setConfirmRegen(false)} title="Перегенерировать отчёт?"
+        <Modal open onClose={() => setConfirmRegen(false)} title="Сгенерировать отчёт заново?"
           footer={
             <div className="row-2" style={{ justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary btn-sm" onClick={() => setConfirmRegen(false)}>Отмена</button>
-              <button className="btn btn-primary btn-sm" onClick={generate}>Перегенерировать</button>
+              <button className="btn btn-primary btn-sm" onClick={generate}>AI генерация отчета</button>
             </div>
           }>
           <div>Текущее содержимое отчёта, включая ваши правки, будет полностью заменено новым текстом от ИИ. Продолжить?</div>
