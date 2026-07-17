@@ -24,7 +24,7 @@ export default function HrEval360Page() {
         <button aria-selected={tab === 'cycles'} onClick={() => setTab('cycles')}>Запуски</button>
         <button aria-selected={tab === 'template'} onClick={() => setTab('template')}>Шаблон оценки</button>
         <button aria-selected={tab === 'scales'} onClick={() => setTab('scales')}>Шкала оценки</button>
-        <button aria-selected={tab === 'docs'} onClick={() => setTab('docs')}>Методические документы</button>
+        <button aria-selected={tab === 'docs'} onClick={() => setTab('docs')}>База знаний</button>
         <button aria-selected={tab === 'settings'} onClick={() => setTab('settings')}>Настройка</button>
       </div>
       {tab === 'cycles' ? <CyclesTab /> : tab === 'template' ? <TemplateTab /> : tab === 'scales' ? <ScalesTab /> : tab === 'docs' ? <MethodDocsTab /> : <SettingsTab />}
