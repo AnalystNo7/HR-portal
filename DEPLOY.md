@@ -118,10 +118,11 @@ LLM_MODEL=gpt-4o
 Ключ показывается в интерфейсе только маской.
 Публичные `NEXT_PUBLIC_*` для frontend зашиты в `docker-compose.yml` (build args на домен `sitehrportal.ru`) — отдельно задавать не нужно.
 
-**Важно для генерации отчётов:** запрос к LLM может идти до 2 минут — таймаут чтения
-reverse-proxy для пути `/api` должен быть не меньше 180 секунд
-(в `nginx/nginx.conf` уже задан `proxy_read_timeout 180s`; при использовании
-Traefik в Dokploy проверьте аналогичную настройку).
+**Важно для генерации отчётов:** запрос к LLM может идти до 5 минут (reasoning-модели,
+напр. Gonka MiniMax-M2, долго «думают») — таймаут чтения reverse-proxy для пути `/api`
+должен быть не меньше таймаута backend'а к модели (`LlmService.TIMEOUT_MS = 300s`).
+В `nginx/nginx.conf` задан `proxy_read_timeout 330s`; при использовании Traefik в Dokploy
+задайте аналогичный таймаут ответа (иначе прокси оборвёт запрос раньше, чем модель ответит).
 
 ### 4. Домен
 В Dokploy привяжите домен `sitehrportal.ru` к сервису frontend (порт 3001),

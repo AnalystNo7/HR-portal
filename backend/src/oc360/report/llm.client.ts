@@ -17,7 +17,8 @@ import { LlmConfig, loadLlmSettings, resolveLlmConfig } from './llm.config';
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
 
-  private static readonly TIMEOUT_MS = 120_000;
+  // до 5 минут: reasoning-модели (Gonka MiniMax-M2) долго «думают» перед ответом
+  private static readonly TIMEOUT_MS = 300_000;
 
   /**
    * Лимит вывода. Reasoning-модели (напр. Gonka MiniMax-M2) без явного лимита
