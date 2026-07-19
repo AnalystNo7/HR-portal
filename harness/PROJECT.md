@@ -17,7 +17,7 @@ HR-portal/
 ├── docker-compose.local.yml, docker-compose.db.yml
 ├── DEPLOY.md                 # инструкция деплоя (Dokploy, LLM, таймауты)
 ├── CLAUDE.md                 # правила работы (цикл задачи, журналы)
-├── harness/                  # PROJECT.md (карта), DECISIONS.md, LESSONS.md, PAINS.md, templates/
+├── harness/                  # PROJECT.md (карта), DECISIONS.md, LESSONS.md, templates/
 ├── tasks/                    # рабочие файлы задач (BRIEF/PLAN по шаблонам)
 ├── keycloak/realm-export.json# realm: роли, клиент, маппер realm_roles, тестовые юзеры
 ├── nginx/nginx.conf          # роутинг /, /api, /auth; таймаут /api 330с
