@@ -68,6 +68,11 @@ export class ReportService {
   /** Генерация черновика LLM. Повторный вызов перезаписывает черновик (статус → DRAFT). */
   async generate(cycleId: string, subjectId: string, authorId: string | null): Promise<ReportDto> {
     await this.ensureSubject(cycleId, subjectId);
+    // отчёт в READY неизменяем; проверяем ДО обращения к LLM, чтобы не тратить токены
+    const current = await this.prisma.cycle360Report.findUnique({ where: { subjectId }, select: { status: true } });
+    if (current?.status === 'READY') {
+      throw new BadRequestException('Отчёт отмечен готовым к публикации — верните его в черновик, чтобы сгенерировать заново');
+    }
     const { analytics, progress } = await this.results.getAnalytics(cycleId, subjectId);
 
     const externalDone = progress
@@ -154,6 +159,9 @@ export class ReportService {
     if (!report || rawSnap == null) {
       throw new BadRequestException('Нет состояния для отката');
     }
+    if (report.status === 'READY') {
+      throw new BadRequestException('Отчёт отмечен готовым к публикации — верните его в черновик, чтобы выполнить сброс');
+    }
     const snap = rawSnap as unknown as Snapshot;
 
     // до генерации отчёта не было — возвращаемся к «Не создан»
@@ -186,6 +194,11 @@ export class ReportService {
     await this.ensureSubject(cycleId, subjectId);
     if (dto.status && dto.status !== 'DRAFT' && dto.status !== 'READY') {
       throw new BadRequestException('Некорректный статус отчёта');
+    }
+    // READY-отчёт неизменяем; разрешён только возврат в черновик
+    const current = await this.prisma.cycle360Report.findUnique({ where: { subjectId }, select: { status: true } });
+    if (current?.status === 'READY' && dto.status !== 'DRAFT') {
+      throw new BadRequestException('Отчёт отмечен готовым к публикации — сначала верните его в черновик');
     }
     const report = await this.prisma.cycle360Report.upsert({
       where: { subjectId },

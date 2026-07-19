@@ -118,8 +118,11 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
   if (!env) return <div className="card card-pad muted">Загрузка...</div>;
 
   const report = env.report;
+  // READY = отчёт неизменяем: генерация, сброс и редактирование блоков заблокированы
+  const locked = !!report && status === 'READY';
+  const lockedHint = 'Отчёт готов к публикации — верните в черновик, чтобы вносить изменения';
   const genLabel = busy === 'generate' ? 'Генерация…' : justDone ? '✓ Отчёт готов' : 'AI генерация отчета';
-  const genDisabled = busy != null || justDone;
+  const genDisabled = busy != null || justDone || locked;
   const doneStyle = justDone ? { background: 'var(--ok-green-bg)', color: 'var(--ok-green)', borderColor: 'var(--ok-green)' } : undefined;
   const controls = (
     <div className="card card-pad stack-2">
@@ -145,15 +148,15 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
       <div className="row-2" style={{ flexWrap: 'wrap', gap: 8 }}>
         {env.configured && (
           report
-            ? <button className="btn btn-secondary btn-sm" style={doneStyle} disabled={genDisabled} onClick={() => setConfirmRegen(true)}>
+            ? <button className="btn btn-secondary btn-sm" style={doneStyle} disabled={genDisabled} title={locked ? lockedHint : undefined} onClick={() => setConfirmRegen(true)}>
                 {genLabel}
               </button>
-            : <button className="btn btn-primary btn-sm" style={doneStyle} disabled={genDisabled} onClick={generate}>
+            : <button className="btn btn-primary btn-sm" style={doneStyle} disabled={genDisabled} title={locked ? lockedHint : undefined} onClick={generate}>
                 {genLabel}
               </button>
         )}
         {report && (report.canResetInitial || report.canResetPrevious) && (
-          <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setConfirmReset(true)}>
+          <button className="btn btn-secondary btn-sm" disabled={busy != null || locked} title={locked ? lockedHint : undefined} onClick={() => setConfirmReset(true)}>
             {busy === 'reset' ? 'Сброс...' : 'Сброс'}
           </button>
         )}
@@ -173,9 +176,11 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
         </div>
       )}
       <div className="small muted">
-        Редактирование — по значку карандаша на блоке; «Готово» сохраняет изменения.
-        Сотрудник увидит отчёт после публикации результатов и только в статусе «Готов к публикации».
-        Проверьте, что текст не раскрывает авторов оценок.
+        {locked
+          ? 'Отчёт в статусе «Готов к публикации» — генерация, сброс и редактирование заблокированы. Нажмите «Вернуть в черновик», чтобы вносить изменения.'
+          : <>Редактирование — по значку карандаша на блоке; «Готово» сохраняет изменения.
+            Сотрудник увидит отчёт после публикации результатов и только в статусе «Готов к публикации».
+            Проверьте, что текст не раскрывает авторов оценок.</>}
       </div>
     </div>
   );
@@ -186,7 +191,7 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
       <Report360View
         res={res}
         sections={sections}
-        editable={!printMode}
+        editable={!printMode && !locked}
         onChange={setSections}
         onCommit={commit}
       />
