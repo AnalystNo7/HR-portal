@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Cycle360Status, EvaluatorRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { fio } from '../oc360.helpers';
@@ -156,8 +156,13 @@ export class CycleService {
     });
   }
 
-  async delete(id: string) {
-    await this.ensureNotClosed(id);
+  /** Удаление запуска. Завершённый (CLOSED) может удалить только администратор. */
+  async delete(id: string, roles: string[] = []) {
+    const cycle = await this.prisma.cycle360.findUnique({ where: { id }, select: { status: true } });
+    if (!cycle) throw new NotFoundException('Cycle not found');
+    if (cycle.status === 'CLOSED' && !roles.includes('admin')) {
+      throw new ForbiddenException('Завершённые запуски может удалять только администратор');
+    }
     await this.prisma.cycle360.delete({ where: { id } });
     return { success: true };
   }

@@ -48,8 +48,8 @@ export class CycleController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.cycleService.delete(id);
+  remove(@Req() req: any, @Param('id') id: string) {
+    return this.cycleService.delete(id, req.user?.roles ?? []);
   }
 
   @Put(':id/competencies/:cid')

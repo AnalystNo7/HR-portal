@@ -11,6 +11,7 @@ import {
   get360Versions, create360Version, update360Version, delete360Version, CompetencyVersion,
 } from '@/lib/api';
 import { MethodDocsTab, SettingsTab } from './KnowledgeTab';
+import { useAuth } from '@/contexts/AuthContext';
 
 const STATUS_PILL: Record<Cycle360Status, string> = { DRAFT: 'pill-gray', ACTIVE: 'pill-green', CLOSED: 'pill-blue' };
 const STATUS_LABEL: Record<Cycle360Status, string> = { DRAFT: 'Черновик', ACTIVE: 'Идёт оценка', CLOSED: 'Завершён' };
@@ -36,6 +37,8 @@ export default function HrEval360Page() {
 function CyclesTab() {
   const router = useRouter();
   const toast = useToast();
+  const { roles } = useAuth();
+  const isAdmin = roles.includes('admin');
   const [items, setItems] = useState<Cycle360ListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -52,8 +55,9 @@ function CyclesTab() {
   const [selectedComps, setSelectedComps] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [delTarget, setDelTarget] = useState<{ id: string; name: string } | null>(null);
+  const [delTarget, setDelTarget] = useState<{ id: string; name: string; closed: boolean } | null>(null);
   const [delBusy, setDelBusy] = useState(false);
+  const [delConfirm, setDelConfirm] = useState(''); // усиленное подтверждение для завершённых
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,10 +122,13 @@ function CyclesTab() {
                 <td>{c._count.subjects}</td>
                 <td className="small muted">{new Date(c.createdAt).toLocaleDateString('ru-RU')}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
-                  {c.status !== 'CLOSED' && <>
+                  {c.status !== 'CLOSED' && (
                     <button className="btn btn-ghost btn-sm" title="Редактировать" onClick={e => { e.stopPropagation(); router.push(`/hr-eval360/${c.id}?edit=1`); }}><Icon name="edit" size={14} /></button>
-                    <button className="btn btn-ghost btn-sm" title="Удалить" onClick={e => { e.stopPropagation(); setDelTarget({ id: c.id, name: c.name }); }}><Icon name="trash" size={14} /></button>
-                  </>}
+                  )}
+                  {/* завершённые запуски удаляет только администратор */}
+                  {(c.status !== 'CLOSED' || isAdmin) && (
+                    <button className="btn btn-ghost btn-sm" title="Удалить" onClick={e => { e.stopPropagation(); setDelConfirm(''); setDelTarget({ id: c.id, name: c.name, closed: c.status === 'CLOSED' }); }}><Icon name="trash" size={14} /></button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -132,14 +139,28 @@ function CyclesTab() {
 
       <Modal open={!!delTarget} onClose={() => setDelTarget(null)} title="Удаление воркфлоу" footer={
         <><button className="btn btn-secondary" onClick={() => setDelTarget(null)}>Отмена</button>
-        <button className="btn btn-primary" style={{ background: 'var(--err)' }} disabled={delBusy} onClick={async () => {
+        <button className="btn btn-primary" style={{ background: 'var(--err)' }}
+          disabled={delBusy || (delTarget?.closed === true && delConfirm.trim() !== delTarget.name)}
+          onClick={async () => {
           if (!delTarget) return;
           setDelBusy(true);
           try { await delete360Cycle(delTarget.id); toast('Воркфлоу удалён'); setDelTarget(null); load(); }
           catch (e) { toast((e as Error).message); } finally { setDelBusy(false); }
         }}>Удалить</button></>
       }>
-        <p>Удалить воркфлоу <b>{delTarget?.name}</b>? Действие необратимо, все данные оценки будут удалены.</p>
+        {delTarget?.closed ? (
+          <div className="stack-2">
+            <p>Вы удаляете <b>завершённый</b> запуск <b>{delTarget.name}</b>: все результаты оценки,
+              открытые ответы и отчёты будут удалены безвозвратно.</p>
+            <div className="field">
+              <label className="small">Для подтверждения введите название запуска</label>
+              <input className="inp" value={delConfirm} placeholder={delTarget.name}
+                onChange={e => setDelConfirm(e.target.value)} autoFocus />
+            </div>
+          </div>
+        ) : (
+          <p>Удалить воркфлоу <b>{delTarget?.name}</b>? Действие необратимо, все данные оценки будут удалены.</p>
+        )}
       </Modal>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Новый запуск оценки 360" footer={
