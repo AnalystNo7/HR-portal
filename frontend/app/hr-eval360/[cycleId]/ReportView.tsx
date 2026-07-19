@@ -5,19 +5,25 @@ import { Modal, useToast } from '@/components/primitives';
 import { Report360View, emptyReport360Sections, reportPdfTitle, expectedGenMs, recordGenDuration } from '@/components/eval360';
 import {
   Report360Envelope, Report360Sections, Report360Status, ReportResetMode, Results360,
-  generate360Report, get360Report, save360Report, reset360Report,
+  generate360Report, get360Report, save360Report, reset360Report, publish360, unpublish360,
 } from '@/lib/api';
 
 const STATUS_LABEL: Record<Report360Status, string> = { DRAFT: 'Черновик', READY: 'Готов к публикации' };
 const STATUS_PILL: Record<Report360Status, string> = { DRAFT: 'pill-yellow', READY: 'pill-green' };
 
-export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subjectId: string; res: Results360 }) {
+export function ReportView({ cycleId, subjectId, res, onPublished }: {
+  cycleId: string;
+  subjectId: string;
+  res: Results360;
+  /** Вызывается после публикации/отмены — родитель перечитывает данные. */
+  onPublished?: () => void;
+}) {
   const toast = useToast();
   const [env, setEnv] = useState<Report360Envelope | null>(null);
   // для HR разделы видны всегда: пока отчёта нет — пустой шаблон, первое «Готово» создаст отчёт
   const [sections, setSections] = useState<Report360Sections>(emptyReport360Sections());
   const [status, setStatus] = useState<Report360Status>('DRAFT');
-  const [busy, setBusy] = useState<'generate' | 'save' | 'reset' | null>(null);
+  const [busy, setBusy] = useState<'generate' | 'save' | 'reset' | 'publish' | null>(null);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [printMode, setPrintMode] = useState(false);
@@ -115,6 +121,18 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
     } catch (err) { toast((err as Error).message); } finally { setBusy(null); }
   };
 
+  /** Публикация результатов сотруднику — доступна только при отчёте в статусе READY. */
+  const doPublish = async () => {
+    setBusy('publish');
+    try { await publish360(cycleId, subjectId); toast('Результаты опубликованы сотруднику'); onPublished?.(); }
+    catch (err) { toast((err as Error).message); } finally { setBusy(null); }
+  };
+  const doUnpublish = async () => {
+    setBusy('publish');
+    try { await unpublish360(cycleId, subjectId); toast('Публикация отменена'); onPublished?.(); }
+    catch (err) { toast((err as Error).message); } finally { setBusy(null); }
+  };
+
   if (!env) return <div className="card card-pad muted">Загрузка...</div>;
 
   const report = env.report;
@@ -163,6 +181,17 @@ export function ReportView({ cycleId, subjectId, res }: { cycleId: string; subje
         {report && (status === 'DRAFT'
           ? <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setReportStatus('READY')}>Отметить готовым</button>
           : <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => setReportStatus('DRAFT')}>Вернуть в черновик</button>)}
+        {/* публикация сотруднику — только когда отчёт «Готов к публикации» */}
+        {res.published
+          ? <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={doUnpublish}>
+              {busy === 'publish' ? '...' : 'Отменить публикацию'}
+            </button>
+          : <button className="btn btn-primary btn-sm"
+              disabled={busy != null || !report || status !== 'READY'}
+              title={!report || status !== 'READY' ? 'Сначала отметьте отчёт готовым («Отметить готовым»)' : undefined}
+              onClick={doPublish}>
+              {busy === 'publish' ? 'Публикация...' : 'Опубликовать сотруднику'}
+            </button>}
         <button className="btn btn-ghost btn-sm" onClick={() => setPrintMode(true)}>Скачать PDF</button>
       </div>
       {busy === 'generate' && progress != null && (

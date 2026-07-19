@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Icon, Modal, useToast } from '@/components/primitives';
+import { Icon, Modal } from '@/components/primitives';
 import {
   get360Workflow, Workflow, get360Results, Results360,
-  publish360, unpublish360,
   RespondentStatus, CompetencyResult,
 } from '@/lib/api';
 import {
@@ -24,14 +23,12 @@ export function SubjectPanel({ cycleId, subjectId, onChange, onTabChange }: {
   /** Уведомляет страницу о текущей вкладке (кнопки редактирования запуска видны только на «Воркфлоу»). */
   onTabChange?: (tab: SubjectPanelTab) => void;
 }) {
-  const toast = useToast();
   const [tab, setTabState] = useState<SubjectPanelTab>('workflow');
   const setTab = (t: SubjectPanelTab) => { setTabState(t); onTabChange?.(t); };
   useEffect(() => { onTabChange?.(tab); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [wf, setWf] = useState<Workflow | null>(null);
   const [res, setRes] = useState<Results360 | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,26 +37,13 @@ export function SubjectPanel({ cycleId, subjectId, onChange, onTabChange }: {
   }, [cycleId, subjectId]);
   useEffect(() => { load(); }, [load]);
 
-  const doPublish = async () => {
-    setBusy(true);
-    try { await publish360(cycleId, subjectId); toast('Результаты опубликованы сотруднику'); load(); onChange(); }
-    catch (e) { toast((e as Error).message); } finally { setBusy(false); }
-  };
-  const doUnpublish = async () => {
-    setBusy(true);
-    try { await unpublish360(cycleId, subjectId); toast('Публикация отменена'); load(); onChange(); }
-    catch (e) { toast((e as Error).message); } finally { setBusy(false); }
-  };
-
   if (loading || !wf || !res) return <div className="card card-pad muted">Загрузка...</div>;
 
   return (
     <div className="card card-pad">
       <div className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <b style={{ fontSize: 16 }}>{wf.subject.name}</b>
-        {wf.published
-          ? <button className="btn btn-secondary btn-sm" disabled={busy} onClick={doUnpublish}>Отменить публикацию</button>
-          : <button className="btn btn-primary btn-sm" disabled={busy} onClick={doPublish}>Опубликовать сотруднику</button>}
+        {wf.published && <span className="pill pill-green">Опубликовано сотруднику</span>}
       </div>
 
       <div className="tabs" style={{ margin: '12px 0' }}>
@@ -72,7 +56,7 @@ export function SubjectPanel({ cycleId, subjectId, onChange, onTabChange }: {
       {tab === 'workflow' && <WorkflowView wf={wf} />}
       {tab === 'results' && <ResultsView res={res} />}
       {tab === 'dashboard' && <DashboardView res={res} />}
-      {tab === 'report' && <ReportView cycleId={cycleId} subjectId={subjectId} res={res} />}
+      {tab === 'report' && <ReportView cycleId={cycleId} subjectId={subjectId} res={res} onPublished={() => { load(); onChange(); }} />}
     </div>
   );
 }

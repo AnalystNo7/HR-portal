@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EvaluatorRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { fio } from '../oc360.helpers';
@@ -245,6 +245,14 @@ export class ResultsService {
   // ─── Публикация ────────────────────────────────
   async publish(cycleId: string, subjectId: string) {
     const subject = await this.ensureSubject(cycleId, subjectId);
+    // публиковать можно только при отчёте в статусе READY («Готов к публикации»)
+    const report = await this.prisma.cycle360Report.findUnique({
+      where: { subjectId: subject.id },
+      select: { status: true },
+    });
+    if (!report || report.status !== 'READY') {
+      throw new BadRequestException('Отчёт не готов к публикации — отметьте его готовым во вкладке «Отчёт»');
+    }
     const updated = await this.prisma.cycle360Subject.update({
       where: { id: subject.id },
       data: { resultsPublishedAt: new Date(), status: 'PUBLISHED' },
