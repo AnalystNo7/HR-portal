@@ -21,10 +21,11 @@ export class LlmService {
   private static readonly TIMEOUT_MS = 300_000;
 
   /**
-   * Лимит вывода. Reasoning-модели (напр. Gonka MiniMax-M2) без явного лимита
-   * рискуют упереться в дефолт провайдера и оборваться на рассуждениях, не дойдя до JSON.
+   * Лимит вывода. Reasoning-модели (Gonka MiniMax-M2, Kimi-K2) тратят токены на
+   * рассуждения; при малом лимите ответ обрывается, не дойдя до закрытия JSON
+   * («некорректный JSON»). 16000 — с запасом под рассуждения + отчёт (потолок моделей 16384).
    */
-  private static readonly MAX_TOKENS = 8000;
+  private static readonly MAX_TOKENS = 16000;
 
   constructor(private prisma: PrismaService) {}
 
