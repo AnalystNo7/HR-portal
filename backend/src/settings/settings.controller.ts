@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { KeycloakAuthGuard } from '../auth/auth.guard';
 import { RolesGuard, Roles } from '../auth/roles.guard';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,18 +15,36 @@ export class SettingsController {
   ) {}
 
   @Get('llm')
-  getLlm() {
-    return this.settings.getLlmView();
+  list() {
+    return this.settings.listPresets();
   }
 
-  @Put('llm')
-  async saveLlm(@Req() req: any, @Body() dto: SaveLlmDto) {
+  @Post('llm')
+  async create(@Req() req: any, @Body() dto: SaveLlmDto) {
     const adminId = await resolveCurrentEmployeeId(this.prisma, req);
-    return this.settings.saveLlm(dto, adminId);
+    return this.settings.createPreset(dto, adminId);
   }
 
+  // тест до update-роута с :id, чтобы не перехватывался
   @Post('llm/test')
   testLlm(@Body() dto: SaveLlmDto) {
     return this.settings.testLlm(dto);
+  }
+
+  @Put('llm/:id')
+  async update(@Req() req: any, @Param('id') id: string, @Body() dto: SaveLlmDto) {
+    const adminId = await resolveCurrentEmployeeId(this.prisma, req);
+    return this.settings.updatePreset(id, dto, adminId);
+  }
+
+  @Post('llm/:id/activate')
+  async activate(@Req() req: any, @Param('id') id: string) {
+    const adminId = await resolveCurrentEmployeeId(this.prisma, req);
+    return this.settings.activatePreset(id, adminId);
+  }
+
+  @Delete('llm/:id')
+  remove(@Param('id') id: string) {
+    return this.settings.deletePreset(id);
   }
 }

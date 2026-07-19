@@ -11,6 +11,9 @@ datasource db {
 // Пустые поля добираются из env (LLM_BASE_URL/LLM_API_KEY/LLM_MODEL/LLM_TEMPERATURE).
 model LlmSettings {
   id          String   @id @default("default")
+  // именованные пресеты подключения: несколько строк, активна одна (isActive)
+  name        String?
+  isActive    Boolean  @default(false) @map("is_active")
   baseUrl     String?  @map("base_url")
   apiKey      String?  @map("api_key")
   model       String?

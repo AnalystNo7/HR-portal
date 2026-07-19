@@ -648,18 +648,35 @@ export const deleteKnowledgeDoc = (id: string) => fetchApi<{ success: boolean }>
 export const getReportPrompt = () => fetchApi<ReportPromptView>('/oc360/knowledge/prompt');
 export const saveReportPrompt = (text: string | null) => fetchApi<ReportPromptView>('/oc360/knowledge/prompt', { method: 'PUT', body: JSON.stringify({ text }) });
 
-// ─── Настройки LLM (админка) ───────────────────────────
-export interface LlmSettingsView {
+// ─── Настройка LLM: именованные пресеты подключения (админка) ───
+export interface LlmPreset {
+  id: string;
+  name: string;
   baseUrl: string;
   apiKeyMasked: string;
   apiKeySet: boolean;
   model: string;
   temperature: number | null;
-  configured: boolean;
+  isActive: boolean;
+}
+export interface LlmPresetList {
+  presets: LlmPreset[];
+  /** Источник действующего подключения генерации. */
   source: 'db' | 'env' | 'none';
 }
-export interface SaveLlmDto { baseUrl?: string | null; apiKey?: string | null; model?: string | null; temperature?: number | null; }
+export interface SaveLlmDto {
+  name?: string | null;
+  baseUrl?: string | null;
+  apiKey?: string | null;
+  model?: string | null;
+  temperature?: number | null;
+  /** Для теста существующего пресета — подставить его сохранённый ключ. */
+  presetId?: string;
+}
 
-export const getLlmSettings = () => fetchApi<LlmSettingsView>('/settings/llm');
-export const saveLlmSettings = (dto: SaveLlmDto) => fetchApi<LlmSettingsView>('/settings/llm', { method: 'PUT', body: JSON.stringify(dto) });
+export const getLlmPresets = () => fetchApi<LlmPresetList>('/settings/llm');
+export const createLlmPreset = (dto: SaveLlmDto) => fetchApi<LlmPresetList>('/settings/llm', { method: 'POST', body: JSON.stringify(dto) });
+export const updateLlmPreset = (id: string, dto: SaveLlmDto) => fetchApi<LlmPresetList>(`/settings/llm/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const activateLlmPreset = (id: string) => fetchApi<LlmPresetList>(`/settings/llm/${id}/activate`, { method: 'POST' });
+export const deleteLlmPreset = (id: string) => fetchApi<LlmPresetList>(`/settings/llm/${id}`, { method: 'DELETE' });
 export const testLlmConnection = (dto: SaveLlmDto = {}) => fetchApi<{ ok: boolean; error?: string }>('/settings/llm/test', { method: 'POST', body: JSON.stringify(dto) });

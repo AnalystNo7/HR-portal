@@ -41,9 +41,14 @@ export function resolveLlmConfig(db: LlmSettingsRaw | null): LlmConfig | null {
   return { baseUrl, apiKey, model, temperature, source: baseUrlDb ? 'db' : 'env' };
 }
 
-/** Читает singleton-строку настроек из БД (id="default"). */
+/**
+ * Читает действующий пресет подключения: активную строку (isActive),
+ * при её отсутствии — легаси-строку id="default" (настройки до ввода пресетов).
+ */
 export async function loadLlmSettings(prisma: PrismaService): Promise<LlmSettingsRaw | null> {
-  const row = await prisma.llmSettings.findUnique({ where: { id: 'default' } });
+  const row =
+    (await prisma.llmSettings.findFirst({ where: { isActive: true } })) ??
+    (await prisma.llmSettings.findUnique({ where: { id: 'default' } }));
   return row
     ? { baseUrl: row.baseUrl, apiKey: row.apiKey, model: row.model, temperature: row.temperature }
     : null;

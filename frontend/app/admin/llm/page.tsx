@@ -1,59 +1,149 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useToast } from '@/components/primitives';
+import { Modal, useToast } from '@/components/primitives';
 import {
-  LlmSettingsView, getLlmSettings, saveLlmSettings, testLlmConnection,
+  LlmPreset, LlmPresetList, SaveLlmDto,
+  getLlmPresets, createLlmPreset, updateLlmPreset, activateLlmPreset, deleteLlmPreset, testLlmConnection,
 } from '@/lib/api';
 
-const SOURCE_LABEL: Record<LlmSettingsView['source'], string> = {
-  db: 'настройки из панели администратора',
-  env: 'настройки из переменных окружения',
-  none: 'подключение не настроено',
+const SOURCE_LABEL: Record<LlmPresetList['source'], string> = {
+  db: 'генерация использует активную настройку',
+  env: 'генерация использует переменные окружения (активной настройки нет)',
+  none: 'подключение не настроено — генерация недоступна',
 };
 
 export default function AdminLlmPage() {
   const toast = useToast();
-  const [view, setView] = useState<LlmSettingsView | null>(null);
-  const [baseUrl, setBaseUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('');
-  const [temperature, setTemperature] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
+  const [list, setList] = useState<LlmPresetList | null>(null);
+  const [busy, setBusy] = useState<string | null>(null); // id пресета или 'new'
+  const [editTarget, setEditTarget] = useState<LlmPreset | 'new' | null>(null);
+  const [delTarget, setDelTarget] = useState<LlmPreset | null>(null);
 
   const load = async () => {
-    try {
-      const v = await getLlmSettings();
-      setView(v);
-      setBaseUrl(v.baseUrl);
-      setModel(v.model);
-      setTemperature(v.temperature != null ? String(v.temperature) : '');
-      setApiKey('');
-    } catch (e) { toast((e as Error).message); }
+    try { setList(await getLlmPresets()); } catch (e) { toast((e as Error).message); }
   };
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const dto = () => {
+  const activate = async (p: LlmPreset) => {
+    setBusy(p.id);
+    try { setList(await activateLlmPreset(p.id)); toast(`Активная настройка: ${p.name}`); }
+    catch (e) { toast((e as Error).message); } finally { setBusy(null); }
+  };
+
+  const remove = async () => {
+    if (!delTarget) return;
+    setBusy(delTarget.id);
+    try { setList(await deleteLlmPreset(delTarget.id)); toast('Настройка удалена'); setDelTarget(null); }
+    catch (e) { toast((e as Error).message); } finally { setBusy(null); }
+  };
+
+  if (!list) return <div className="card card-pad muted">Загрузка...</div>;
+
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <h2 style={{ fontFamily: 'var(--font-head)', fontSize: 22, marginBottom: 8 }}>Настройка LLM</h2>
+      <p className="small muted" style={{ marginBottom: 16 }}>
+        Именованные настройки подключения к модели для генерации отчётов 360.
+        Активная настройка используется при генерации; переключение — без редеплоя.
+        Совместимо с OpenAI-подобным API (OpenAI, DeepSeek, локальные vLLM/Ollama, прокси и т.п.).
+      </p>
+
+      <div className="card card-pad stack-3">
+        <div className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <span className="small muted">{SOURCE_LABEL[list.source]}</span>
+          <button className="btn btn-primary btn-sm" onClick={() => setEditTarget('new')}>Добавить настройку</button>
+        </div>
+
+        {list.presets.length === 0 && (
+          <div className="small muted">Настроек пока нет — добавьте первую, она станет активной.</div>
+        )}
+
+        {list.presets.map(p => (
+          <div key={p.id} className="row-2" style={{ alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid var(--line)', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ minWidth: 220 }}>
+              <div className="row-2" style={{ alignItems: 'center', gap: 8 }}>
+                <b>{p.name}</b>
+                {p.isActive && <span className="pill pill-green">Активная</span>}
+              </div>
+              <div className="small muted">
+                {p.model || 'модель не указана'}{p.baseUrl ? ` · ${p.baseUrl}` : ''}{p.apiKeySet ? ` · ключ ${p.apiKeyMasked}` : ' · ключ не задан'}
+              </div>
+            </div>
+            <div className="row-2" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {!p.isActive && (
+                <button className="btn btn-secondary btn-sm" disabled={busy != null} onClick={() => activate(p)}>
+                  {busy === p.id ? '...' : 'Сделать активной'}
+                </button>
+              )}
+              <button className="btn btn-ghost btn-sm" disabled={busy != null} onClick={() => setEditTarget(p)}>Редактировать</button>
+              {!p.isActive && (
+                <button className="btn btn-ghost btn-sm" style={{ color: 'var(--err)' }} disabled={busy != null} onClick={() => setDelTarget(p)}>Удалить</button>
+              )}
+            </div>
+          </div>
+        ))}
+
+        <div className="small muted">
+          Ключи хранятся в базе данных и показываются только маской. Переменные окружения LLM_* работают
+          как запасной вариант, когда нет активной настройки.
+        </div>
+      </div>
+
+      {editTarget && (
+        <PresetModal
+          preset={editTarget === 'new' ? null : editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={l => { setList(l); setEditTarget(null); }}
+        />
+      )}
+
+      <Modal open={!!delTarget} onClose={() => setDelTarget(null)} title="Удаление настройки" footer={
+        <><button className="btn btn-secondary" onClick={() => setDelTarget(null)}>Отмена</button>
+        <button className="btn btn-primary" style={{ background: 'var(--err)' }} disabled={busy != null} onClick={remove}>Удалить</button></>
+      }>
+        <p>Удалить настройку <b>{delTarget?.name}</b>? Сохранённый в ней ключ будет удалён из базы.</p>
+      </Modal>
+    </div>
+  );
+}
+
+/** Форма создания/правки пресета + проверка подключения. */
+function PresetModal({ preset, onClose, onSaved }: {
+  preset: LlmPreset | null;
+  onClose: () => void;
+  onSaved: (l: LlmPresetList) => void;
+}) {
+  const toast = useToast();
+  const [name, setName] = useState(preset?.name ?? '');
+  const [baseUrl, setBaseUrl] = useState(preset?.baseUrl ?? '');
+  const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState(preset?.model ?? '');
+  const [temperature, setTemperature] = useState(preset?.temperature != null ? String(preset.temperature) : '');
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  const dto = (): SaveLlmDto => {
     const t = temperature.trim();
     return {
+      name: name.trim() || null,
       baseUrl: baseUrl.trim() || null,
       model: model.trim() || null,
-      // пустой ключ не отправляем — сохранённый останется
-      apiKey: apiKey.trim() ? apiKey.trim() : undefined,
+      apiKey: apiKey.trim() ? apiKey.trim() : undefined, // пусто — не менять сохранённый
       temperature: t === '' ? null : Number(t.replace(',', '.')),
+      ...(preset ? { presetId: preset.id } : {}),
     };
   };
 
   const save = async () => {
     const d = dto();
+    if (!d.name) { toast('Укажите название настройки'); return; }
     if (d.temperature != null && !Number.isFinite(d.temperature)) { toast('Температура — число, например 0.3'); return; }
     setSaving(true);
     try {
-      const v = await saveLlmSettings(d);
-      setView(v);
-      setApiKey('');
-      toast('Настройки сохранены');
+      const l = preset ? await updateLlmPreset(preset.id, d) : await createLlmPreset(d);
+      toast('Настройка сохранена');
+      onSaved(l);
     } catch (e) { toast((e as Error).message); } finally { setSaving(false); }
   };
 
@@ -65,64 +155,40 @@ export default function AdminLlmPage() {
     } catch (e) { toast((e as Error).message); } finally { setTesting(false); }
   };
 
-  if (!view) return <div className="card card-pad muted">Загрузка...</div>;
-
   return (
-    <div style={{ maxWidth: 640 }}>
-      <h2 style={{ fontFamily: 'var(--font-head)', fontSize: 22, marginBottom: 8 }}>Генерация отчётов (ИИ)</h2>
-      <p className="small muted" style={{ marginBottom: 16 }}>
-        Подключение к модели для генерации интерпретации отчётов оценки 360.
-        Совместимо с OpenAI-подобным API (OpenAI, DeepSeek, локальные vLLM/Ollama и т.п.).
-      </p>
-
-      <div className="card card-pad stack-3">
-        <div className="row-2" style={{ alignItems: 'center', gap: 8 }}>
-          <span className={`pill ${view.configured ? 'pill-green' : 'pill-gray'}`}>
-            {view.configured ? 'Настроено' : 'Не настроено'}
-          </span>
-          <span className="small muted">{SOURCE_LABEL[view.source]}</span>
+    <Modal open onClose={onClose} title={preset ? `Настройка: ${preset.name}` : 'Новая настройка LLM'} footer={
+      <><button className="btn btn-secondary" onClick={onClose}>Отмена</button>
+      <button className="btn btn-secondary" disabled={testing} onClick={test}>{testing ? 'Проверка...' : 'Проверить подключение'}</button>
+      <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? 'Сохранение...' : 'Сохранить'}</button></>
+    }>
+      <div className="stack-3">
+        <div className="field">
+          <label className="small">Название</label>
+          <input className="inp" value={name} placeholder="Например: Gonka MiniMax / Прод Claude"
+            onChange={e => setName(e.target.value)} autoFocus />
         </div>
-
         <div className="field">
           <label className="small">Адрес API (base URL)</label>
-          <input className="inp" value={baseUrl} placeholder="https://api.openai.com/v1"
+          <input className="inp" value={baseUrl} placeholder="https://api.proxy.gonka.gg/v1"
             onChange={e => setBaseUrl(e.target.value)} />
         </div>
-
         <div className="field">
           <label className="small">API-ключ</label>
-          <input className="inp" type="password"
-            value={apiKey}
-            placeholder={view.apiKeySet ? `Сохранён (${view.apiKeyMasked}) — оставьте пустым, чтобы не менять` : 'Введите ключ'}
+          <input className="inp" type="password" value={apiKey}
+            placeholder={preset?.apiKeySet ? `Сохранён (${preset.apiKeyMasked}) — оставьте пустым, чтобы не менять` : 'Введите ключ'}
             onChange={e => setApiKey(e.target.value)} />
         </div>
-
         <div className="field">
           <label className="small">Модель</label>
-          <input className="inp" value={model} placeholder="gpt-4o"
+          <input className="inp" value={model} placeholder="MiniMaxAI/MiniMax-M2.7"
             onChange={e => setModel(e.target.value)} />
         </div>
-
         <div className="field">
           <label className="small">Температура (необязательно, по умолчанию 0.3)</label>
           <input className="inp" type="number" step={0.1} min={0} max={2} value={temperature}
             placeholder="0.3" onChange={e => setTemperature(e.target.value)} />
         </div>
-
-        <div className="row-2" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" disabled={saving} onClick={save}>
-            {saving ? 'Сохранение...' : 'Сохранить'}
-          </button>
-          <button className="btn btn-secondary" disabled={testing} onClick={test}>
-            {testing ? 'Проверка...' : 'Проверить подключение'}
-          </button>
-        </div>
-
-        <div className="small muted">
-          Ключ хранится в базе данных и в интерфейсе показывается только маской.
-          Если оставить настройки пустыми, используются переменные окружения (LLM_BASE_URL и др.).
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

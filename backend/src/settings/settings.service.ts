@@ -1,24 +1,35 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../oc360/report/llm.client';
 import { loadLlmSettings, resolveLlmConfig, LlmConfig } from '../oc360/report/llm.config';
 
-export interface LlmSettingsView {
+/** Пресет подключения к LLM (ключ наружу — только маской). */
+export interface LlmPresetView {
+  id: string;
+  name: string;
   baseUrl: string;
   apiKeyMasked: string;
   apiKeySet: boolean;
   model: string;
   temperature: number | null;
-  configured: boolean;
-  /** Источник действующего подключения. */
+  isActive: boolean;
+}
+
+export interface LlmPresetListView {
+  presets: LlmPresetView[];
+  /** Источник действующего подключения генерации: активный пресет БД / env / не настроено. */
   source: 'db' | 'env' | 'none';
 }
 
 export interface SaveLlmDto {
+  name?: string | null;
   baseUrl?: string | null;
   apiKey?: string | null;
   model?: string | null;
   temperature?: number | null;
+  /** Для теста существующего пресета: подставить его сохранённый ключ. */
+  presetId?: string;
 }
 
 function mask(key: string | null): string {
@@ -27,62 +38,132 @@ function mask(key: string | null): string {
   return `••••${last4}`;
 }
 
+const norm = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+
 @Injectable()
 export class SettingsService {
   constructor(private prisma: PrismaService, private llm: LlmService) {}
 
-  /** Вид для админки: сохранённые в БД значения, ключ маскируется. */
-  async getLlmView(): Promise<LlmSettingsView> {
-    const db = await loadLlmSettings(this.prisma);
-    const effective = resolveLlmConfig(db);
+  private toView(row: {
+    id: string; name: string | null; baseUrl: string | null; apiKey: string | null;
+    model: string | null; temperature: number | null; isActive: boolean;
+  }): LlmPresetView {
     return {
-      baseUrl: db?.baseUrl ?? '',
-      apiKeyMasked: mask(db?.apiKey ?? null),
-      apiKeySet: !!db?.apiKey,
-      model: db?.model ?? '',
-      temperature: db?.temperature ?? null,
-      configured: effective != null,
-      source: effective ? effective.source : 'none',
+      id: row.id,
+      name: row.name ?? 'Без названия',
+      baseUrl: row.baseUrl ?? '',
+      apiKeyMasked: mask(row.apiKey),
+      apiKeySet: !!row.apiKey,
+      model: row.model ?? '',
+      temperature: row.temperature,
+      isActive: row.isActive,
     };
   }
 
-  /** Upsert строки настроек. Пустой apiKey не затирает сохранённый ключ. */
-  async saveLlm(dto: SaveLlmDto, adminId: string | null): Promise<LlmSettingsView> {
-    const norm = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
-    const baseUrl = norm(dto.baseUrl);
-    const model = norm(dto.model);
-    const apiKey = norm(dto.apiKey); // undefined/пусто → не менять
-    const temperature =
-      dto.temperature != null && Number.isFinite(dto.temperature) ? dto.temperature : null;
+  /**
+   * Ленивый бэкфилл легаси-настройки (id="default", до ввода пресетов):
+   * если нет ни одного активного пресета, а легаси-строка с данными есть —
+   * помечаем её активной с именем «Основная».
+   */
+  private async ensureActivePreset() {
+    const active = await this.prisma.llmSettings.findFirst({ where: { isActive: true }, select: { id: true } });
+    if (active) return;
+    const legacy = await this.prisma.llmSettings.findUnique({ where: { id: 'default' } });
+    if (legacy && (legacy.baseUrl || legacy.apiKey || legacy.model)) {
+      await this.prisma.llmSettings.update({
+        where: { id: 'default' },
+        data: { isActive: true, name: legacy.name ?? 'Основная' },
+      });
+    }
+  }
 
-    await this.prisma.llmSettings.upsert({
-      where: { id: 'default' },
-      create: { id: 'default', baseUrl, model, temperature, apiKey, updatedById: adminId },
-      update: {
-        baseUrl,
-        model,
-        temperature,
+  /** Список пресетов + источник действующего подключения. */
+  async listPresets(): Promise<LlmPresetListView> {
+    await this.ensureActivePreset();
+    const rows = await this.prisma.llmSettings.findMany({ orderBy: { updatedAt: 'desc' } });
+    const effective = resolveLlmConfig(await loadLlmSettings(this.prisma));
+    const presets = rows
+      .filter(r => r.name != null || r.baseUrl || r.apiKey || r.model) // пустую легаси-строку не показываем
+      .sort((a, b) => Number(b.isActive) - Number(a.isActive))
+      .map(r => this.toView(r));
+    return { presets, source: effective ? effective.source : 'none' };
+  }
+
+  /** Создание пресета. Первый созданный (при пустой БД) сразу становится активным. */
+  async createPreset(dto: SaveLlmDto, adminId: string | null): Promise<LlmPresetListView> {
+    const name = norm(dto.name);
+    if (!name) throw new BadRequestException('Укажите название настройки');
+    const hasAny = await this.prisma.llmSettings.findFirst({ select: { id: true } });
+    await this.prisma.llmSettings.create({
+      data: {
+        id: randomUUID(),
+        name,
+        baseUrl: norm(dto.baseUrl),
+        apiKey: norm(dto.apiKey),
+        model: norm(dto.model),
+        temperature: dto.temperature != null && Number.isFinite(dto.temperature) ? dto.temperature : null,
+        isActive: !hasAny,
+        updatedById: adminId,
+      },
+    });
+    return this.listPresets();
+  }
+
+  /** Правка пресета. Пустой apiKey не затирает сохранённый ключ. */
+  async updatePreset(id: string, dto: SaveLlmDto, adminId: string | null): Promise<LlmPresetListView> {
+    const exists = await this.prisma.llmSettings.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException('Настройка не найдена');
+    const apiKey = norm(dto.apiKey);
+    await this.prisma.llmSettings.update({
+      where: { id },
+      data: {
+        ...(norm(dto.name) ? { name: norm(dto.name) } : {}),
+        baseUrl: norm(dto.baseUrl),
+        model: norm(dto.model),
+        temperature: dto.temperature != null && Number.isFinite(dto.temperature) ? dto.temperature : null,
         updatedById: adminId,
         ...(apiKey != null ? { apiKey } : {}), // ключ меняем только если прислан новый
       },
     });
-    return this.getLlmView();
+    return this.listPresets();
+  }
+
+  /** Переключение активного пресета (активен всегда ровно один). */
+  async activatePreset(id: string, adminId: string | null): Promise<LlmPresetListView> {
+    const exists = await this.prisma.llmSettings.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException('Настройка не найдена');
+    await this.prisma.$transaction([
+      this.prisma.llmSettings.updateMany({ where: { isActive: true }, data: { isActive: false } }),
+      this.prisma.llmSettings.update({ where: { id }, data: { isActive: true, updatedById: adminId } }),
+    ]);
+    return this.listPresets();
+  }
+
+  /** Удаление пресета. Активный удалить нельзя — сначала переключите на другой. */
+  async deletePreset(id: string): Promise<LlmPresetListView> {
+    const exists = await this.prisma.llmSettings.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException('Настройка не найдена');
+    if (exists.isActive) throw new BadRequestException('Нельзя удалить активную настройку — сначала сделайте активной другую');
+    await this.prisma.llmSettings.delete({ where: { id } });
+    return this.listPresets();
   }
 
   /**
-   * Проверка подключения. Если в dto есть baseUrl/apiKey/model — тестируем их
-   * (до сохранения); иначе — действующий конфиг (БД→env). Пустой apiKey в dto
-   * подставляется из сохранённого.
+   * Проверка подключения. Поля из dto тестируются как есть; пустой ключ
+   * добирается из пресета (dto.presetId) либо из действующего подключения.
    */
   async testLlm(dto: SaveLlmDto): Promise<{ ok: boolean; error?: string }> {
     let cfg: LlmConfig | null;
     const anyProvided = dto.baseUrl || dto.model || dto.apiKey;
     if (anyProvided) {
-      const db = await loadLlmSettings(this.prisma);
+      const stored = dto.presetId
+        ? await this.prisma.llmSettings.findUnique({ where: { id: dto.presetId } })
+        : null;
+      const db = stored ?? (await loadLlmSettings(this.prisma));
       cfg = resolveLlmConfig({
-        baseUrl: (dto.baseUrl ?? db?.baseUrl) || null,
-        apiKey: (dto.apiKey || db?.apiKey) || null,
-        model: (dto.model ?? db?.model) || null,
+        baseUrl: (norm(dto.baseUrl) ?? db?.baseUrl) || null,
+        apiKey: (norm(dto.apiKey) || db?.apiKey) || null,
+        model: (norm(dto.model) ?? db?.model) || null,
         temperature: dto.temperature ?? db?.temperature ?? null,
       });
     } else {
