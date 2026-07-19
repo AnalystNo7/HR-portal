@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '@/components/primitives';
 import type {
-  DeltaKind, GroupPairKey, Results360, Report360Sections, ReportGroupPair,
+  DeltaKind, EvaluatorRole, GroupPairKey, Results360, Report360Sections, ReportGroupPair,
   ReportNarrativeItem, ReportOpenAnswers, ReportPairFinding, ReportZoneItem,
 } from '@/lib/api';
 import { CategoryRadarCard } from './CategoryRadarCard';
@@ -82,8 +82,27 @@ const BLOCK_TITLE: Record<string, string> = {
   'pair:SELF_MANAGER': 'Разбор: самооценка и оценка руководителя',
   'pair:SELF_SUBORDINATE': 'Разбор: самооценка и оценка подчинённых',
   'pair:SELF_PEER': 'Разбор: самооценка и оценка коллег',
+  'chart:SELF_MANAGER': 'Диаграмма: самооценка и оценка руководителя',
+  'chart:SELF_SUBORDINATE': 'Диаграмма: самооценка и оценка подчинённых',
+  'chart:SELF_PEER': 'Диаграмма: самооценка и оценка коллег',
   recommendations: 'Рекомендации по развитию',
 };
+
+/** Крестик «удалить» в углу карточки без карандаша (для диаграмм). */
+function DeleteControl({ k, ctx }: { k: string; ctx?: EditCtx }) {
+  if (!ctx?.canEdit) return null;
+  return (
+    <button
+      className="btn btn-ghost btn-sm"
+      title="Удалить диаграмму"
+      style={{ position: 'absolute', top: 8, right: 8, opacity: ctx.editingBlock != null ? 0.35 : 1 }}
+      disabled={ctx.editingBlock != null}
+      onClick={() => ctx.deleteBlock(k)}
+    >
+      <Icon name="close" size={14} />
+    </button>
+  );
+}
 
 /** Свёрнутая плашка удалённого блока (видна только HR). */
 function DeletedBlock({ k, ctx }: { k: string; ctx: EditCtx }) {
@@ -280,7 +299,10 @@ function OpenAnswersSection({ res, sections, ctx }: {
 
 // ─── Диаграммы по категориям (не редактируются) ──────────────
 
-function ChartBlock({ res, title, keys }: { res: Results360; title: string; keys: SeriesKey[] }) {
+function ChartBlock({ res, title, keys, blockKey, ctx }: {
+  res: Results360; title: string; keys: SeriesKey[]; blockKey?: string; ctx?: EditCtx;
+}) {
+  if (blockKey && ctx?.isHidden(blockKey)) return ctx.canEdit ? <DeletedBlock k={blockKey} ctx={ctx} /> : null;
   const vals = res.scalePoints.map(p => p.value);
   const min = vals.length ? Math.min(...vals) : 0;
   const max = vals.length ? Math.max(...vals) : 4;
@@ -289,7 +311,8 @@ function ChartBlock({ res, title, keys }: { res: Results360; title: string; keys
   const missing = requested.filter(s => !active.includes(s));
   const groups = groupByCategory(res.competencyResults);
   return (
-    <div className="card card-pad">
+    <div className="card card-pad" style={{ position: 'relative' }}>
+      {blockKey && <DeleteControl k={blockKey} ctx={ctx} />}
       <BigTitle title={title} />
       <SeriesLegend series={active} />
       {missing.length > 0 && (
@@ -429,13 +452,14 @@ function ZoneSection({ sec, listKey, title, ctx }: {
 
 const PAIR_BLOCKS: {
   pair: GroupPairKey;
+  role: EvaluatorRole; // роль респондентов пары — для авто-скрытия при отсутствии
   chartTitle: string;
   genitive: string; // «руководителя» / «подчиненных» / «коллег»
   keys: SeriesKey[];
 }[] = [
-  { pair: 'SELF_MANAGER', chartTitle: 'Диаграмма сравнения самооценки и оценки руководителя', genitive: 'руководителя', keys: ['manager', 'self'] },
-  { pair: 'SELF_SUBORDINATE', chartTitle: 'Диаграмма сравнения самооценки и оценки подчиненных', genitive: 'подчиненных', keys: ['subordinates', 'self'] },
-  { pair: 'SELF_PEER', chartTitle: 'Диаграмма сравнения самооценки и оценки коллег', genitive: 'коллег', keys: ['peers', 'self'] },
+  { pair: 'SELF_MANAGER', role: 'MANAGER', chartTitle: 'Диаграмма сравнения самооценки и оценки руководителя', genitive: 'руководителя', keys: ['manager', 'self'] },
+  { pair: 'SELF_SUBORDINATE', role: 'SUBORDINATE', chartTitle: 'Диаграмма сравнения самооценки и оценки подчиненных', genitive: 'подчиненных', keys: ['subordinates', 'self'] },
+  { pair: 'SELF_PEER', role: 'PEER', chartTitle: 'Диаграмма сравнения самооценки и оценки коллег', genitive: 'коллег', keys: ['peers', 'self'] },
 ];
 
 const KIND_HEADING = (genitive: string): Record<DeltaKind, string> => ({
@@ -632,13 +656,15 @@ export function Report360View({ res, sections, editable = false, onChange, onCom
           <ZoneSection sec={sections} listKey="hiddenPotential" title="Скрытые возможности" ctx={ctx} />
         </>
       )}
-      {/* 7. Пары групп: диаграммы — всегда, разбор — при наличии отчёта */}
+      {/* 7. Пары групп: диаграмма + разбор. Нет назначенных респондентов группы — пара не нужна. */}
       {PAIR_BLOCKS.map(block => {
+        const hasRespondents = (res.progress.find(p => p.role === block.role)?.total ?? 0) > 0;
+        if (!hasRespondents) return null; // авто-скрытие: у сотрудника нет этой группы
         const idx = pairIndex(block.pair);
         const pair = sections && idx >= 0 ? sections.groupComparison[idx] : null;
         return (
           <React.Fragment key={block.pair}>
-            <ChartBlock res={res} title={block.chartTitle} keys={block.keys} />
+            <ChartBlock res={res} title={block.chartTitle} keys={block.keys} blockKey={`chart:${block.pair}`} ctx={ctx} />
             {pair && (
               <PairFindings pair={pair} pairIndex={idx} genitive={block.genitive} blockKey={`pair:${block.pair}`} ctx={ctx} />
             )}

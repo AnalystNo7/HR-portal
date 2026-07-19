@@ -61,6 +61,7 @@ export const ALL_BLOCK_KEYS = [
   'open:strengths', 'open:toChange', 'open:toDevelop',
   'strengths', 'developmentAreas', 'blindSpots', 'hiddenPotential',
   'pair:SELF_MANAGER', 'pair:SELF_SUBORDINATE', 'pair:SELF_PEER',
+  'chart:SELF_MANAGER', 'chart:SELF_SUBORDINATE', 'chart:SELF_PEER',
   'recommendations',
 ] as const;
 
