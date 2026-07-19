@@ -551,6 +551,8 @@ export interface Report360Sections {
   groupComparison: ReportGroupPair[];
   recommendations: ReportRecommendationTheme[];
   openAnswers?: ReportOpenAnswers | null;
+  /** Ключи блоков, удалённых HR (крестик) — скрыты у сотрудника и в PDF. */
+  hiddenBlocks?: string[];
 }
 
 export interface Report360 {

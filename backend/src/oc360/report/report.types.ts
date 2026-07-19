@@ -52,7 +52,17 @@ export interface Report360Sections {
   groupComparison: ReportGroupPair[];
   recommendations: ReportRecommendationTheme[];
   openAnswers?: ReportOpenAnswers | null;
+  /** Ключи блоков, удалённых HR (крестик). Скрываются в отчёте у сотрудника и в PDF. */
+  hiddenBlocks?: string[];
 }
+
+/** Все удаляемые блоки (с карандашом) — для валидации hiddenBlocks. */
+export const ALL_BLOCK_KEYS = [
+  'open:strengths', 'open:toChange', 'open:toDevelop',
+  'strengths', 'developmentAreas', 'blindSpots', 'hiddenPotential',
+  'pair:SELF_MANAGER', 'pair:SELF_SUBORDINATE', 'pair:SELF_PEER',
+  'recommendations',
+] as const;
 
 export const GROUP_PAIR_TITLES: Record<GroupPairKey, string> = {
   SELF_MANAGER: 'Самооценка и оценка руководителя',
@@ -144,6 +154,9 @@ export function normalizeSections(raw: unknown): Report360Sections {
         }
       : null;
 
+  const allowed = new Set<string>(ALL_BLOCK_KEYS);
+  const hiddenBlocks = Array.from(new Set(arr(root.hiddenBlocks).map(str).filter(k => allowed.has(k))));
+
   return {
     strengths: narrativeItems(root.strengths),
     developmentAreas: narrativeItems(root.developmentAreas),
@@ -152,6 +165,7 @@ export function normalizeSections(raw: unknown): Report360Sections {
     groupComparison: pairs,
     recommendations,
     openAnswers,
+    ...(hiddenBlocks.length ? { hiddenBlocks } : {}),
   };
 }
 

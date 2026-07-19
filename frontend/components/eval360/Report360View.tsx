@@ -62,6 +62,37 @@ interface EditCtx {
   commit: () => void;
   cancel: () => void;
   update: (patch: (s: Report360Sections) => Report360Sections) => void;
+  /** Удалён ли блок (крестик). */
+  isHidden: (key: string) => boolean;
+  /** Удалить блок (сразу сохраняется). */
+  deleteBlock: (key: string) => void;
+  /** Вернуть удалённый блок (сразу сохраняется). */
+  restoreBlock: (key: string) => void;
+}
+
+/** Человекочитаемые названия блоков — для плашки «Блок удалён». */
+const BLOCK_TITLE: Record<string, string> = {
+  'open:strengths': 'Сильные стороны (открытые ответы)',
+  'open:toChange': 'Что нужно изменить (открытые ответы)',
+  'open:toDevelop': 'Что нужно развивать (открытые ответы)',
+  strengths: 'Сильные стороны',
+  developmentAreas: 'Зоны развития',
+  blindSpots: 'Слепые зоны',
+  hiddenPotential: 'Скрытые возможности',
+  'pair:SELF_MANAGER': 'Разбор: самооценка и оценка руководителя',
+  'pair:SELF_SUBORDINATE': 'Разбор: самооценка и оценка подчинённых',
+  'pair:SELF_PEER': 'Разбор: самооценка и оценка коллег',
+  recommendations: 'Рекомендации по развитию',
+};
+
+/** Свёрнутая плашка удалённого блока (видна только HR). */
+function DeletedBlock({ k, ctx }: { k: string; ctx: EditCtx }) {
+  return (
+    <div className="card card-pad row-2" style={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, borderStyle: 'dashed' }}>
+      <span className="small muted">Блок «{BLOCK_TITLE[k] ?? k}» удалён — не показывается сотруднику и в PDF.</span>
+      <button className="btn btn-secondary btn-sm" onClick={() => ctx.restoreBlock(k)}>Восстановить</button>
+    </div>
+  );
 }
 
 /** Карандаш / «Готово»+«Отмена» в правом верхнем углу карточки блока. */
@@ -76,15 +107,24 @@ function BlockControls({ k, ctx }: { k: string; ctx: EditCtx }) {
     );
   }
   return (
-    <button
-      className="btn btn-ghost btn-sm"
-      title="Редактировать"
-      style={{ position: 'absolute', top: 8, right: 8, opacity: ctx.editingBlock != null ? 0.35 : 1 }}
-      disabled={ctx.editingBlock != null}
-      onClick={() => ctx.startEdit(k)}
-    >
-      <Icon name="edit" size={14} />
-    </button>
+    <span style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 4, opacity: ctx.editingBlock != null ? 0.35 : 1 }}>
+      <button
+        className="btn btn-ghost btn-sm"
+        title="Редактировать"
+        disabled={ctx.editingBlock != null}
+        onClick={() => ctx.startEdit(k)}
+      >
+        <Icon name="edit" size={14} />
+      </button>
+      <button
+        className="btn btn-ghost btn-sm"
+        title="Удалить блок"
+        disabled={ctx.editingBlock != null}
+        onClick={() => ctx.deleteBlock(k)}
+      >
+        <Icon name="close" size={14} />
+      </button>
+    </span>
   );
 }
 
@@ -207,6 +247,7 @@ function OpenAnswersSection({ res, sections, ctx }: {
       {OPEN_BLOCKS.map(b => {
         const items = shown[b.key];
         const editing = ctx.isEditing(b.blockKey);
+        if (ctx.isHidden(b.blockKey)) return ctx.canEdit ? <DeletedBlock key={b.key} k={b.blockKey} ctx={ctx} /> : null;
         return (
           <div key={b.key} className="card card-pad" style={{ position: 'relative' }}>
             <BlockControls k={b.blockKey} ctx={ctx} />
@@ -283,6 +324,7 @@ function NarrativeSection({ sec, listKey, title, ctx }: {
 }) {
   const items = sec[listKey];
   const editing = ctx.isEditing(listKey);
+  if (ctx.isHidden(listKey)) return ctx.canEdit ? <DeletedBlock k={listKey} ctx={ctx} /> : null;
   if (!ctx.canEdit && items.length === 0) return null;
   const set = (fn: (items: ReportNarrativeItem[]) => ReportNarrativeItem[]) =>
     ctx.update(s => ({ ...s, [listKey]: fn(s[listKey]) }));
@@ -339,6 +381,7 @@ function ZoneSection({ sec, listKey, title, ctx }: {
 }) {
   const items = sec[listKey];
   const editing = ctx.isEditing(listKey);
+  if (ctx.isHidden(listKey)) return ctx.canEdit ? <DeletedBlock k={listKey} ctx={ctx} /> : null;
   if (!ctx.canEdit && items.length === 0) return null;
   const set = (fn: (items: ReportZoneItem[]) => ReportZoneItem[]) =>
     ctx.update(s => ({ ...s, [listKey]: fn(s[listKey]) }));
@@ -416,6 +459,7 @@ function PairFindings({ pair, pairIndex, genitive, blockKey, ctx }: {
   const entries = pair.items.map((it, idx) => ({ it, idx }));
   const kinds: DeltaKind[] = ['CONSENSUS', 'BLIND_SPOT', 'HIDDEN_POTENTIAL'];
   const headings = KIND_HEADING(genitive);
+  if (ctx.isHidden(blockKey)) return ctx.canEdit ? <DeletedBlock k={blockKey} ctx={ctx} /> : null;
   if (!ctx.canEdit && pair.items.length === 0) return null;
 
   return (
@@ -475,6 +519,7 @@ function PairFindings({ pair, pairIndex, genitive, blockKey, ctx }: {
 function RecommendationsSection({ sec, ctx }: { sec: Report360Sections; ctx: EditCtx }) {
   const editing = ctx.isEditing('recommendations');
   const hasContent = sec.recommendations.some(t => t.title || t.subtopics.some(s => s.title || s.text));
+  if (ctx.isHidden('recommendations')) return ctx.canEdit ? <DeletedBlock k="recommendations" ctx={ctx} /> : null;
   if (!ctx.canEdit && !hasContent) return null;
   const patchTheme = (ti: number, fn: (t: Report360Sections['recommendations'][number]) => Report360Sections['recommendations'][number]) =>
     ctx.update(s => ({ ...s, recommendations: s.recommendations.map((t, j) => j === ti ? fn(t) : t) }));
@@ -545,6 +590,13 @@ export function Report360View({ res, sections, editable = false, onChange, onCom
   // сотрудник/печать: принудительно закрываем редактор
   useEffect(() => { if (!canEdit) { setEditingBlock(null); setSnapshot(null); } }, [canEdit]);
 
+  const setHidden = (fn: (keys: string[]) => string[]) => {
+    if (!sections) return;
+    const next: Report360Sections = { ...sections, hiddenBlocks: fn(sections.hiddenBlocks ?? []) };
+    onChange?.(next);
+    onCommit?.(next); // удаление/восстановление сохраняется сразу
+  };
+
   const ctx: EditCtx = {
     canEdit,
     editingBlock,
@@ -553,6 +605,9 @@ export function Report360View({ res, sections, editable = false, onChange, onCom
     commit: () => { if (sections && onCommit) onCommit(sections); setEditingBlock(null); setSnapshot(null); },
     cancel: () => { if (snapshot && onChange) onChange(snapshot); setEditingBlock(null); setSnapshot(null); },
     update: patch => { if (sections && onChange) onChange(patch(sections)); },
+    isHidden: key => (sections?.hiddenBlocks ?? []).includes(key),
+    deleteBlock: key => setHidden(keys => keys.includes(key) ? keys : [...keys, key]),
+    restoreBlock: key => setHidden(keys => keys.filter(k => k !== key)),
   };
   const pairIndex = (key: GroupPairKey) => sections?.groupComparison.findIndex(p => p.pair === key) ?? -1;
 
