@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, useToast } from '@/components/primitives';
 import { Report360View, emptyReport360Sections, reportPdfTitle, expectedGenMs, recordGenDuration } from '@/components/eval360';
 import {
@@ -89,14 +89,29 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
     }
   };
 
+  /** Открытие окна сброса — с перечиткой отчёта, чтобы кнопки строились по свежим флагам. */
+  const openReset = async () => {
+    try {
+      const e = await get360Report(cycleId, subjectId);
+      setEnv(e); // только env: sections/status не трогаем, чтобы не затереть правки
+      if (!e.report) { toast('Отчёт ещё не создан — откатывать нечего'); return; }
+    } catch { /* не удалось перечитать — откроем по текущему состоянию */ }
+    setConfirmReset(true);
+  };
+
+  // ref-замок: React батчит setState, поэтому busy не успевает задизейблить кнопку
+  // между двумя мгновенными кликами — второй сброс бил по уже удалённому отчёту
+  const resetInFlight = useRef(false);
   const reset = async (mode: ReportResetMode) => {
+    if (resetInFlight.current) return;
+    resetInFlight.current = true;
     setConfirmReset(false);
     setBusy('reset');
     try {
       await reset360Report(cycleId, subjectId, mode);
       await load(); // перечитать состояние: выбранный снимок либо «Не создан»
       toast(mode === 'initial' ? 'Отчёт возвращён к первоначальному состоянию' : 'Отчёт возвращён к предыдущей версии');
-    } catch (err) { toast((err as Error).message); } finally { setBusy(null); }
+    } catch (err) { toast((err as Error).message); } finally { setBusy(null); resetInFlight.current = false; }
   };
 
   /** Сохранение — при нажатии «Готово» на блоке (создаёт отчёт при первом сохранении). */
@@ -174,7 +189,7 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
               </button>
         )}
         {report && (report.canResetInitial || report.canResetPrevious) && (
-          <button className="btn btn-secondary btn-sm" disabled={busy != null || locked} title={locked ? lockedHint : undefined} onClick={() => setConfirmReset(true)}>
+          <button className="btn btn-secondary btn-sm" disabled={busy != null || locked} title={locked ? lockedHint : undefined} onClick={openReset}>
             {busy === 'reset' ? 'Сброс...' : 'Сброс'}
           </button>
         )}

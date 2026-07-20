@@ -155,12 +155,22 @@ export class ReportService {
   async reset(cycleId: string, subjectId: string, authorId: string | null, mode: ReportResetMode): Promise<ReportDto | null> {
     await this.ensureSubject(cycleId, subjectId);
     const report = await this.prisma.cycle360Report.findUnique({ where: { subjectId } });
-    const rawSnap = report && (mode === 'initial' ? report.initialSnapshot : report.preGenSnapshot);
-    if (!report || rawSnap == null) {
-      throw new BadRequestException('Нет состояния для отката');
+    if (!report) {
+      throw new BadRequestException('Отчёт ещё не создан — откатывать нечего');
     }
     if (report.status === 'READY') {
       throw new BadRequestException('Отчёт отмечен готовым к публикации — верните его в черновик, чтобы выполнить сброс');
+    }
+    let rawSnap = mode === 'initial' ? report.initialSnapshot : report.preGenSnapshot;
+    // fallback: у «первоначального» нет снимка (переходные строки) — берём «предыдущий» якорь
+    if (rawSnap == null && mode === 'initial') rawSnap = report.preGenSnapshot;
+    if (rawSnap == null) {
+      // сгенерированный отчёт без снимков: сброс = убрать текст LLM (возврат к «Не создан»)
+      if (report.generatedAt != null) {
+        await this.prisma.cycle360Report.delete({ where: { subjectId } });
+        return null;
+      }
+      throw new BadRequestException('Нет состояния для отката');
     }
     const snap = rawSnap as unknown as Snapshot;
 
