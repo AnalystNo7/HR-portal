@@ -109,6 +109,7 @@ LLM_BASE_URL=https://api.openai.com/v1
 LLM_API_KEY=<ключ_API>
 LLM_MODEL=gpt-4o
 # LLM_TEMPERATURE=0.3   # необязательно, по умолчанию 0.3
+# LLM_MAX_TOKENS=16000  # необязательно, лимит токенов ответа (Gonka: максимум 16384)
 ```
 
 **Настройка модели через админку:** после деплоя админ (роль `admin`) может

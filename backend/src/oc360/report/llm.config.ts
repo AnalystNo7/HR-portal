@@ -5,6 +5,12 @@ export interface LlmConfig {
   apiKey: string;
   model: string;
   temperature: number;
+  /**
+   * Лимит токенов ответа (max_tokens). Reasoning-модели (MiniMax-M2, Kimi-K2) тратят
+   * токены на размышления; при малом лимите ответ обрывается, не дойдя до JSON.
+   * Подбирается под потолок провайдера (Gonka: 16384).
+   */
+  maxTokens: number;
   /** Откуда взято основное значение baseUrl (для отображения в админке). */
   source: 'db' | 'env';
 }
@@ -14,6 +20,17 @@ export interface LlmSettingsRaw {
   apiKey: string | null;
   model: string | null;
   temperature: number | null;
+  maxTokens: number | null;
+}
+
+export const DEFAULT_MAX_TOKENS = 16000;
+export const MIN_MAX_TOKENS = 256;
+export const MAX_MAX_TOKENS = 128_000;
+
+/** Кламп лимита токенов в допустимые пределы; null/NaN → null (взять дефолт). */
+export function clampMaxTokens(v: number | null | undefined): number | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  return Math.min(MAX_MAX_TOKENS, Math.max(MIN_MAX_TOKENS, Math.round(v)));
 }
 
 const env = (k: string): string | null => {
@@ -38,7 +55,10 @@ export function resolveLlmConfig(db: LlmSettingsRaw | null): LlmConfig | null {
   const tempRaw = db?.temperature ?? (env('LLM_TEMPERATURE') != null ? Number(env('LLM_TEMPERATURE')) : null);
   const temperature = tempRaw != null && Number.isFinite(tempRaw) ? tempRaw : 0.3;
 
-  return { baseUrl, apiKey, model, temperature, source: baseUrlDb ? 'db' : 'env' };
+  const tokensRaw = db?.maxTokens ?? (env('LLM_MAX_TOKENS') != null ? Number(env('LLM_MAX_TOKENS')) : null);
+  const maxTokens = clampMaxTokens(tokensRaw) ?? DEFAULT_MAX_TOKENS;
+
+  return { baseUrl, apiKey, model, temperature, maxTokens, source: baseUrlDb ? 'db' : 'env' };
 }
 
 /**
@@ -50,6 +70,6 @@ export async function loadLlmSettings(prisma: PrismaService): Promise<LlmSetting
     (await prisma.llmSettings.findFirst({ where: { isActive: true } })) ??
     (await prisma.llmSettings.findUnique({ where: { id: 'default' } }));
   return row
-    ? { baseUrl: row.baseUrl, apiKey: row.apiKey, model: row.model, temperature: row.temperature }
+    ? { baseUrl: row.baseUrl, apiKey: row.apiKey, model: row.model, temperature: row.temperature, maxTokens: row.maxTokens }
     : null;
 }

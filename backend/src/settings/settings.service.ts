@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../oc360/report/llm.client';
-import { loadLlmSettings, resolveLlmConfig, LlmConfig } from '../oc360/report/llm.config';
+import { clampMaxTokens, loadLlmSettings, resolveLlmConfig, LlmConfig } from '../oc360/report/llm.config';
 
 /** Пресет подключения к LLM (ключ наружу — только маской). */
 export interface LlmPresetView {
@@ -13,6 +13,7 @@ export interface LlmPresetView {
   apiKeySet: boolean;
   model: string;
   temperature: number | null;
+  maxTokens: number | null;
   isActive: boolean;
 }
 
@@ -28,6 +29,7 @@ export interface SaveLlmDto {
   apiKey?: string | null;
   model?: string | null;
   temperature?: number | null;
+  maxTokens?: number | null;
   /** Для теста существующего пресета: подставить его сохранённый ключ. */
   presetId?: string;
 }
@@ -46,7 +48,7 @@ export class SettingsService {
 
   private toView(row: {
     id: string; name: string | null; baseUrl: string | null; apiKey: string | null;
-    model: string | null; temperature: number | null; isActive: boolean;
+    model: string | null; temperature: number | null; maxTokens: number | null; isActive: boolean;
   }): LlmPresetView {
     return {
       id: row.id,
@@ -56,6 +58,7 @@ export class SettingsService {
       apiKeySet: !!row.apiKey,
       model: row.model ?? '',
       temperature: row.temperature,
+      maxTokens: row.maxTokens,
       isActive: row.isActive,
     };
   }
@@ -102,6 +105,7 @@ export class SettingsService {
         apiKey: norm(dto.apiKey),
         model: norm(dto.model),
         temperature: dto.temperature != null && Number.isFinite(dto.temperature) ? dto.temperature : null,
+        maxTokens: clampMaxTokens(dto.maxTokens),
         isActive: !hasAny,
         updatedById: adminId,
       },
@@ -121,6 +125,7 @@ export class SettingsService {
         baseUrl: norm(dto.baseUrl),
         model: norm(dto.model),
         temperature: dto.temperature != null && Number.isFinite(dto.temperature) ? dto.temperature : null,
+        maxTokens: clampMaxTokens(dto.maxTokens),
         updatedById: adminId,
         ...(apiKey != null ? { apiKey } : {}), // ключ меняем только если прислан новый
       },
@@ -165,6 +170,7 @@ export class SettingsService {
         apiKey: (norm(dto.apiKey) || db?.apiKey) || null,
         model: (norm(dto.model) ?? db?.model) || null,
         temperature: dto.temperature ?? db?.temperature ?? null,
+        maxTokens: clampMaxTokens(dto.maxTokens) ?? db?.maxTokens ?? null,
       });
     } else {
       cfg = await this.llm.getConfig();

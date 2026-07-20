@@ -20,13 +20,6 @@ export class LlmService {
   // до 5 минут: reasoning-модели (Gonka MiniMax-M2) долго «думают» перед ответом
   private static readonly TIMEOUT_MS = 300_000;
 
-  /**
-   * Лимит вывода. Reasoning-модели (Gonka MiniMax-M2, Kimi-K2) тратят токены на
-   * рассуждения; при малом лимите ответ обрывается, не дойдя до закрытия JSON
-   * («некорректный JSON»). 16000 — с запасом под рассуждения + отчёт (потолок моделей 16384).
-   */
-  private static readonly MAX_TOKENS = 16000;
-
   constructor(private prisma: PrismaService) {}
 
   /** Итоговый конфиг: БД → env. null, если не заданы обязательные поля. */
@@ -49,7 +42,7 @@ export class LlmService {
     const body = {
       model: cfg.model,
       temperature: cfg.temperature,
-      max_tokens: LlmService.MAX_TOKENS,
+      max_tokens: cfg.maxTokens,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },

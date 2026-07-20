@@ -664,6 +664,8 @@ export interface LlmPreset {
   apiKeySet: boolean;
   model: string;
   temperature: number | null;
+  /** Лимит токенов ответа (max_tokens); null = дефолт 16000. */
+  maxTokens: number | null;
   isActive: boolean;
 }
 export interface LlmPresetList {
@@ -677,6 +679,7 @@ export interface SaveLlmDto {
   apiKey?: string | null;
   model?: string | null;
   temperature?: number | null;
+  maxTokens?: number | null;
   /** Для теста существующего пресета — подставить его сохранённый ключ. */
   presetId?: string;
 }

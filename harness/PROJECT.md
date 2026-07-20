@@ -72,7 +72,7 @@ npm run db:seed          # 20 тестовых сотрудников (НЕ се
 npm run db:seed:360      # шкала + компетенции 360 (отдельно, идемпотентно)
 
 # LLM (опционально; без него отчёт заполняется вручную)
-# env: LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_TEMPERATURE — fallback;
+# env: LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS — fallback;
 # приоритетнее — админка /admin/llm (кнопка «Проверить подключение»)
 
 # Проверки

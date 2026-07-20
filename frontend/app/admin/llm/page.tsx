@@ -67,7 +67,7 @@ export default function AdminLlmPage() {
                 {p.isActive && <span className="pill pill-green">Активная</span>}
               </div>
               <div className="small muted">
-                {p.model || 'модель не указана'}{p.baseUrl ? ` · ${p.baseUrl}` : ''}{p.apiKeySet ? ` · ключ ${p.apiKeyMasked}` : ' · ключ не задан'}
+                {p.model || 'модель не указана'}{p.baseUrl ? ` · ${p.baseUrl}` : ''}{p.apiKeySet ? ` · ключ ${p.apiKeyMasked}` : ' · ключ не задан'}{p.maxTokens != null ? ` · лимит ${p.maxTokens}` : ''}
               </div>
             </div>
             <div className="row-2" style={{ gap: 6, flexWrap: 'wrap' }}>
@@ -120,17 +120,20 @@ function PresetModal({ preset, onClose, onSaved }: {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState(preset?.model ?? '');
   const [temperature, setTemperature] = useState(preset?.temperature != null ? String(preset.temperature) : '');
+  const [maxTokens, setMaxTokens] = useState(preset?.maxTokens != null ? String(preset.maxTokens) : '');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
   const dto = (): SaveLlmDto => {
     const t = temperature.trim();
+    const mt = maxTokens.trim();
     return {
       name: name.trim() || null,
       baseUrl: baseUrl.trim() || null,
       model: model.trim() || null,
       apiKey: apiKey.trim() ? apiKey.trim() : undefined, // пусто — не менять сохранённый
       temperature: t === '' ? null : Number(t.replace(',', '.')),
+      maxTokens: mt === '' ? null : Number(mt),
       ...(preset ? { presetId: preset.id } : {}),
     };
   };
@@ -139,6 +142,7 @@ function PresetModal({ preset, onClose, onSaved }: {
     const d = dto();
     if (!d.name) { toast('Укажите название настройки'); return; }
     if (d.temperature != null && !Number.isFinite(d.temperature)) { toast('Температура — число, например 0.3'); return; }
+    if (d.maxTokens != null && !Number.isFinite(d.maxTokens)) { toast('Лимит токенов — целое число, например 16384'); return; }
     setSaving(true);
     try {
       const l = preset ? await updateLlmPreset(preset.id, d) : await createLlmPreset(d);
@@ -187,6 +191,14 @@ function PresetModal({ preset, onClose, onSaved }: {
           <label className="small">Температура (необязательно, по умолчанию 0.3)</label>
           <input className="inp" type="number" step={0.1} min={0} max={2} value={temperature}
             placeholder="0.3" onChange={e => setTemperature(e.target.value)} />
+        </div>
+        <div className="field">
+          <label className="small">Лимит токенов ответа (необязательно, по умолчанию 16000)</label>
+          <input className="inp" type="number" step={1} min={256} max={128000} value={maxTokens}
+            placeholder="16000" onChange={e => setMaxTokens(e.target.value)} />
+          <div className="small muted">
+            Reasoning-модели тратят токены на размышления — ставьте максимум провайдера (Gonka: 16384).
+          </div>
         </div>
       </div>
     </Modal>
