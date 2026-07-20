@@ -61,6 +61,21 @@ export function deltaCategory(delta: number | null): DeltaCategory | null {
 const EXTERNAL_ROLES = ['MANAGER', 'PEER', 'SUBORDINATE'] as const;
 type ExternalRole = (typeof EXTERNAL_ROLES)[number];
 
+/** Зона расхождения самооценки с группой (классификация выполняется кодом, не LLM). */
+export type ZoneKind = 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL';
+
+/**
+ * Зона по знаку Δ (самооценка − оценка группы) и порогу 0,6 (нестрого, на округлённом
+ * значении — та же формула, что красит зоны в таблице результатов).
+ */
+export function zoneOfDelta(delta: number | null): ZoneKind | null {
+  if (delta == null) return null;
+  const d = round2(delta);
+  if (d >= ZONE_EPS) return 'BLIND_SPOT';
+  if (d <= -ZONE_EPS) return 'HIDDEN_POTENTIAL';
+  return 'CONSENSUS';
+}
+
 export interface GroupStat {
   /** Среднее по всем баллам группы (как в таблице результатов). */
   avg: number | null;
@@ -90,11 +105,29 @@ export interface CompetencyAnalytics {
   vsTarget: { target: number; delta: number | null };
   /** Единичные низкие оценки на фоне приемлемого среднего. */
   outliers: { role: EvaluatorRole; indicatorText: string; score: number }[];
+  /** Зона к совокупной оценке окружения — вычислена системой, LLM не переклассифицирует. */
+  zoneVsOthers: ZoneKind | null;
+  /** Зона к каждой группе оценивающих — вычислена системой. */
+  zoneByGroup: Record<ExternalRole, ZoneKind | null>;
+}
+
+/** Готовые составы разделов отчёта (отбор выполнен системой, LLM пишет только тексты). */
+export interface ReportSelection {
+  /** Сильные стороны: топ-3 по оценке окружения (по убыванию). */
+  strengthsTop: { name: string; othersAvg: number }[];
+  /** Зоны развития: оценка окружения ниже целевого уровня (по возрастанию). */
+  developmentAreas: { name: string; othersAvg: number }[];
+  /** Слепые зоны: самооценка выше окружения на 0,6 и более (по убыванию Δ). */
+  blindSpots: { name: string; delta: number }[];
+  /** Скрытые возможности: самооценка ниже окружения на 0,6 и более (по убыванию |Δ|). */
+  hiddenPotential: { name: string; delta: number }[];
 }
 
 export interface ReportAnalytics {
   targetLevel: number;
   scale: { min: number; max: number };
+  /** Составы разделов отчёта — вычислены системой (см. ReportSelection). */
+  selection: ReportSelection;
   competencies: CompetencyAnalytics[];
   overall: {
     selfAvg: number | null;
@@ -171,6 +204,8 @@ export function buildAnalytics(input: AnalyticsInput): ReportAnalytics {
         : [];
 
     const gap = diff(self, othersAvg);
+    const zoneByGroup = {} as CompetencyAnalytics['zoneByGroup'];
+    for (const role of EXTERNAL_ROLES) zoneByGroup[role] = zoneOfDelta(selfVsGroup[role].delta);
     return {
       id: c.id,
       name: c.name,
@@ -181,6 +216,8 @@ export function buildAnalytics(input: AnalyticsInput): ReportAnalytics {
       total,
       selfVsOthers: { delta: gap, category: deltaCategory(gap) },
       selfVsGroup,
+      zoneVsOthers: zoneOfDelta(gap),
+      zoneByGroup,
       groupPairs: {
         managerVsPeers: diff(byGroup.MANAGER.avg, byGroup.PEER.avg),
         managerVsSubordinates: diff(byGroup.MANAGER.avg, byGroup.SUBORDINATE.avg),
@@ -198,9 +235,31 @@ export function buildAnalytics(input: AnalyticsInput): ReportAnalytics {
   const othersAvg = avg(competencies.map(c => c.othersAvg).filter((v): v is number => v != null));
   const gap = diff(selfAvg, othersAvg);
 
+  // составы разделов отчёта — детерминированный отбор (LLM пишет только тексты)
+  const rated = competencies.filter((c): c is CompetencyAnalytics & { othersAvg: number } => c.othersAvg != null);
+  const selection: ReportSelection = {
+    strengthsTop: [...rated]
+      .sort((a, b) => b.othersAvg - a.othersAvg)
+      .slice(0, 3)
+      .map(c => ({ name: c.name, othersAvg: c.othersAvg })),
+    developmentAreas: rated
+      .filter(c => c.othersAvg < input.targetLevel)
+      .sort((a, b) => a.othersAvg - b.othersAvg)
+      .map(c => ({ name: c.name, othersAvg: c.othersAvg })),
+    blindSpots: competencies
+      .filter(c => c.zoneVsOthers === 'BLIND_SPOT' && c.selfVsOthers.delta != null)
+      .sort((a, b) => (b.selfVsOthers.delta ?? 0) - (a.selfVsOthers.delta ?? 0))
+      .map(c => ({ name: c.name, delta: c.selfVsOthers.delta! })),
+    hiddenPotential: competencies
+      .filter(c => c.zoneVsOthers === 'HIDDEN_POTENTIAL' && c.selfVsOthers.delta != null)
+      .sort((a, b) => Math.abs(b.selfVsOthers.delta ?? 0) - Math.abs(a.selfVsOthers.delta ?? 0))
+      .map(c => ({ name: c.name, delta: c.selfVsOthers.delta! })),
+  };
+
   return {
     targetLevel: input.targetLevel,
     scale: { min: input.scaleMin, max: input.scaleMax },
+    selection,
     competencies,
     overall: { selfAvg, othersAvg, gap, gapCategory: deltaCategory(gap) },
     openAnswers: input.openAnswers,

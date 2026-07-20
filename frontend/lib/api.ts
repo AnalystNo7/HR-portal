@@ -551,6 +551,13 @@ export interface Report360Sections {
   groupComparison: ReportGroupPair[];
   recommendations: ReportRecommendationTheme[];
   openAnswers?: ReportOpenAnswers | null;
+  /** Объяснения, почему раздел пуст (вместо «Не выявлены»). */
+  emptyReasons?: {
+    strengths?: string;
+    developmentAreas?: string;
+    blindSpots?: string;
+    hiddenPotential?: string;
+  } | null;
   /** Ключи блоков, удалённых HR (крестик) — скрыты у сотрудника и в PDF. */
   hiddenBlocks?: string[];
 }

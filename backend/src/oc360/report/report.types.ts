@@ -44,6 +44,14 @@ export interface ReportOpenAnswers {
   toDevelop: string[];
 }
 
+/** Объяснения, почему раздел пуст (показываются вместо «Не выявлены»). */
+export interface ReportEmptyReasons {
+  strengths?: string;
+  developmentAreas?: string;
+  blindSpots?: string;
+  hiddenPotential?: string;
+}
+
 export interface Report360Sections {
   strengths: ReportNarrativeItem[];
   developmentAreas: ReportNarrativeItem[];
@@ -52,6 +60,8 @@ export interface Report360Sections {
   groupComparison: ReportGroupPair[];
   recommendations: ReportRecommendationTheme[];
   openAnswers?: ReportOpenAnswers | null;
+  /** Объяснения пустых разделов (только для разделов с пустым списком). */
+  emptyReasons?: ReportEmptyReasons | null;
   /** Ключи блоков, удалённых HR (крестик). Скрываются в отчёте у сотрудника и в PDF. */
   hiddenBlocks?: string[];
 }
@@ -158,14 +168,33 @@ export function normalizeSections(raw: unknown): Report360Sections {
   const allowed = new Set<string>(ALL_BLOCK_KEYS);
   const hiddenBlocks = Array.from(new Set(arr(root.hiddenBlocks).map(str).filter(k => allowed.has(k))));
 
+  const strengths = narrativeItems(root.strengths);
+  const developmentAreas = narrativeItems(root.developmentAreas);
+  const blindSpots = zoneItems(root.blindSpots);
+  const hiddenPotential = zoneItems(root.hiddenPotential);
+
+  // объяснения пустых разделов: храним только для действительно пустых списков
+  const rawReasons = obj(root.emptyReasons);
+  const reasonFor = (key: string, empty: boolean): string | undefined => {
+    const v = str(rawReasons[key]);
+    return empty && v ? v : undefined;
+  };
+  const emptyReasons: ReportEmptyReasons = {
+    ...(reasonFor('strengths', strengths.length === 0) ? { strengths: reasonFor('strengths', true) } : {}),
+    ...(reasonFor('developmentAreas', developmentAreas.length === 0) ? { developmentAreas: reasonFor('developmentAreas', true) } : {}),
+    ...(reasonFor('blindSpots', blindSpots.length === 0) ? { blindSpots: reasonFor('blindSpots', true) } : {}),
+    ...(reasonFor('hiddenPotential', hiddenPotential.length === 0) ? { hiddenPotential: reasonFor('hiddenPotential', true) } : {}),
+  };
+
   return {
-    strengths: narrativeItems(root.strengths),
-    developmentAreas: narrativeItems(root.developmentAreas),
-    blindSpots: zoneItems(root.blindSpots),
-    hiddenPotential: zoneItems(root.hiddenPotential),
+    strengths,
+    developmentAreas,
+    blindSpots,
+    hiddenPotential,
     groupComparison: pairs,
     recommendations,
     openAnswers,
+    ...(Object.keys(emptyReasons).length ? { emptyReasons } : {}),
     ...(hiddenBlocks.length ? { hiddenBlocks } : {}),
   };
 }

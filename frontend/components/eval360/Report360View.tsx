@@ -153,6 +153,30 @@ function EmptyHint() {
   return <div className="small muted" style={{ textAlign: 'center' }}>{EMPTY_HINT}</div>;
 }
 
+type EmptyReasonKey = 'strengths' | 'developmentAreas' | 'blindSpots' | 'hiddenPotential';
+
+/** Абзац-объяснение пустого раздела (генерирует модель, правит HR). */
+function EmptyReasonView({ reason }: { reason: string }) {
+  return <div style={{ whiteSpace: 'pre-wrap' }}>{reason}</div>;
+}
+
+function EmptyReasonEditor({ reason, listKey, ctx }: { reason: string; listKey: EmptyReasonKey; ctx: EditCtx }) {
+  return (
+    <div className="field">
+      <label className="small">Пояснение, почему раздел пуст</label>
+      <textarea
+        className="ta"
+        rows={3}
+        value={reason}
+        placeholder="Объяснение на основе цифр, почему в этом разделе нет позиций"
+        onChange={e =>
+          ctx.update(s => ({ ...s, emptyReasons: { ...(s.emptyReasons ?? {}), [listKey]: e.target.value } }))
+        }
+      />
+    </div>
+  );
+}
+
 // ─── Титул + шкала оценок (не редактируется) ─────────────────
 
 function TitleBlock({ res }: { res: Results360 }) {
@@ -347,15 +371,17 @@ function NarrativeSection({ sec, listKey, title, ctx }: {
 }) {
   const items = sec[listKey];
   const editing = ctx.isEditing(listKey);
+  const reason = sec.emptyReasons?.[listKey] ?? '';
   if (ctx.isHidden(listKey)) return ctx.canEdit ? <DeletedBlock k={listKey} ctx={ctx} /> : null;
-  if (!ctx.canEdit && items.length === 0) return null;
+  if (!ctx.canEdit && items.length === 0 && !reason) return null;
   const set = (fn: (items: ReportNarrativeItem[]) => ReportNarrativeItem[]) =>
     ctx.update(s => ({ ...s, [listKey]: fn(s[listKey]) }));
   return (
     <div className="card card-pad" style={{ position: 'relative' }}>
       <BlockControls k={listKey} ctx={ctx} />
       <BigTitle title={title} subtitle="по итогу совокупной оценки окружения" />
-      {!editing && items.length === 0 && <EmptyHint />}
+      {!editing && items.length === 0 && (reason ? <EmptyReasonView reason={reason} /> : <EmptyHint />)}
+      {editing && items.length === 0 && <EmptyReasonEditor reason={reason} listKey={listKey} ctx={ctx} />}
       <div className="stack-4">
         {items.map((it, i) => (
           <div key={i}>
@@ -404,8 +430,9 @@ function ZoneSection({ sec, listKey, title, ctx }: {
 }) {
   const items = sec[listKey];
   const editing = ctx.isEditing(listKey);
+  const reason = sec.emptyReasons?.[listKey] ?? '';
   if (ctx.isHidden(listKey)) return ctx.canEdit ? <DeletedBlock k={listKey} ctx={ctx} /> : null;
-  if (!ctx.canEdit && items.length === 0) return null;
+  if (!ctx.canEdit && items.length === 0 && !reason) return null;
   const set = (fn: (items: ReportZoneItem[]) => ReportZoneItem[]) =>
     ctx.update(s => ({ ...s, [listKey]: fn(s[listKey]) }));
   const patch = (i: number, p: Partial<ReportZoneItem>) => set(list => list.map((x, j) => j === i ? { ...x, ...p } : x));
@@ -413,7 +440,10 @@ function ZoneSection({ sec, listKey, title, ctx }: {
     <div className="card card-pad" style={{ position: 'relative' }}>
       <BlockControls k={listKey} ctx={ctx} />
       <BigTitle title={title} subtitle="по итогу совокупной оценки окружения" />
-      {!editing && items.length === 0 && (ctx.canEdit ? <EmptyHint /> : <div className="small muted" style={{ textAlign: 'center' }}>Не выявлены</div>)}
+      {!editing && items.length === 0 && (reason
+        ? <EmptyReasonView reason={reason} />
+        : ctx.canEdit ? <EmptyHint /> : <div className="small muted" style={{ textAlign: 'center' }}>Не выявлены</div>)}
+      {editing && items.length === 0 && <EmptyReasonEditor reason={reason} listKey={listKey} ctx={ctx} />}
       <div className="stack-4">
         {items.map((it, i) => (
           <div key={i}>
