@@ -52,20 +52,31 @@ function savePersisted(s: PersistedState) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const kcRef = useRef<Keycloak | null>(null);
-  const [state, setState] = useState<AuthState>(() => {
-    const saved = loadPersisted();
-    return {
-      user: null,
-      loading: true,
-      error: null,
-      role: saved.role ?? 'hr',
-      roles: [saved.role ?? 'hr'],
-      authenticated: false,
-      sidebarCollapsed: saved.sidebarCollapsed ?? false,
-      density: saved.density ?? 'comfortable',
-      feedbackOpen: false,
-    };
+  // Начальное состояние детерминированное (совпадает с SSR): localStorage читать здесь
+  // нельзя — сервер и первый клиентский рендер разойдутся (ошибка гидрации в Sidebar).
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    loading: true,
+    error: null,
+    role: 'hr',
+    roles: ['hr'],
+    authenticated: false,
+    sidebarCollapsed: false,
+    density: 'comfortable',
+    feedbackOpen: false,
   });
+
+  // Сохранённые настройки применяем ПОСЛЕ монтирования (гидрация уже совпала).
+  useEffect(() => {
+    const saved = loadPersisted();
+    setState(s => ({
+      ...s,
+      role: saved.role ?? s.role,
+      roles: [saved.role ?? s.role],
+      sidebarCollapsed: saved.sidebarCollapsed ?? s.sidebarCollapsed,
+      density: saved.density ?? s.density,
+    }));
+  }, []);
 
   const loadUser = useCallback(async (role: UserRole) => {
     setState(s => ({ ...s, loading: true, error: null }));
