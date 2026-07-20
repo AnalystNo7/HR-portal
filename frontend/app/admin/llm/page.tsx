@@ -196,9 +196,6 @@ function PresetModal({ preset, onClose, onSaved }: {
           <label className="small">Лимит токенов ответа (необязательно, по умолчанию 16000)</label>
           <input className="inp" type="number" step={1} min={256} max={128000} value={maxTokens}
             placeholder="16000" onChange={e => setMaxTokens(e.target.value)} />
-          <div className="small muted">
-            Reasoning-модели тратят токены на размышления — ставьте максимум провайдера (Gonka: 16384).
-          </div>
         </div>
       </div>
     </Modal>
