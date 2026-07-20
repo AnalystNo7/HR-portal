@@ -62,6 +62,15 @@ export class LlmService {
     }
 
     const data: any = await res.json().catch(() => null);
+    // расход токенов и причина остановки — для диагностики обрывов на рассуждениях;
+    // finish_reason=length означает, что ответ обрезан лимитом (в т.ч. потолком провайдера)
+    const usage = data?.usage ?? {};
+    const finishReason = data?.choices?.[0]?.finish_reason ?? '—';
+    this.logger.log(
+      `LLM: модель=${cfg.model}, finish_reason=${finishReason}, ` +
+      `prompt=${usage.prompt_tokens ?? '—'}, completion=${usage.completion_tokens ?? '—'}, ` +
+      `total=${usage.total_tokens ?? '—'}, запрошенный max_tokens=${cfg.maxTokens}`,
+    );
     const msg = data?.choices?.[0]?.message;
     // reasoning-модели кладут рассуждения в content (<think>…</think>) либо в reasoning_content;
     // ответ ищем сначала в content, при пустом — в reasoning_content как запас.
