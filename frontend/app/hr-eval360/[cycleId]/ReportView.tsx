@@ -109,9 +109,14 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
     setBusy('reset');
     try {
       await reset360Report(cycleId, subjectId, mode);
-      await load(); // перечитать состояние: выбранный снимок либо «Не создан»
       toast(mode === 'initial' ? 'Отчёт возвращён к первоначальному состоянию' : 'Отчёт возвращён к предыдущей версии');
-    } catch (err) { toast((err as Error).message); } finally { setBusy(null); resetInFlight.current = false; }
+    } catch (err) { toast((err as Error).message); } finally {
+      // перечитать состояние при ЛЮБОМ исходе: сброс мог пройти на сервере даже при
+      // ошибке чтения ответа — иначе на экране останется устаревший текст
+      await load();
+      setBusy(null);
+      resetInFlight.current = false;
+    }
   };
 
   /** Сохранение — при нажатии «Готово» на блоке (создаёт отчёт при первом сохранении). */

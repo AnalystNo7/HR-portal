@@ -28,8 +28,11 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
     throw new Error(message || `${res.status} ${res.statusText}`);
   }
 
-  if (res.status === 204) return undefined as T;
-  return res.json();
+  // пустое тело (204 или 200 с null из NestJS — напр., reset отчёта без снимков)
+  // нельзя парсить res.json(): упадёт «Unexpected end of JSON input»
+  const text = await res.text();
+  if (!text.trim()) return undefined as T;
+  return JSON.parse(text);
 }
 
 export interface Department {
