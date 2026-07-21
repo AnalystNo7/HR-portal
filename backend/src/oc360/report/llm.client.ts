@@ -42,7 +42,8 @@ export class LlmService {
     const body = {
       model: cfg.model,
       temperature: cfg.temperature,
-      max_tokens: cfg.maxTokens,
+      // без лимита ключ не отправляем — размер ответа решает провайдер
+      ...(cfg.maxTokens != null ? { max_tokens: cfg.maxTokens } : {}),
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
@@ -53,14 +54,18 @@ export class LlmService {
     this.logger.log(
       `LLM: запрос — system=${system.length} симв., user=${user.length} симв., ` +
       `всего ≈${Math.round((system.length + user.length) / 3)} токенов, ` +
-      `модель=${cfg.model}, max_tokens=${cfg.maxTokens}`,
+      `модель=${cfg.model}, max_tokens=${cfg.maxTokens ?? 'без лимита'}`,
     );
 
-    // response_format поддерживают не все совместимые провайдеры — при 400 повторяем без него
-    let res = await this.post(cfg, { ...body, response_format: { type: 'json_object' } });
-    if (res.status === 400) {
-      this.logger.warn('LLM вернул 400 на response_format=json_object, повтор без него');
-      res = await this.post(cfg, body);
+    // 1 автоповтор ТОЛЬКО при таймауте: ноды Gonka — «лотерея», повтор того же
+    // запроса часто попадает на живую ноду (наблюдалось: 300с таймаут → 84с успех)
+    let res: Response;
+    try {
+      res = await this.postJson(cfg, body);
+    } catch (e: any) {
+      if (!/таймаут/.test(e?.message ?? '')) throw e;
+      this.logger.warn('LLM: таймаут, автоповтор (нода могла зависнуть)');
+      res = await this.postJson(cfg, body);
     }
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -76,7 +81,7 @@ export class LlmService {
     this.logger.log(
       `LLM: модель=${cfg.model}, finish_reason=${finishReason}, ` +
       `prompt=${usage.prompt_tokens ?? '—'}, completion=${usage.completion_tokens ?? '—'}, ` +
-      `total=${usage.total_tokens ?? '—'}, запрошенный max_tokens=${cfg.maxTokens}`,
+      `total=${usage.total_tokens ?? '—'}, запрошенный max_tokens=${cfg.maxTokens ?? 'без лимита'}`,
     );
     const msg = data?.choices?.[0]?.message;
     // reasoning-модели кладут рассуждения в content (<think>…</think>) либо в reasoning_content;
@@ -113,6 +118,14 @@ export class LlmService {
     } catch (e: any) {
       return { ok: false, error: e?.message || 'сетевая ошибка' };
     }
+  }
+
+  /** POST с response_format=json_object; не все провайдеры его поддерживают — при 400 повтор без него. */
+  private async postJson(cfg: LlmConfig, body: Record<string, unknown>): Promise<Response> {
+    const res = await this.post(cfg, { ...body, response_format: { type: 'json_object' } });
+    if (res.status !== 400) return res;
+    this.logger.warn('LLM вернул 400 на response_format=json_object, повтор без него');
+    return this.post(cfg, body);
   }
 
   private async post(cfg: LlmConfig, body: unknown): Promise<Response> {

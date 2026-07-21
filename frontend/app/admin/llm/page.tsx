@@ -120,6 +120,8 @@ function PresetModal({ preset, onClose, onSaved }: {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState(preset?.model ?? '');
   const [temperature, setTemperature] = useState(preset?.temperature != null ? String(preset.temperature) : '');
+  // по умолчанию лимит НЕ отправляется (провайдер сам решает); галочка открывает поле
+  const [limitEnabled, setLimitEnabled] = useState(preset?.maxTokens != null);
   const [maxTokens, setMaxTokens] = useState(preset?.maxTokens != null ? String(preset.maxTokens) : '');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -133,7 +135,7 @@ function PresetModal({ preset, onClose, onSaved }: {
       model: model.trim() || null,
       apiKey: apiKey.trim() ? apiKey.trim() : undefined, // пусто — не менять сохранённый
       temperature: t === '' ? null : Number(t.replace(',', '.')),
-      maxTokens: mt === '' ? null : Number(mt),
+      maxTokens: limitEnabled && mt !== '' ? Number(mt) : null,
       ...(preset ? { presetId: preset.id } : {}),
     };
   };
@@ -142,6 +144,7 @@ function PresetModal({ preset, onClose, onSaved }: {
     const d = dto();
     if (!d.name) { toast('Укажите название настройки'); return; }
     if (d.temperature != null && !Number.isFinite(d.temperature)) { toast('Температура — число, например 0.3'); return; }
+    if (limitEnabled && maxTokens.trim() === '') { toast('Укажите лимит токенов или снимите галочку'); return; }
     if (d.maxTokens != null && !Number.isFinite(d.maxTokens)) { toast('Лимит токенов — целое число, например 16384'); return; }
     setSaving(true);
     try {
@@ -193,9 +196,14 @@ function PresetModal({ preset, onClose, onSaved }: {
             placeholder="0.3" onChange={e => setTemperature(e.target.value)} />
         </div>
         <div className="field">
-          <label className="small">Лимит токенов ответа (необязательно, по умолчанию 16000)</label>
-          <input className="inp" type="number" step={1} min={256} max={128000} value={maxTokens}
-            placeholder="16000" onChange={e => setMaxTokens(e.target.value)} />
+          <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="checkbox" checked={limitEnabled} onChange={e => setLimitEnabled(e.target.checked)} />
+            Ограничить размер ответа
+          </label>
+          {limitEnabled && (
+            <input className="inp" type="number" step={1} min={256} max={128000} value={maxTokens}
+              placeholder="Например 16384" onChange={e => setMaxTokens(e.target.value)} />
+          )}
         </div>
       </div>
     </Modal>

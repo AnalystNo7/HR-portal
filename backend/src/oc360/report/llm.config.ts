@@ -6,11 +6,12 @@ export interface LlmConfig {
   model: string;
   temperature: number;
   /**
-   * Лимит токенов ответа (max_tokens). Reasoning-модели (MiniMax-M2, Kimi-K2) тратят
-   * токены на размышления; при малом лимите ответ обрывается, не дойдя до JSON.
-   * Подбирается под потолок провайдера (Gonka: 16384).
+   * Лимит токенов ответа (max_tokens); null — лимит НЕ отправляется, размер ответа
+   * решает провайдер (обычно максимум модели). Явный лимит нужен провайдерам,
+   * у которых дефолт мал; reasoning-модели тратят токены на размышления,
+   * при малом лимите ответ обрывается, не дойдя до JSON.
    */
-  maxTokens: number;
+  maxTokens: number | null;
   /** Откуда взято основное значение baseUrl (для отображения в админке). */
   source: 'db' | 'env';
 }
@@ -23,7 +24,6 @@ export interface LlmSettingsRaw {
   maxTokens: number | null;
 }
 
-export const DEFAULT_MAX_TOKENS = 16000;
 export const MIN_MAX_TOKENS = 256;
 export const MAX_MAX_TOKENS = 128_000;
 
@@ -56,7 +56,7 @@ export function resolveLlmConfig(db: LlmSettingsRaw | null): LlmConfig | null {
   const temperature = tempRaw != null && Number.isFinite(tempRaw) ? tempRaw : 0.3;
 
   const tokensRaw = db?.maxTokens ?? (env('LLM_MAX_TOKENS') != null ? Number(env('LLM_MAX_TOKENS')) : null);
-  const maxTokens = clampMaxTokens(tokensRaw) ?? DEFAULT_MAX_TOKENS;
+  const maxTokens = clampMaxTokens(tokensRaw); // null — лимит не отправляется
 
   return { baseUrl, apiKey, model, temperature, maxTokens, source: baseUrlDb ? 'db' : 'env' };
 }
