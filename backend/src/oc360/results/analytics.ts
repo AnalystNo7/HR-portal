@@ -9,6 +9,9 @@ export const DEFAULT_TARGET_LEVEL = 3.0;
  */
 export const ZONE_EPS = 0.6;
 
+/** Нижняя граница зоны внимания по методике: |Δ| в диапазоне 0.4–0.5. */
+export const ATTENTION_EPS = 0.4;
+
 export type DeltaCategory =
   | 'MATCH'       // 0.0–0.1 — практически полное совпадение
   | 'NOISE'       // 0.2–0.3 — незначимое расхождение («шум» шкалы)
@@ -62,17 +65,20 @@ const EXTERNAL_ROLES = ['MANAGER', 'PEER', 'SUBORDINATE'] as const;
 type ExternalRole = (typeof EXTERNAL_ROLES)[number];
 
 /** Зона расхождения самооценки с группой (классификация выполняется кодом, не LLM). */
-export type ZoneKind = 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL';
+export type ZoneKind = 'CONSENSUS' | 'ATTENTION' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL';
 
 /**
- * Зона по знаку Δ (самооценка − оценка группы) и порогу 0,6 (нестрого, на округлённом
- * значении — та же формула, что красит зоны в таблице результатов).
+ * Зона по знаку Δ (самооценка − оценка группы) на |Δ|, округлённом до 0,1, —
+ * единая сетка с категориями расхождений (deltaCategory):
+ * ≤0,3 — консенсус; 0,4–0,5 — зона внимания; ≥0,6 — слепая зона / скрытая возможность.
+ * Округляем |Δ|, а не Δ: Math.round для отрицательных несимметричен (−0,55 → −0,5).
+ * Та же формула красит зоны в таблице результатов.
  */
 export function zoneOfDelta(delta: number | null): ZoneKind | null {
   if (delta == null) return null;
-  const d = round2(delta);
-  if (d >= ZONE_EPS) return 'BLIND_SPOT';
-  if (d <= -ZONE_EPS) return 'HIDDEN_POTENTIAL';
+  const a = Math.round(Math.abs(delta) * 10) / 10;
+  if (a >= ZONE_EPS) return delta > 0 ? 'BLIND_SPOT' : 'HIDDEN_POTENTIAL';
+  if (a >= ATTENTION_EPS) return 'ATTENTION';
   return 'CONSENSUS';
 }
 

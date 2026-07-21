@@ -6,9 +6,9 @@ import {
   avg,
   buildAnalytics,
   round2,
+  zoneOfDelta,
   AnalyticsInput,
   DEFAULT_TARGET_LEVEL,
-  ZONE_EPS,
 } from './analytics';
 
 @Injectable()
@@ -120,14 +120,8 @@ export class ResultsService {
       const gap = self != null && othersAvg != null ? round2(self - othersAvg) : null;
       // «Итоговая (средняя)» — среднее доступных групповых оценок (само + руководитель + коллеги + подчинённые)
       const total = avg([self, manager, peers, subordinates].filter((v): v is number => v != null));
-      // по методике: разрыв 0,6 И БОЛЕЕ — слепая зона/скрытый потенциал (граница включается);
-      // сравниваем округлённый gap, чтобы ровно 0,60 не терялся из-за плавающей точки
-      let zone: 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL' | null = null;
-      if (gap != null) {
-        if (gap >= ZONE_EPS) zone = 'BLIND_SPOT';
-        else if (gap <= -ZONE_EPS) zone = 'HIDDEN_POTENTIAL';
-        else zone = 'CONSENSUS';
-      }
+      // зона — общей формулой отчёта (4 зоны по сетке 0,1, включая «Внимание» 0,4–0,5)
+      const zone = zoneOfDelta(gap);
       return { id: c.id, name: c.name, category: c.category, self, manager, peers, subordinates, othersAvg, total, gap, zone };
     });
 

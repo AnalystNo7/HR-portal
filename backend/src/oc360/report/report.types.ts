@@ -1,7 +1,7 @@
 // Структура интерпретационного отчёта 360 (хранится в Cycle360Report.sections).
 // Зеркальная копия типов — во frontend/lib/api.ts.
 
-export type DeltaKind = 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL';
+export type DeltaKind = 'CONSENSUS' | 'ATTENTION' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL';
 
 export interface ReportNarrativeItem {
   competency: string;
@@ -91,7 +91,7 @@ const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 
-const KINDS: DeltaKind[] = ['CONSENSUS', 'BLIND_SPOT', 'HIDDEN_POTENTIAL'];
+const KINDS: DeltaKind[] = ['CONSENSUS', 'ATTENTION', 'BLIND_SPOT', 'HIDDEN_POTENTIAL'];
 
 function narrativeItems(v: unknown): ReportNarrativeItem[] {
   return arr(v)

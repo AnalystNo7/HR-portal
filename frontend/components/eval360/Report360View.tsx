@@ -11,6 +11,7 @@ import { SCALE, SERIES, SeriesKey, groupByCategory, scaleBg } from './helpers';
 
 const KIND_LABEL: Record<DeltaKind, string> = {
   CONSENSUS: 'Зона консенсуса',
+  ATTENTION: 'Зона внимания',
   BLIND_SPOT: 'Слепая зона',
   HIDDEN_POTENTIAL: 'Скрытый потенциал',
 };
@@ -494,6 +495,7 @@ const PAIR_BLOCKS: {
 
 const KIND_HEADING = (genitive: string): Record<DeltaKind, string> => ({
   CONSENSUS: 'Зоны консенсуса (оценки близки):',
+  ATTENTION: 'Зона внимания (расхождение 0,4–0,5):',
   BLIND_SPOT: `Слепые зоны (самооценка выше оценки ${genitive}):`,
   HIDDEN_POTENTIAL: `Зоны скрытого потенциала (оценка ${genitive} выше самооценки):`,
 });
@@ -511,7 +513,7 @@ function PairFindings({ pair, pairIndex, genitive, blockKey, ctx }: {
     setPair(list => list.map((x, j) => j === idx ? { ...x, ...p } : x));
 
   const entries = pair.items.map((it, idx) => ({ it, idx }));
-  const kinds: DeltaKind[] = ['CONSENSUS', 'BLIND_SPOT', 'HIDDEN_POTENTIAL'];
+  const kinds: DeltaKind[] = ['CONSENSUS', 'ATTENTION', 'BLIND_SPOT', 'HIDDEN_POTENTIAL'];
   const headings = KIND_HEADING(genitive);
   if (ctx.isHidden(blockKey)) return ctx.canEdit ? <DeletedBlock k={blockKey} ctx={ctx} /> : null;
   if (!ctx.canEdit && pair.items.length === 0) return null;

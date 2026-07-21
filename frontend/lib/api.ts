@@ -430,7 +430,7 @@ export type EvaluatorRole = 'SELF' | 'MANAGER' | 'SUBORDINATE' | 'PEER';
 export type Cycle360Status = 'DRAFT' | 'ACTIVE' | 'CLOSED';
 export type SubjectStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'PUBLISHED';
 export type RespondentStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
-export type EvalZone = 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL' | null;
+export type EvalZone = 'CONSENSUS' | 'ATTENTION' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL' | null;
 
 export interface IndicatorTpl { id: string; competencyId: string; text: string; order: number; }
 export interface CompetencyTpl { id: string; versionId: string | null; name: string; description: string | null; category: string; order: number; isActive: boolean; indicators: IndicatorTpl[]; }
@@ -520,7 +520,7 @@ export interface MySubject360 { subjectId: string; cycle: { id: string; name: st
 // ─── Отчёт 360 (интерпретация) — зеркало backend/src/oc360/report/report.types.ts ───
 
 export type Report360Status = 'DRAFT' | 'READY';
-export type DeltaKind = 'CONSENSUS' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL';
+export type DeltaKind = 'CONSENSUS' | 'ATTENTION' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL';
 export type GroupPairKey = 'SELF_MANAGER' | 'SELF_PEER' | 'SELF_SUBORDINATE';
 
 export interface ReportNarrativeItem { competency: string; text: string; }

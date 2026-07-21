@@ -49,12 +49,14 @@ export const ROLE_LABEL: Record<EvaluatorRole, string> = {
 
 export const ZONE_LABEL: Record<Exclude<EvalZone, null>, string> = {
   CONSENSUS: 'Согласие',
+  ATTENTION: 'Внимание',
   BLIND_SPOT: 'Слепая зона',
   HIDDEN_POTENTIAL: 'Скрытый потенциал',
 };
 
 export const ZONE_PILL: Record<Exclude<EvalZone, null>, string> = {
   CONSENSUS: 'pill-green',
+  ATTENTION: 'pill-yellow',
   BLIND_SPOT: 'pill-red',
   HIDDEN_POTENTIAL: 'pill-blue',
 };
