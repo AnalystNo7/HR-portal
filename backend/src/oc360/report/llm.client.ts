@@ -48,6 +48,13 @@ export class LlmService {
         { role: 'user', content: user },
       ],
     };
+    // размер промпта — ДО запроса, чтобы строка была видна и при таймауте;
+    // оценка токенов грубая: кириллица ≈ 2–4 символа на токен, берём /3
+    this.logger.log(
+      `LLM: запрос — system=${system.length} симв., user=${user.length} симв., ` +
+      `всего ≈${Math.round((system.length + user.length) / 3)} токенов, ` +
+      `модель=${cfg.model}, max_tokens=${cfg.maxTokens}`,
+    );
 
     // response_format поддерживают не все совместимые провайдеры — при 400 повторяем без него
     let res = await this.post(cfg, { ...body, response_format: { type: 'json_object' } });
