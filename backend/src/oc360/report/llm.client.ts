@@ -20,6 +20,10 @@ export class LlmService {
   // до 5 минут: reasoning-модели (Gonka MiniMax-M2) долго «думают» перед ответом
   private static readonly TIMEOUT_MS = 300_000;
 
+  // пауза перед повтором при 429 «too many concurrent requests»: чужая генерация
+  // (другой HR) успеет освободить слот провайдера
+  private static readonly RETRY_429_DELAY_MS = 15_000;
+
   constructor(private prisma: PrismaService) {}
 
   /** Итоговый конфиг: БД → env. null, если не заданы обязательные поля. */
@@ -65,6 +69,13 @@ export class LlmService {
     } catch (e: any) {
       if (!/таймаут/.test(e?.message ?? '')) throw e;
       this.logger.warn('LLM: таймаут, автоповтор (нода могла зависнуть)');
+      res = await this.postJson(cfg, body);
+    }
+    // 1 повтор при 429: провайдер не допускает одновременных запросов по ключу —
+    // параллельная генерация другого сотрудника освободит слот за паузу
+    if (res.status === 429) {
+      this.logger.warn(`LLM: 429 (лимит одновременных запросов), пауза ${LlmService.RETRY_429_DELAY_MS / 1000}с и повтор`);
+      await new Promise(r => setTimeout(r, LlmService.RETRY_429_DELAY_MS));
       res = await this.postJson(cfg, body);
     }
     if (!res.ok) {

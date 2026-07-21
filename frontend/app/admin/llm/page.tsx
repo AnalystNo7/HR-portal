@@ -212,8 +212,8 @@ function PresetModal({ preset, onClose, onSaved }: {
           <label className="small">Генерация отчёта</label>
           <select className="inp" value={splitParts} onChange={e => setSplitParts(e.target.value)}>
             <option value="1">Одним запросом</option>
-            <option value="2">2 запроса параллельно</option>
-            <option value="3">3 запроса параллельно</option>
+            <option value="2">2 запроса</option>
+            <option value="3">3 запроса</option>
           </select>
           <div className="small muted">
             По частям — когда отчёт не помещается в лимит вывода провайдера: каждая часть получает свой лимит.

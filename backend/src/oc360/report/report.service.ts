@@ -103,20 +103,20 @@ export class ReportService {
       analytics,
     );
     // генерация по частям (splitParts пресета): каждой части — свой запрос со своим
-    // лимитом вывода; части независимы и идут параллельно; ошибка любой = ошибка всей
+    // лимитом вывода. ПОСЛЕДОВАТЕЛЬНО: Gonka не допускает одновременных запросов
+    // по одному ключу (429 too many concurrent requests). Ошибка любой = ошибка всей.
     const parts = partsForCount(cfg?.splitParts ?? 1);
-    if (parts.length > 1) this.logger.log(`LLM: генерация отчёта из ${parts.length} частей (параллельно)`);
-    const rawParts = await Promise.all(
-      parts.map(keys =>
-        this.llm.completeJson(buildSystemPrompt(analytics, ctx.methodology, ctx.docs, keys), userPrompt),
-      ),
-    );
-    // из ответа каждой части берём ТОЛЬКО её разделы (модель могла вернуть лишние)
+    if (parts.length > 1) this.logger.log(`LLM: генерация отчёта из ${parts.length} частей (последовательно)`);
     const raw: Record<string, unknown> = {};
-    parts.forEach((keys, i) => {
-      const part = (rawParts[i] ?? {}) as Record<string, unknown>;
+    for (const keys of parts) {
+      const rawPart = await this.llm.completeJson(
+        buildSystemPrompt(analytics, ctx.methodology, ctx.docs, keys),
+        userPrompt,
+      );
+      // из ответа каждой части берём ТОЛЬКО её разделы (модель могла вернуть лишние)
+      const part = (rawPart ?? {}) as Record<string, unknown>;
       for (const k of keys) if (k in part) raw[k] = part[k];
-    });
+    }
     const sections = normalizeSections(raw);
     if (isEmptySections(sections)) {
       throw new BadGatewayException('Модель вернула пустой отчёт — попробуйте ещё раз');
