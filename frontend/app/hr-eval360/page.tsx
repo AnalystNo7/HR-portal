@@ -22,7 +22,7 @@ export default function HrEval360Page() {
     <div>
       <h2 style={{ fontFamily: 'var(--font-head)', fontSize: 22, marginBottom: 16 }}>Оценка 360</h2>
       <div className="tabs" style={{ marginBottom: 16 }}>
-        <button aria-selected={tab === 'cycles'} onClick={() => setTab('cycles')}>Запуски</button>
+        <button aria-selected={tab === 'cycles'} onClick={() => setTab('cycles')}>Запуск оценки</button>
         <button aria-selected={tab === 'template'} onClick={() => setTab('template')}>Шаблон оценки</button>
         <button aria-selected={tab === 'scales'} onClick={() => setTab('scales')}>Шкала оценки</button>
         <button aria-selected={tab === 'docs'} onClick={() => setTab('docs')}>База знаний</button>
@@ -95,7 +95,7 @@ function CyclesTab() {
     try {
       // целевой уровень при создании не задаётся (дефолт 3.0); правится в редактировании цикла
       const cycle = await create360Cycle({ name: name.trim(), description: description.trim() || null, year, half, scaleId, versionId, competencyIds: Array.from(selectedComps) });
-      toast('Запуск создан');
+      toast('Запуск оценки создан');
       router.push(`/hr-eval360/${cycle.id}`);
     } catch (e) { setError((e as Error).message); } finally { setSaving(false); }
   };
