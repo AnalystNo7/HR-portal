@@ -35,8 +35,12 @@ export class LlmService {
     return (await this.getConfig()) != null;
   }
 
-  /** Отправляет system+user и возвращает распарсенный JSON-объект из ответа модели. */
-  async completeJson(system: string, user: string): Promise<unknown> {
+  /**
+   * Отправляет system+user и возвращает распарсенный JSON-объект из ответа модели.
+   * opts.timeoutSec — таймаут одной попытки (из пресета, по части); null/нет — 300 с.
+   */
+  async completeJson(system: string, user: string, opts?: { timeoutSec?: number | null }): Promise<unknown> {
+    const timeoutMs = (opts?.timeoutSec ?? LlmService.TIMEOUT_MS / 1000) * 1000;
     const cfg = await this.getConfig();
     if (!cfg) {
       throw new ServiceUnavailableException(
@@ -58,25 +62,25 @@ export class LlmService {
     this.logger.log(
       `LLM: запрос — system=${system.length} симв., user=${user.length} симв., ` +
       `всего ≈${Math.round((system.length + user.length) / 3)} токенов, ` +
-      `модель=${cfg.model}, max_tokens=${cfg.maxTokens ?? 'без лимита'}`,
+      `модель=${cfg.model}, max_tokens=${cfg.maxTokens ?? 'без лимита'}, таймаут=${timeoutMs / 1000}с`,
     );
 
     // 1 автоповтор ТОЛЬКО при таймауте: ноды Gonka — «лотерея», повтор того же
     // запроса часто попадает на живую ноду (наблюдалось: 300с таймаут → 84с успех)
     let res: Response;
     try {
-      res = await this.postJson(cfg, body);
+      res = await this.postJson(cfg, body, timeoutMs);
     } catch (e: any) {
       if (!/таймаут/.test(e?.message ?? '')) throw e;
       this.logger.warn('LLM: таймаут, автоповтор (нода могла зависнуть)');
-      res = await this.postJson(cfg, body);
+      res = await this.postJson(cfg, body, timeoutMs);
     }
     // 1 повтор при 429: провайдер не допускает одновременных запросов по ключу —
     // параллельная генерация другого сотрудника освободит слот за паузу
     if (res.status === 429) {
       this.logger.warn(`LLM: 429 (лимит одновременных запросов), пауза ${LlmService.RETRY_429_DELAY_MS / 1000}с и повтор`);
       await new Promise(r => setTimeout(r, LlmService.RETRY_429_DELAY_MS));
-      res = await this.postJson(cfg, body);
+      res = await this.postJson(cfg, body, timeoutMs);
     }
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -132,14 +136,14 @@ export class LlmService {
   }
 
   /** POST с response_format=json_object; не все провайдеры его поддерживают — при 400 повтор без него. */
-  private async postJson(cfg: LlmConfig, body: Record<string, unknown>): Promise<Response> {
-    const res = await this.post(cfg, { ...body, response_format: { type: 'json_object' } });
+  private async postJson(cfg: LlmConfig, body: Record<string, unknown>, timeoutMs = LlmService.TIMEOUT_MS): Promise<Response> {
+    const res = await this.post(cfg, { ...body, response_format: { type: 'json_object' } }, timeoutMs);
     if (res.status !== 400) return res;
     this.logger.warn('LLM вернул 400 на response_format=json_object, повтор без него');
-    return this.post(cfg, body);
+    return this.post(cfg, body, timeoutMs);
   }
 
-  private async post(cfg: LlmConfig, body: unknown): Promise<Response> {
+  private async post(cfg: LlmConfig, body: unknown, timeoutMs = LlmService.TIMEOUT_MS): Promise<Response> {
     const baseUrl = cfg.baseUrl.replace(/\/+$/, '');
     try {
       return await fetch(`${baseUrl}/chat/completions`, {
@@ -149,7 +153,7 @@ export class LlmService {
           Authorization: `Bearer ${cfg.apiKey}`,
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(LlmService.TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (e: any) {
       const reason = e?.name === 'TimeoutError' ? 'таймаут запроса' : e?.message || 'сетевая ошибка';

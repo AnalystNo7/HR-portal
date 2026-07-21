@@ -669,8 +669,10 @@ export interface LlmPreset {
   temperature: number | null;
   /** Лимит токенов ответа (max_tokens); null — не отправляется. */
   maxTokens: number | null;
-  /** Генерация отчёта: null/1 — одним запросом, 2/3 — параллельными частями. */
+  /** Генерация отчёта: null/1 — одним запросом, 2/3 — последовательными частями. */
   splitParts: number | null;
+  /** Таймауты попыток по частям, сек; null-элемент = 300 с. */
+  partTimeouts: (number | null)[];
   isActive: boolean;
 }
 export interface LlmPresetList {
@@ -686,6 +688,7 @@ export interface SaveLlmDto {
   temperature?: number | null;
   maxTokens?: number | null;
   splitParts?: number | null;
+  partTimeouts?: (number | null)[] | null;
   /** Для теста существующего пресета — подставить его сохранённый ключ. */
   presetId?: string;
 }

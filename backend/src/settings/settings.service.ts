@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../oc360/report/llm.client';
-import { clampMaxTokens, clampSplitParts, loadLlmSettings, resolveLlmConfig, LlmConfig } from '../oc360/report/llm.config';
+import { clampMaxTokens, clampPartTimeouts, clampSplitParts, loadLlmSettings, resolveLlmConfig, LlmConfig } from '../oc360/report/llm.config';
 
 /** Пресет подключения к LLM (ключ наружу — только маской). */
 export interface LlmPresetView {
@@ -14,8 +14,10 @@ export interface LlmPresetView {
   model: string;
   temperature: number | null;
   maxTokens: number | null;
-  /** Генерация отчёта: null/1 — одним запросом, 2/3 — параллельными частями. */
+  /** Генерация отчёта: null/1 — одним запросом, 2/3 — последовательными частями. */
   splitParts: number | null;
+  /** Таймауты попыток по частям, сек; null-элемент = 300 с. */
+  partTimeouts: (number | null)[];
   isActive: boolean;
 }
 
@@ -33,6 +35,7 @@ export interface SaveLlmDto {
   temperature?: number | null;
   maxTokens?: number | null;
   splitParts?: number | null;
+  partTimeouts?: (number | null)[] | null;
   /** Для теста существующего пресета: подставить его сохранённый ключ. */
   presetId?: string;
 }
@@ -52,7 +55,7 @@ export class SettingsService {
   private toView(row: {
     id: string; name: string | null; baseUrl: string | null; apiKey: string | null;
     model: string | null; temperature: number | null; maxTokens: number | null;
-    splitParts: number | null; isActive: boolean;
+    splitParts: number | null; partTimeouts: unknown; isActive: boolean;
   }): LlmPresetView {
     return {
       id: row.id,
@@ -64,6 +67,7 @@ export class SettingsService {
       temperature: row.temperature,
       maxTokens: row.maxTokens,
       splitParts: row.splitParts,
+      partTimeouts: clampPartTimeouts(row.partTimeouts),
       isActive: row.isActive,
     };
   }
@@ -112,6 +116,8 @@ export class SettingsService {
         temperature: dto.temperature != null && Number.isFinite(dto.temperature) ? dto.temperature : null,
         maxTokens: clampMaxTokens(dto.maxTokens),
         splitParts: clampSplitParts(dto.splitParts),
+        // сохраняем таймауты только видимых полей (по числу запросов)
+        partTimeouts: clampPartTimeouts(dto.partTimeouts).slice(0, clampSplitParts(dto.splitParts) ?? 1),
         isActive: !hasAny,
         updatedById: adminId,
       },
@@ -133,6 +139,7 @@ export class SettingsService {
         temperature: dto.temperature != null && Number.isFinite(dto.temperature) ? dto.temperature : null,
         maxTokens: clampMaxTokens(dto.maxTokens),
         splitParts: clampSplitParts(dto.splitParts),
+        partTimeouts: clampPartTimeouts(dto.partTimeouts).slice(0, clampSplitParts(dto.splitParts) ?? 1),
         updatedById: adminId,
         ...(apiKey != null ? { apiKey } : {}), // ключ меняем только если прислан новый
       },
@@ -179,6 +186,7 @@ export class SettingsService {
         temperature: dto.temperature ?? db?.temperature ?? null,
         maxTokens: clampMaxTokens(dto.maxTokens) ?? db?.maxTokens ?? null,
         splitParts: clampSplitParts(dto.splitParts) ?? db?.splitParts ?? null,
+        partTimeouts: dto.partTimeouts ?? db?.partTimeouts ?? null,
       });
     } else {
       cfg = await this.llm.getConfig();

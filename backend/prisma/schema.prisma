@@ -21,9 +21,12 @@ model LlmSettings {
   // лимит токенов ответа (max_tokens); null = не отправлять (решает провайдер).
   // Reasoning-модели тратят токены на размышления — лимит под потолок провайдера (Gonka: 16384)
   maxTokens   Int?     @map("max_tokens")
-  // генерация отчёта по частям: 1 (null) — одним запросом, 2/3 — параллельные части;
+  // генерация отчёта по частям: 1 (null) — одним запросом, 2/3 — последовательные части;
   // каждая часть получает свой лимит вывода — обход потолка провайдера
   splitParts  Int?     @map("split_parts")
+  // таймауты попыток по частям, сек: массив (number|null)[], null-элемент = 300;
+  // Json, а не Int[], чтобы хранить «пусто» для отдельной части
+  partTimeouts Json?   @map("part_timeouts")
   updatedById String?  @map("updated_by_id")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

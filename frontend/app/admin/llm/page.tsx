@@ -125,6 +125,11 @@ function PresetModal({ preset, onClose, onSaved }: {
   const [maxTokens, setMaxTokens] = useState(preset?.maxTokens != null ? String(preset.maxTokens) : '');
   // генерация по частям: каждой части — свой лимит вывода (обход потолка провайдера)
   const [splitParts, setSplitParts] = useState(String(preset?.splitParts ?? 1));
+  // таймауты попыток по частям (сек), по полю на запрос; '' = дефолт 300
+  const [partTimeouts, setPartTimeouts] = useState<string[]>([0, 1, 2].map(i => {
+    const v = preset?.partTimeouts?.[i];
+    return v != null ? String(v) : '';
+  }));
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
@@ -139,6 +144,10 @@ function PresetModal({ preset, onClose, onSaved }: {
       temperature: t === '' ? null : Number(t.replace(',', '.')),
       maxTokens: limitEnabled && mt !== '' ? Number(mt) : null,
       splitParts: Number(splitParts) || 1,
+      // только видимые поля (по числу запросов); '' → null (дефолт 300)
+      partTimeouts: partTimeouts
+        .slice(0, Number(splitParts) || 1)
+        .map(t => (t.trim() === '' ? null : Number(t))),
       ...(preset ? { presetId: preset.id } : {}),
     };
   };
@@ -149,6 +158,7 @@ function PresetModal({ preset, onClose, onSaved }: {
     if (d.temperature != null && !Number.isFinite(d.temperature)) { toast('Температура — число, например 0.3'); return; }
     if (limitEnabled && maxTokens.trim() === '') { toast('Укажите лимит токенов или снимите галочку'); return; }
     if (d.maxTokens != null && !Number.isFinite(d.maxTokens)) { toast('Лимит токенов — целое число, например 16384'); return; }
+    if (d.partTimeouts?.some(t => t != null && !Number.isFinite(t))) { toast('Таймаут запроса — число секунд, например 150'); return; }
     setSaving(true);
     try {
       const l = preset ? await updateLlmPreset(preset.id, d) : await createLlmPreset(d);
@@ -219,6 +229,17 @@ function PresetModal({ preset, onClose, onSaved }: {
             По частям — когда отчёт не помещается в лимит вывода провайдера: каждая часть получает свой лимит.
           </div>
         </div>
+        {Array.from({ length: Number(splitParts) || 1 }, (_, i) => (
+          <div className="field" key={i}>
+            <label className="small">
+              {(Number(splitParts) || 1) === 1
+                ? 'Таймаут запроса, сек (необязательно, по умолчанию 300)'
+                : `Таймаут запроса ${i + 1}, сек (необязательно, по умолчанию 300)`}
+            </label>
+            <input className="inp" type="number" step={1} min={30} max={600} value={partTimeouts[i] ?? ''}
+              placeholder="300" onChange={e => setPartTimeouts(list => list.map((x, j) => j === i ? e.target.value : x))} />
+          </div>
+        ))}
       </div>
     </Modal>
   );

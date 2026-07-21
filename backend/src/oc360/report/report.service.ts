@@ -108,10 +108,11 @@ export class ReportService {
     const parts = partsForCount(cfg?.splitParts ?? 1);
     if (parts.length > 1) this.logger.log(`LLM: генерация отчёта из ${parts.length} частей (последовательно)`);
     const raw: Record<string, unknown> = {};
-    for (const keys of parts) {
+    for (const [i, keys] of parts.entries()) {
       const rawPart = await this.llm.completeJson(
         buildSystemPrompt(analytics, ctx.methodology, ctx.docs, keys),
         userPrompt,
+        { timeoutSec: cfg?.partTimeouts[i] ?? null }, // таймаут попытки из пресета (своё поле у каждой части)
       );
       // из ответа каждой части берём ТОЛЬКО её разделы (модель могла вернуть лишние)
       const part = (rawPart ?? {}) as Record<string, unknown>;

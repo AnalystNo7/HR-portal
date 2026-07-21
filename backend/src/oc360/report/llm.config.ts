@@ -12,8 +12,10 @@ export interface LlmConfig {
    * при малом лимите ответ обрывается, не дойдя до JSON.
    */
   maxTokens: number | null;
-  /** Число параллельных запросов генерации отчёта: 1 — одним, 2/3 — по частям. */
+  /** Число запросов генерации отчёта: 1 — одним, 2/3 — последовательными частями. */
   splitParts: number;
+  /** Таймауты попыток по частям, сек; null-элемент = дефолт 300 с. */
+  partTimeouts: (number | null)[];
   /** Откуда взято основное значение baseUrl (для отображения в админке). */
   source: 'db' | 'env';
 }
@@ -25,6 +27,8 @@ export interface LlmSettingsRaw {
   temperature: number | null;
   maxTokens: number | null;
   splitParts: number | null;
+  /** Сырой Json из БД: ожидается массив (number|null)[]. */
+  partTimeouts: unknown;
 }
 
 export const MIN_MAX_TOKENS = 256;
@@ -40,6 +44,22 @@ export function clampMaxTokens(v: number | null | undefined): number | null {
 export function clampSplitParts(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v)) return null;
   return Math.min(3, Math.max(1, Math.round(v)));
+}
+
+export const MIN_TIMEOUT_S = 30;
+export const MAX_TIMEOUT_S = 600;
+
+/**
+ * Таймауты попыток по частям: не-массив → []; элемент-число — округлить и
+ * клампнуть 30–600 с, прочее → null (дефолт); максимум 3 элемента.
+ */
+export function clampPartTimeouts(v: unknown): (number | null)[] {
+  if (!Array.isArray(v)) return [];
+  return v.slice(0, 3).map(x =>
+    typeof x === 'number' && Number.isFinite(x)
+      ? Math.min(MAX_TIMEOUT_S, Math.max(MIN_TIMEOUT_S, Math.round(x)))
+      : null,
+  );
 }
 
 const env = (k: string): string | null => {
@@ -68,8 +88,9 @@ export function resolveLlmConfig(db: LlmSettingsRaw | null): LlmConfig | null {
   const maxTokens = clampMaxTokens(tokensRaw); // null — лимит не отправляется
 
   const splitParts = clampSplitParts(db?.splitParts) ?? 1;
+  const partTimeouts = clampPartTimeouts(db?.partTimeouts);
 
-  return { baseUrl, apiKey, model, temperature, maxTokens, splitParts, source: baseUrlDb ? 'db' : 'env' };
+  return { baseUrl, apiKey, model, temperature, maxTokens, splitParts, partTimeouts, source: baseUrlDb ? 'db' : 'env' };
 }
 
 /**
@@ -81,6 +102,6 @@ export async function loadLlmSettings(prisma: PrismaService): Promise<LlmSetting
     (await prisma.llmSettings.findFirst({ where: { isActive: true } })) ??
     (await prisma.llmSettings.findUnique({ where: { id: 'default' } }));
   return row
-    ? { baseUrl: row.baseUrl, apiKey: row.apiKey, model: row.model, temperature: row.temperature, maxTokens: row.maxTokens, splitParts: row.splitParts }
+    ? { baseUrl: row.baseUrl, apiKey: row.apiKey, model: row.model, temperature: row.temperature, maxTokens: row.maxTokens, splitParts: row.splitParts, partTimeouts: row.partTimeouts }
     : null;
 }
