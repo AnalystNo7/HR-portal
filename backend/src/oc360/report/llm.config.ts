@@ -50,8 +50,20 @@ export const MIN_TIMEOUT_S = 30;
 export const MAX_TIMEOUT_S = 600;
 
 /**
- * Таймауты попыток по частям: не-массив → []; элемент-число — округлить и
- * клампнуть 30–600 с, прочее → null (дефолт); максимум 3 элемента.
+ * Строгая проверка таймаутов при СОХРАНЕНИИ пресета: каждый заполненный элемент
+ * должен быть целым числом 30–600. false — есть недопустимое значение
+ * (сохранять нельзя, кламп не применяется — значение отклоняется).
+ */
+export function isValidPartTimeouts(v: unknown): boolean {
+  if (v == null) return true;
+  if (!Array.isArray(v)) return false;
+  return v.every(x => x == null || (typeof x === 'number' && Number.isInteger(x) && x >= MIN_TIMEOUT_S && x <= MAX_TIMEOUT_S));
+}
+
+/**
+ * Таймауты попыток по частям при ЧТЕНИИ конфига: не-массив → []; элемент-число —
+ * округлить и клампнуть 30–600 с (страховка от старых/кривых данных в БД),
+ * прочее → null (дефолт); максимум 3 элемента.
  */
 export function clampPartTimeouts(v: unknown): (number | null)[] {
   if (!Array.isArray(v)) return [];

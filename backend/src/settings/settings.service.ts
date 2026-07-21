@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../oc360/report/llm.client';
-import { clampMaxTokens, clampPartTimeouts, clampSplitParts, loadLlmSettings, resolveLlmConfig, LlmConfig } from '../oc360/report/llm.config';
+import { clampMaxTokens, clampPartTimeouts, clampSplitParts, isValidPartTimeouts, loadLlmSettings, resolveLlmConfig, LlmConfig } from '../oc360/report/llm.config';
 
 /** Пресет подключения к LLM (ключ наружу — только маской). */
 export interface LlmPresetView {
@@ -101,10 +101,20 @@ export class SettingsService {
     return { presets, source: effective ? effective.source : 'none' };
   }
 
+  /** Таймауты частей: строго 30–600 с (вне диапазона — отказ, не кламп); только видимые поля. */
+  private partTimeoutsForSave(dto: SaveLlmDto): (number | null)[] {
+    if (!isValidPartTimeouts(dto.partTimeouts)) {
+      throw new BadRequestException('Таймаут запроса — от 30 до 600 секунд');
+    }
+    const list = Array.isArray(dto.partTimeouts) ? dto.partTimeouts : [];
+    return list.slice(0, clampSplitParts(dto.splitParts) ?? 1).map(x => (typeof x === 'number' ? x : null));
+  }
+
   /** Создание пресета. Первый созданный (при пустой БД) сразу становится активным. */
   async createPreset(dto: SaveLlmDto, adminId: string | null): Promise<LlmPresetListView> {
     const name = norm(dto.name);
     if (!name) throw new BadRequestException('Укажите название настройки');
+    const partTimeouts = this.partTimeoutsForSave(dto); // валидация до обращений к БД
     const hasAny = await this.prisma.llmSettings.findFirst({ select: { id: true } });
     await this.prisma.llmSettings.create({
       data: {
@@ -116,8 +126,7 @@ export class SettingsService {
         temperature: dto.temperature != null && Number.isFinite(dto.temperature) ? dto.temperature : null,
         maxTokens: clampMaxTokens(dto.maxTokens),
         splitParts: clampSplitParts(dto.splitParts),
-        // сохраняем таймауты только видимых полей (по числу запросов)
-        partTimeouts: clampPartTimeouts(dto.partTimeouts).slice(0, clampSplitParts(dto.splitParts) ?? 1),
+        partTimeouts,
         isActive: !hasAny,
         updatedById: adminId,
       },
@@ -127,6 +136,7 @@ export class SettingsService {
 
   /** Правка пресета. Пустой apiKey не затирает сохранённый ключ. */
   async updatePreset(id: string, dto: SaveLlmDto, adminId: string | null): Promise<LlmPresetListView> {
+    const partTimeouts = this.partTimeoutsForSave(dto); // валидация до обращений к БД
     const exists = await this.prisma.llmSettings.findUnique({ where: { id } });
     if (!exists) throw new NotFoundException('Настройка не найдена');
     const apiKey = norm(dto.apiKey);
@@ -139,7 +149,7 @@ export class SettingsService {
         temperature: dto.temperature != null && Number.isFinite(dto.temperature) ? dto.temperature : null,
         maxTokens: clampMaxTokens(dto.maxTokens),
         splitParts: clampSplitParts(dto.splitParts),
-        partTimeouts: clampPartTimeouts(dto.partTimeouts).slice(0, clampSplitParts(dto.splitParts) ?? 1),
+        partTimeouts,
         updatedById: adminId,
         ...(apiKey != null ? { apiKey } : {}), // ключ меняем только если прислан новый
       },

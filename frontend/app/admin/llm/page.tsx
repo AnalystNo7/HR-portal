@@ -158,7 +158,7 @@ function PresetModal({ preset, onClose, onSaved }: {
     if (d.temperature != null && !Number.isFinite(d.temperature)) { toast('Температура — число, например 0.3'); return; }
     if (limitEnabled && maxTokens.trim() === '') { toast('Укажите лимит токенов или снимите галочку'); return; }
     if (d.maxTokens != null && !Number.isFinite(d.maxTokens)) { toast('Лимит токенов — целое число, например 16384'); return; }
-    if (d.partTimeouts?.some(t => t != null && !Number.isFinite(t))) { toast('Таймаут запроса — число секунд, например 150'); return; }
+    if (d.partTimeouts?.some(t => t != null && (!Number.isInteger(t) || t < 30 || t > 600))) { toast('Таймаут запроса — от 30 до 600 секунд'); return; }
     setSaving(true);
     try {
       const l = preset ? await updateLlmPreset(preset.id, d) : await createLlmPreset(d);
@@ -233,8 +233,8 @@ function PresetModal({ preset, onClose, onSaved }: {
           <div className="field" key={i}>
             <label className="small">
               {(Number(splitParts) || 1) === 1
-                ? 'Таймаут запроса, сек (необязательно, по умолчанию 300)'
-                : `Таймаут запроса ${i + 1}, сек (необязательно, по умолчанию 300)`}
+                ? 'Таймаут запроса, сек (по умолчанию 300, диапазон 30–600)'
+                : `Таймаут запроса ${i + 1}, сек (по умолчанию 300, диапазон 30–600)`}
             </label>
             <input className="inp" type="number" step={1} min={30} max={600} value={partTimeouts[i] ?? ''}
               placeholder="300" onChange={e => setPartTimeouts(list => list.map((x, j) => j === i ? e.target.value : x))} />
