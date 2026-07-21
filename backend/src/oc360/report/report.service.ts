@@ -1,11 +1,11 @@
-import { BadGatewayException, BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cycle360Report, Report360Status } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { fio } from '../oc360.helpers';
 import { ResultsService } from '../results/results.service';
 import { KnowledgeService } from '../knowledge/knowledge.service';
 import { LlmService } from './llm.client';
-import { buildSystemPrompt, buildUserPrompt } from './report.prompt';
+import { buildSystemPrompt, buildUserPrompt, partsForCount } from './report.prompt';
 import { isEmptySections, normalizeSections, Report360Sections } from './report.types';
 
 export type ReportResetMode = 'initial' | 'previous';
@@ -52,6 +52,8 @@ function toDto(r: Cycle360Report): ReportDto {
 
 @Injectable()
 export class ReportService {
+  private readonly logger = new Logger(ReportService.name);
+
   constructor(
     private prisma: PrismaService,
     private results: ResultsService,
@@ -96,13 +98,25 @@ export class ReportService {
     const cfg = await this.llm.getConfig();
     // база знаний: кастомная/стандартная методика + активные документы
     const ctx = await this.knowledge.getGenerationContext();
-    const raw = await this.llm.completeJson(
-      buildSystemPrompt(analytics, ctx.methodology, ctx.docs),
-      buildUserPrompt(
-        { name: fio(subj.employee), position: subj.employee.position?.name ?? null, cycleName: subj.cycle.name },
-        analytics,
+    const userPrompt = buildUserPrompt(
+      { name: fio(subj.employee), position: subj.employee.position?.name ?? null, cycleName: subj.cycle.name },
+      analytics,
+    );
+    // генерация по частям (splitParts пресета): каждой части — свой запрос со своим
+    // лимитом вывода; части независимы и идут параллельно; ошибка любой = ошибка всей
+    const parts = partsForCount(cfg?.splitParts ?? 1);
+    if (parts.length > 1) this.logger.log(`LLM: генерация отчёта из ${parts.length} частей (параллельно)`);
+    const rawParts = await Promise.all(
+      parts.map(keys =>
+        this.llm.completeJson(buildSystemPrompt(analytics, ctx.methodology, ctx.docs, keys), userPrompt),
       ),
     );
+    // из ответа каждой части берём ТОЛЬКО её разделы (модель могла вернуть лишние)
+    const raw: Record<string, unknown> = {};
+    parts.forEach((keys, i) => {
+      const part = (rawParts[i] ?? {}) as Record<string, unknown>;
+      for (const k of keys) if (k in part) raw[k] = part[k];
+    });
     const sections = normalizeSections(raw);
     if (isEmptySections(sections)) {
       throw new BadGatewayException('Модель вернула пустой отчёт — попробуйте ещё раз');

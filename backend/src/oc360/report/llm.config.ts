@@ -12,6 +12,8 @@ export interface LlmConfig {
    * при малом лимите ответ обрывается, не дойдя до JSON.
    */
   maxTokens: number | null;
+  /** Число параллельных запросов генерации отчёта: 1 — одним, 2/3 — по частям. */
+  splitParts: number;
   /** Откуда взято основное значение baseUrl (для отображения в админке). */
   source: 'db' | 'env';
 }
@@ -22,6 +24,7 @@ export interface LlmSettingsRaw {
   model: string | null;
   temperature: number | null;
   maxTokens: number | null;
+  splitParts: number | null;
 }
 
 export const MIN_MAX_TOKENS = 256;
@@ -31,6 +34,12 @@ export const MAX_MAX_TOKENS = 128_000;
 export function clampMaxTokens(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v)) return null;
   return Math.min(MAX_MAX_TOKENS, Math.max(MIN_MAX_TOKENS, Math.round(v)));
+}
+
+/** Число частей генерации: только 1..3; null/NaN → null (дефолт 1). */
+export function clampSplitParts(v: number | null | undefined): number | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  return Math.min(3, Math.max(1, Math.round(v)));
 }
 
 const env = (k: string): string | null => {
@@ -58,7 +67,9 @@ export function resolveLlmConfig(db: LlmSettingsRaw | null): LlmConfig | null {
   const tokensRaw = db?.maxTokens ?? (env('LLM_MAX_TOKENS') != null ? Number(env('LLM_MAX_TOKENS')) : null);
   const maxTokens = clampMaxTokens(tokensRaw); // null — лимит не отправляется
 
-  return { baseUrl, apiKey, model, temperature, maxTokens, source: baseUrlDb ? 'db' : 'env' };
+  const splitParts = clampSplitParts(db?.splitParts) ?? 1;
+
+  return { baseUrl, apiKey, model, temperature, maxTokens, splitParts, source: baseUrlDb ? 'db' : 'env' };
 }
 
 /**
@@ -70,6 +81,6 @@ export async function loadLlmSettings(prisma: PrismaService): Promise<LlmSetting
     (await prisma.llmSettings.findFirst({ where: { isActive: true } })) ??
     (await prisma.llmSettings.findUnique({ where: { id: 'default' } }));
   return row
-    ? { baseUrl: row.baseUrl, apiKey: row.apiKey, model: row.model, temperature: row.temperature, maxTokens: row.maxTokens }
+    ? { baseUrl: row.baseUrl, apiKey: row.apiKey, model: row.model, temperature: row.temperature, maxTokens: row.maxTokens, splitParts: row.splitParts }
     : null;
 }

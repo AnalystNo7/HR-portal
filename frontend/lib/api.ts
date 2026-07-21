@@ -667,8 +667,10 @@ export interface LlmPreset {
   apiKeySet: boolean;
   model: string;
   temperature: number | null;
-  /** Лимит токенов ответа (max_tokens); null = дефолт 16000. */
+  /** Лимит токенов ответа (max_tokens); null — не отправляется. */
   maxTokens: number | null;
+  /** Генерация отчёта: null/1 — одним запросом, 2/3 — параллельными частями. */
+  splitParts: number | null;
   isActive: boolean;
 }
 export interface LlmPresetList {
@@ -683,6 +685,7 @@ export interface SaveLlmDto {
   model?: string | null;
   temperature?: number | null;
   maxTokens?: number | null;
+  splitParts?: number | null;
   /** Для теста существующего пресета — подставить его сохранённый ключ. */
   presetId?: string;
 }

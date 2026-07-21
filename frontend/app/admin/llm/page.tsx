@@ -67,7 +67,7 @@ export default function AdminLlmPage() {
                 {p.isActive && <span className="pill pill-green">Активная</span>}
               </div>
               <div className="small muted">
-                {p.model || 'модель не указана'}{p.baseUrl ? ` · ${p.baseUrl}` : ''}{p.apiKeySet ? ` · ключ ${p.apiKeyMasked}` : ' · ключ не задан'}{p.maxTokens != null ? ` · лимит ${p.maxTokens}` : ''}
+                {p.model || 'модель не указана'}{p.baseUrl ? ` · ${p.baseUrl}` : ''}{p.apiKeySet ? ` · ключ ${p.apiKeyMasked}` : ' · ключ не задан'}{p.maxTokens != null ? ` · лимит ${p.maxTokens}` : ''}{p.splitParts != null && p.splitParts > 1 ? ` · ${p.splitParts} запроса` : ''}
               </div>
             </div>
             <div className="row-2" style={{ gap: 6, flexWrap: 'wrap' }}>
@@ -123,6 +123,8 @@ function PresetModal({ preset, onClose, onSaved }: {
   // по умолчанию лимит НЕ отправляется (провайдер сам решает); галочка открывает поле
   const [limitEnabled, setLimitEnabled] = useState(preset?.maxTokens != null);
   const [maxTokens, setMaxTokens] = useState(preset?.maxTokens != null ? String(preset.maxTokens) : '');
+  // генерация по частям: каждой части — свой лимит вывода (обход потолка провайдера)
+  const [splitParts, setSplitParts] = useState(String(preset?.splitParts ?? 1));
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
@@ -136,6 +138,7 @@ function PresetModal({ preset, onClose, onSaved }: {
       apiKey: apiKey.trim() ? apiKey.trim() : undefined, // пусто — не менять сохранённый
       temperature: t === '' ? null : Number(t.replace(',', '.')),
       maxTokens: limitEnabled && mt !== '' ? Number(mt) : null,
+      splitParts: Number(splitParts) || 1,
       ...(preset ? { presetId: preset.id } : {}),
     };
   };
@@ -204,6 +207,17 @@ function PresetModal({ preset, onClose, onSaved }: {
             <input className="inp" type="number" step={1} min={256} max={128000} value={maxTokens}
               placeholder="Например 16384" onChange={e => setMaxTokens(e.target.value)} />
           )}
+        </div>
+        <div className="field">
+          <label className="small">Генерация отчёта</label>
+          <select className="inp" value={splitParts} onChange={e => setSplitParts(e.target.value)}>
+            <option value="1">Одним запросом (стандартно)</option>
+            <option value="2">2 запроса параллельно (разделы / пары+рекомендации)</option>
+            <option value="3">3 запроса параллельно (разделы / пары / рекомендации)</option>
+          </select>
+          <div className="small muted">
+            По частям — когда отчёт не помещается в лимит вывода провайдера: каждая часть получает свой лимит.
+          </div>
         </div>
       </div>
     </Modal>

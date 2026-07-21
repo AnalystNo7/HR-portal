@@ -47,11 +47,8 @@ export const DEFAULT_METHODOLOGY = `Ты — эксперт по оценке п
 - В recommendations — РОВНО 4 темы развития, в каждой РОВНО 4 подтемы; темы выводи из
   зон развития и слепых зон.`;
 
-/**
- * Защищённая техническая часть: формат ответа. НЕ редактируется из UI —
- * её нарушение ломает разбор ответа модели (normalizeSections).
- */
-export const TECHNICAL_PROMPT = `Рассуждай кратко: классификация, отбор и все вычисления уже выполнены системой —
+/** Общие правила технической части (без схемы ответа). */
+const TECHNICAL_RULES = `Рассуждай кратко: классификация, отбор и все вычисления уже выполнены системой —
 не переанализируй данные заново, сразу переходи к составлению итогового JSON.
 
 Классификация и отбор уже выполнены системой — НЕ переклассифицируй и не пересчитывай:
@@ -68,25 +65,56 @@ export const TECHNICAL_PROMPT = `Рассуждай кратко: классиф
 - НЕ цитируй имена технических полей входных данных (stddev, avg, delta, byGroup, selfScore, othersScore, n, min, max и др.) — используй русские формулировки:
   stddev — «разброс оценок внутри группы»; avg — «средняя оценка»; delta — «расхождение»; selfScore — «самооценка»; othersScore — «оценка окружения».
 - Цифры приводи в русской формулировке: «разброс оценок внутри группы — 0,17», а не «stddev = 0,17».
-- Ключи JSON и значения-перечисления схемы (pair: SELF_MANAGER…, kind: CONSENSUS|ATTENTION|BLIND_SPOT|HIDDEN_POTENTIAL) оставляй ровно как в схеме — на них запрет латиницы НЕ распространяется.
+- Ключи JSON и значения-перечисления схемы (pair: SELF_MANAGER…, kind: CONSENSUS|ATTENTION|BLIND_SPOT|HIDDEN_POTENTIAL) оставляй ровно как в схеме — на них запрет латиницы НЕ распространяется.`;
 
-Верни СТРОГО JSON без пояснений и без markdown, по схеме:
-{
-  "strengths": [ { "competency": "название", "text": "абзац интерпретации с цифрами и опорой на комментарии" } ],
-  "developmentAreas": [ { "competency": "название", "text": "абзац интерпретации" } ],
-  "blindSpots": [ { "competency": "название", "selfScore": 3.8, "othersScore": 3.0, "delta": 0.8, "text": "подтверждение из комментариев", "conclusion": "вывод одним абзацем" } ],
-  "hiddenPotential": [ { "competency": "название", "selfScore": 2.3, "othersScore": 3.1, "delta": -0.8, "text": "подтверждение из комментариев", "conclusion": "вывод" } ],
-  "groupComparison": [
+/** Разделы ответа генерации (ключи верхнего уровня схемы). */
+export type ReportSectionKey =
+  | 'strengths' | 'developmentAreas' | 'blindSpots' | 'hiddenPotential'
+  | 'emptyReasons' | 'groupComparison' | 'recommendations';
+
+export const ALL_SECTION_KEYS: ReportSectionKey[] = [
+  'strengths', 'developmentAreas', 'blindSpots', 'hiddenPotential',
+  'groupComparison', 'recommendations', 'emptyReasons',
+];
+
+/** Фрагменты схемы ответа по разделам (собираются в блок «Верни СТРОГО JSON…»). */
+const SCHEMA_FRAGMENTS: Record<ReportSectionKey, string> = {
+  strengths: `  "strengths": [ { "competency": "название", "text": "абзац интерпретации с цифрами и опорой на комментарии" } ]`,
+  developmentAreas: `  "developmentAreas": [ { "competency": "название", "text": "абзац интерпретации" } ]`,
+  blindSpots: `  "blindSpots": [ { "competency": "название", "selfScore": 3.8, "othersScore": 3.0, "delta": 0.8, "text": "подтверждение из комментариев", "conclusion": "вывод одним абзацем" } ]`,
+  hiddenPotential: `  "hiddenPotential": [ { "competency": "название", "selfScore": 2.3, "othersScore": 3.1, "delta": -0.8, "text": "подтверждение из комментариев", "conclusion": "вывод" } ]`,
+  groupComparison: `  "groupComparison": [
     { "pair": "SELF_MANAGER", "title": "Самооценка и оценка руководителя",
       "items": [ { "kind": "CONSENSUS|ATTENTION|BLIND_SPOT|HIDDEN_POTENTIAL", "competency": "название", "delta": 0.4, "text": "интерпретация" } ] },
     { "pair": "SELF_SUBORDINATE", "title": "Самооценка и оценка подчинённых", "items": [ ... ] },
     { "pair": "SELF_PEER", "title": "Самооценка и оценка коллег", "items": [ ... ] }
-  ],
-  "recommendations": [
+  ]`,
+  recommendations: `  "recommendations": [
     { "title": "Тема развития", "subtopics": [ { "title": "подтема", "text": "1–2 предложения, что и как развивать" } ] }
-  ],
-  "emptyReasons": { "strengths": "абзац-объяснение (ТОЛЬКО если раздел пуст)", "developmentAreas": "...", "blindSpots": "...", "hiddenPotential": "..." }
-}`;
+  ]`,
+  emptyReasons: `  "emptyReasons": { "strengths": "абзац-объяснение (ТОЛЬКО если раздел пуст)", "developmentAreas": "...", "blindSpots": "...", "hiddenPotential": "..." }`,
+};
+
+function schemaBlock(keys: ReportSectionKey[]): string {
+  return `Верни СТРОГО JSON без пояснений и без markdown, по схеме:\n{\n${keys.map(k => SCHEMA_FRAGMENTS[k]).join(',\n')}\n}`;
+}
+
+/**
+ * Защищённая техническая часть: формат ответа. НЕ редактируется из UI —
+ * её нарушение ломает разбор ответа модели (normalizeSections).
+ */
+export const TECHNICAL_PROMPT = `${TECHNICAL_RULES}\n\n${schemaBlock(ALL_SECTION_KEYS)}`;
+
+/**
+ * Разбивка генерации на части (splitParts пресета): каждой части — свой запрос
+ * со своим лимитом вывода. Части независимы, запускаются параллельно.
+ */
+export function partsForCount(n: number): ReportSectionKey[][] {
+  const sections: ReportSectionKey[] = ['strengths', 'developmentAreas', 'blindSpots', 'hiddenPotential', 'emptyReasons'];
+  if (n >= 3) return [sections, ['groupComparison'], ['recommendations']];
+  if (n === 2) return [sections, ['groupComparison', 'recommendations']];
+  return [ALL_SECTION_KEYS];
+}
 
 export interface KnowledgeDocInput {
   name: string;
@@ -119,16 +147,27 @@ export function buildDocsBlock(docs: KnowledgeDocInput[]): string {
 /**
  * System-промпт целиком: методическая часть (кастомная или стандартная)
  * + методические документы + защищённая техническая часть.
+ * keys — разделы этой части генерации (по умолчанию все = одним запросом);
+ * при частичной генерации схема содержит только свои разделы.
  */
 export function buildSystemPrompt(
   a: ReportAnalytics,
   methodology: string = DEFAULT_METHODOLOGY,
   docs: KnowledgeDocInput[] = [],
+  keys: ReportSectionKey[] = ALL_SECTION_KEYS,
 ): string {
   const blocks = [fillMethodology(methodology, a)];
   const docsBlock = buildDocsBlock(docs);
   if (docsBlock) blocks.push(docsBlock);
-  blocks.push(TECHNICAL_PROMPT);
+  if (keys.length >= ALL_SECTION_KEYS.length) {
+    blocks.push(TECHNICAL_PROMPT);
+  } else {
+    blocks.push(
+      `${TECHNICAL_RULES}\n\n` +
+      `Сейчас генерируется ЧАСТЬ отчёта — верни ТОЛЬКО разделы из схемы ниже, другие разделы НЕ включай.\n\n` +
+      schemaBlock(keys),
+    );
+  }
   return blocks.join('\n\n');
 }
 
