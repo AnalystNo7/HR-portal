@@ -264,7 +264,7 @@ function ChartZoomModal({ title, grp, picker, scaleLegend, renderChart, onClose 
   const [zoom, setZoom] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const clamp = (v: number) => Math.min(4, Math.max(1, v));
-  const BASE = 630;
+  const BASE = 680;
 
   useEffect(() => {
     const el = scrollRef.current;
