@@ -99,6 +99,10 @@ KEYCLOAK_ADMIN_PASSWORD=<сильный_пароль>
 
 KEYCLOAK_PUBLIC_URL=https://sitehrportal.ru/auth
 
+# Origin фронта для CORS backend (без него CORS открыт для всех — только для отладки).
+# В проде укажите домен(ы) через запятую.
+FRONTEND_ORIGIN=https://sitehrportal.ru
+
 # Подключение к модели ИИ для генерации отчётов 360 (опционально).
 # Любой OpenAI-совместимый API: OpenAI, DeepSeek, OpenRouter, локальный vLLM/Ollama и т.п.
 # Без этих переменных портал работает полностью, отключена только генерация отчётов.
@@ -164,7 +168,48 @@ docker exec -it <postgres-container> psql -U hrportal -d hrportal -c "CREATE SCH
 **Frontend не видит API** — `NEXT_PUBLIC_API_URL` вшивается при сборке. Если меняли домен,
 пересоберите образ (Redeploy), а не только перезапустите.
 
-**CORS** — backend разрешает запросы (`app.enableCors()` в `backend/src/main.ts`).
+**CORS** — backend разрешает запросы с origin из `FRONTEND_ORIGIN` (`backend/src/main.ts`);
+если переменная не задана — CORS открыт для всех (только для отладки).
+
+---
+
+## Чек-лист безопасности перед публичным доступом
+
+Часть защиты уже в коде (rate limit по IP, helmet, CORS по origin, серверный замок
+генерации, закрытый анонимный доступ к API). Остальное — конфигурация, которую
+нужно сделать вручную в Dokploy/Keycloak. Отметьте перед выкладкой наружу:
+
+**Критично:**
+- [ ] **Демо-пользователи Keycloak.** `keycloak/realm-export.json` содержит учётки
+  `employee1/employee1`, `manager1/manager1`, `hr1/hr1`, **`admin1/admin1`** (роль admin)
+  с постоянными паролями. Realm импортируется на каждом старте (`--import-realm`).
+  Перед публичным доступом: удалить демо-юзеров из realm-export.json (или удалить их
+  в админке Keycloak и снять `--import-realm`), завести реальных админов.
+- [ ] **Keycloak в prod-режиме.** В `docker-compose.yml` сейчас `command: start-dev`.
+  Заменить на `start` (production mode). В realm: включить `bruteForceProtected: true`,
+  `sslRequired: "external"` (сейчас `none`). Публичный клиент `directAccessGrantsEnabled`
+  (password-grant) отключить, если не используется.
+- [ ] **Порты не наружу.** Убрать `ports:` для backend (`4100:4000`), keycloak
+  (`8180:8080`), frontend (`3101:3001`) из прод-compose — доступ только через Traefik
+  (TLS). Postgres наружу уже не публикуется — оставить так.
+- [ ] **Сильные пароли.** Задать `POSTGRES_PASSWORD`, `KEYCLOAK_ADMIN_PASSWORD`,
+  `FRONTEND_ORIGIN` в Environment Dokploy (не полагаться на дефолты `hrportal`/`admin`).
+
+**Желательно:**
+- [ ] **Rate limit на уровне прокси.** В Traefik добавить middleware
+  `rateLimit` (по IP) как второй рубеж к throttler в приложении, особенно на `/auth`
+  (брутфорс логина Keycloak). Security-заголовки (HSTS и т.п.) — middleware `headers`.
+- [ ] **Миграции вместо `db push`.** `backend/Dockerfile` в CMD делает
+  `prisma db push --accept-data-loss` при каждом старте — на проде это риск потери
+  данных при расхождении схемы. Перейти на `prisma migrate deploy` с версионными
+  миграциями (отдельная задача).
+- [ ] **IDOR/видимость.** Профиль (`employees/:id/work-experiences|educations`) и
+  обращения (`/appeals`) сейчас доступны любому аутентифицированному — нет проверки
+  владельца: сотрудник может по чужому `employeeId` читать/править чужой профиль и
+  видеть чужие обращения. Требует продуктового решения (кто что видит) — отдельная задача.
+- [ ] **Реальный IP в репозитории.** Убрать IP VPS из `.env.prod.example`.
+- [ ] **Валидация входных данных.** Подключить глобальный `ValidationPipe` +
+  `class-validator` на DTO (сейчас тела запросов не валидируются) — отдельная задача.
 
 **Redirect URI отклонён** — Keycloak → Clients → `hr-portal-app` → Valid redirect URIs
 должны включать `https://sitehrportal.ru/*`.
