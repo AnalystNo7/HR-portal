@@ -117,6 +117,17 @@ export interface CompetencyAnalytics {
   zoneByGroup: Record<ExternalRole, ZoneKind | null>;
 }
 
+/** Пары внешних групп для разбора «руководитель против группы». */
+export type ExternalPairKey = 'MANAGER_SUBORDINATE' | 'MANAGER_PEER';
+
+export interface ExternalPairItem {
+  name: string;
+  managerAvg: number;
+  groupAvg: number;
+  /** Δ = оценка руководителя − оценка группы (со знаком). */
+  delta: number;
+}
+
 /**
  * Готовые составы разделов отчёта (отбор выполнен системой, LLM пишет только тексты).
  * Разделы взаимоисключающие: компетенции с |Δ| ≥ 0,6 попадают ТОЛЬКО в
@@ -131,6 +142,11 @@ export interface ReportSelection {
   blindSpots: { name: string; delta: number }[];
   /** Скрытые возможности: самооценка ниже окружения на 0,6 и более (по убыванию |Δ|). */
   hiddenPotential: { name: string; delta: number }[];
+  /**
+   * Разборы пар внешних групп: компетенции с |Δ| ≥ 0,4 (по округлению до 0,1)
+   * между оценкой руководителя и группы, по убыванию |Δ|.
+   */
+  externalPairs: Record<ExternalPairKey, ExternalPairItem[]>;
 }
 
 export interface ReportAnalytics {
@@ -177,6 +193,26 @@ export interface AnalyticsInput {
 
 function diff(a: number | null, b: number | null): number | null {
   return a != null && b != null ? round2(a - b) : null;
+}
+
+/**
+ * Разбор пары «руководитель против группы»: компетенции, где |Δ| ≥ 0,4
+ * (на округлённом до 0,1 значении — «зона внимания» и выше), по убыванию |Δ|.
+ */
+function externalPair(
+  competencies: CompetencyAnalytics[],
+  role: 'SUBORDINATE' | 'PEER',
+): ExternalPairItem[] {
+  return competencies
+    .flatMap(c => {
+      const manager = c.byGroup.MANAGER.avg;
+      const group = c.byGroup[role].avg;
+      if (manager == null || group == null) return [];
+      const delta = round2(manager - group);
+      if (Math.round(Math.abs(delta) * 10) / 10 < ATTENTION_EPS) return [];
+      return [{ name: c.name, managerAvg: manager, groupAvg: group, delta }];
+    })
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 }
 
 export function buildAnalytics(input: AnalyticsInput): ReportAnalytics {
@@ -267,6 +303,10 @@ export function buildAnalytics(input: AnalyticsInput): ReportAnalytics {
       .filter(c => c.zoneVsOthers === 'HIDDEN_POTENTIAL' && c.selfVsOthers.delta != null)
       .sort((a, b) => Math.abs(b.selfVsOthers.delta ?? 0) - Math.abs(a.selfVsOthers.delta ?? 0))
       .map(c => ({ name: c.name, delta: c.selfVsOthers.delta! })),
+    externalPairs: {
+      MANAGER_SUBORDINATE: externalPair(competencies, 'SUBORDINATE'),
+      MANAGER_PEER: externalPair(competencies, 'PEER'),
+    },
   };
 
   return {

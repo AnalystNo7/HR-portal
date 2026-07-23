@@ -47,6 +47,10 @@ export const DEFAULT_METHODOLOGY = `Ты — эксперт по оценке п
 - В groupComparison включи ВСЕ компетенции каждой пары с зоной из zoneByGroup;
   "text" — 1–3 предложения в стиле «Сотрудник и руководитель одинаково высоко оценивают
   уровень развития этой компетенции» с трактовкой причины расхождения/совпадения.
+- В externalComparison — разборы пар «руководитель–подчинённые» и «руководитель–коллеги»
+  (составы из selection.externalPairs, |Δ| ≥ 0.4): трактуй расхождение и разброс оценок
+  группы по методике интерпретации по группам респондентов; «Действия» — 2–3 конкретных
+  пункта (формализация практик, форматы коммуникации, замер восприятия и т.п.).
 - В recommendations — РОВНО 4 темы развития, в каждой РОВНО 4 подтемы; темы выводи из
   зон развития и слепых зон.`;
 
@@ -61,6 +65,7 @@ const TECHNICAL_RULES = `Рассуждай кратко: классификац
 - Разделы ВЗАИМОИСКЛЮЧАЮЩИЕ: компетенция с |Δ| ≥ 0,6 входит только в blindSpots или hiddenPotential и не может одновременно быть в strengths или developmentAreas — составы selection уже учитывают это.
 - Если список в selection пуст — верни для раздела пустой массив [] и заполни emptyReasons.<раздел> одним абзацем: объясни на цифрах, почему раздел пуст (например, самооценка согласована с окружением, расхождений ≥ 0,6 нет; или единственная компетенция ниже целевого уровня отнесена к скрытым возможностям).
 - В groupComparison включи ВСЕ компетенции каждой пары (пропусти только те, где у группы нет оценки); kind каждой компетенции — СТРОГО из её zoneByGroup для этой группы.
+- В externalComparison составы заданы в selection.externalPairs (пары «руководитель–подчинённые» и «руководитель–коллеги», уже отобраны компетенции с |Δ| ≥ 0,4): для каждой позиции возьми готовые числа (managerAvg → managerScore, groupAvg → groupScore, delta), в "text" дай трактовку расхождения с учётом разброса оценок группы (byGroup из данных), в "actions" — 2–3 конкретных пункта действий (по методике «Интерпретация по группам респондентов»). Если список пары пуст — верни для неё пустой items.
 - Все числа (средние, Δ, разбросы) бери готовыми из данных — не вычисляй и не изменяй их.
 
 Язык текста:
@@ -74,11 +79,11 @@ const TECHNICAL_RULES = `Рассуждай кратко: классификац
 /** Разделы ответа генерации (ключи верхнего уровня схемы). */
 export type ReportSectionKey =
   | 'strengths' | 'developmentAreas' | 'blindSpots' | 'hiddenPotential'
-  | 'emptyReasons' | 'groupComparison' | 'recommendations';
+  | 'emptyReasons' | 'groupComparison' | 'externalComparison' | 'recommendations';
 
 export const ALL_SECTION_KEYS: ReportSectionKey[] = [
   'strengths', 'developmentAreas', 'blindSpots', 'hiddenPotential',
-  'groupComparison', 'recommendations', 'emptyReasons',
+  'groupComparison', 'externalComparison', 'recommendations', 'emptyReasons',
 ];
 
 /** Фрагменты схемы ответа по разделам (собираются в блок «Верни СТРОГО JSON…»). */
@@ -92,6 +97,11 @@ const SCHEMA_FRAGMENTS: Record<ReportSectionKey, string> = {
       "items": [ { "kind": "CONSENSUS|ATTENTION|BLIND_SPOT|HIDDEN_POTENTIAL", "competency": "название", "delta": 0.4, "text": "интерпретация" } ] },
     { "pair": "SELF_SUBORDINATE", "title": "Самооценка и оценка подчинённых", "items": [ ... ] },
     { "pair": "SELF_PEER", "title": "Самооценка и оценка коллег", "items": [ ... ] }
+  ]`,
+  externalComparison: `  "externalComparison": [
+    { "pair": "MANAGER_SUBORDINATE", "title": "Сравнение оценок руководителя и подчинённых",
+      "items": [ { "competency": "название", "managerScore": 3.7, "groupScore": 3.1, "delta": 0.6, "text": "трактовка расхождения и разброса оценок группы", "actions": [ "пункт действия 1", "пункт действия 2" ] } ] },
+    { "pair": "MANAGER_PEER", "title": "Сравнение оценок руководителя и коллег", "items": [ ... ] }
   ]`,
   recommendations: `  "recommendations": [
     { "title": "Тема развития", "subtopics": [ { "title": "подтема", "text": "1–2 предложения, что и как развивать" } ] }
@@ -115,8 +125,8 @@ export const TECHNICAL_PROMPT = `${TECHNICAL_RULES}\n\n${schemaBlock(ALL_SECTION
  */
 export function partsForCount(n: number): ReportSectionKey[][] {
   const sections: ReportSectionKey[] = ['strengths', 'developmentAreas', 'blindSpots', 'hiddenPotential', 'emptyReasons'];
-  if (n >= 3) return [sections, ['groupComparison'], ['recommendations']];
-  if (n === 2) return [sections, ['groupComparison', 'recommendations']];
+  if (n >= 3) return [sections, ['groupComparison'], ['externalComparison', 'recommendations']];
+  if (n === 2) return [sections, ['groupComparison', 'externalComparison', 'recommendations']];
   return [ALL_SECTION_KEYS];
 }
 

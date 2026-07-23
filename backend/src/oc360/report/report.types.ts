@@ -19,6 +19,27 @@ export interface ReportZoneItem {
 
 export type GroupPairKey = 'SELF_MANAGER' | 'SELF_PEER' | 'SELF_SUBORDINATE';
 
+/** Пары внешних групп: разбор «руководитель против группы» (без самооценки). */
+export type ExternalPairKey = 'MANAGER_SUBORDINATE' | 'MANAGER_PEER';
+
+export interface ReportExternalItem {
+  competency: string;
+  managerScore: number | null;
+  groupScore: number | null;
+  /** Δ = оценка руководителя − оценка группы (со знаком). */
+  delta: number | null;
+  /** Трактовка расхождения и разброса оценок группы. */
+  text: string;
+  /** «Действия» — 2–3 пункта маркированным списком. */
+  actions: string[];
+}
+
+export interface ReportExternalPair {
+  pair: ExternalPairKey;
+  title: string;
+  items: ReportExternalItem[];
+}
+
 export interface ReportPairFinding {
   kind: DeltaKind;
   competency: string;
@@ -58,6 +79,8 @@ export interface Report360Sections {
   blindSpots: ReportZoneItem[];
   hiddenPotential: ReportZoneItem[];
   groupComparison: ReportGroupPair[];
+  /** Разборы пар внешних групп (руководитель–подчинённые, руководитель–коллеги). */
+  externalComparison: ReportExternalPair[];
   recommendations: ReportRecommendationTheme[];
   openAnswers?: ReportOpenAnswers | null;
   /** Объяснения пустых разделов (только для разделов с пустым списком). */
@@ -72,6 +95,8 @@ export const ALL_BLOCK_KEYS = [
   'strengths', 'developmentAreas', 'blindSpots', 'hiddenPotential',
   'pair:SELF_MANAGER', 'pair:SELF_SUBORDINATE', 'pair:SELF_PEER',
   'chart:SELF_MANAGER', 'chart:SELF_SUBORDINATE', 'chart:SELF_PEER',
+  'extpair:MANAGER_SUBORDINATE', 'extpair:MANAGER_PEER',
+  'chart:MANAGER_SUBORDINATE', 'chart:MANAGER_PEER',
   'recommendations',
 ] as const;
 
@@ -79,6 +104,11 @@ export const GROUP_PAIR_TITLES: Record<GroupPairKey, string> = {
   SELF_MANAGER: 'Самооценка и оценка руководителя',
   SELF_PEER: 'Самооценка и оценка коллег',
   SELF_SUBORDINATE: 'Самооценка и оценка подчинённых',
+};
+
+export const EXTERNAL_PAIR_TITLES: Record<ExternalPairKey, string> = {
+  MANAGER_SUBORDINATE: 'Сравнение оценок руководителя и подчинённых',
+  MANAGER_PEER: 'Сравнение оценок руководителя и коллег',
 };
 
 export const RECOMMENDATION_THEMES = 4;
@@ -140,6 +170,27 @@ export function normalizeSections(raw: unknown): Report360Sections {
     };
   });
 
+  const externalComparison: ReportExternalPair[] = (Object.keys(EXTERNAL_PAIR_TITLES) as ExternalPairKey[]).map(pair => {
+    const found = arr(root.externalComparison)
+      .map(obj)
+      .find(p => str(p.pair) === pair);
+    return {
+      pair,
+      title: str(found?.title) || EXTERNAL_PAIR_TITLES[pair],
+      items: arr(found?.items)
+        .map(obj)
+        .map(o => ({
+          competency: str(o.competency),
+          managerScore: num(o.managerScore),
+          groupScore: num(o.groupScore),
+          delta: num(o.delta),
+          text: str(o.text),
+          actions: arr(o.actions).map(x => str(x)).filter(Boolean),
+        }))
+        .filter(i => i.competency || i.text || i.actions.length),
+    };
+  });
+
   const recommendations: ReportRecommendationTheme[] = [];
   const rawThemes = arr(root.recommendations).map(obj);
   for (let t = 0; t < RECOMMENDATION_THEMES; t++) {
@@ -192,6 +243,7 @@ export function normalizeSections(raw: unknown): Report360Sections {
     blindSpots,
     hiddenPotential,
     groupComparison: pairs,
+    externalComparison,
     recommendations,
     openAnswers,
     ...(Object.keys(emptyReasons).length ? { emptyReasons } : {}),
@@ -207,6 +259,7 @@ export function isEmptySections(s: Report360Sections): boolean {
     !s.blindSpots.length &&
     !s.hiddenPotential.length &&
     s.groupComparison.every(p => !p.items.length) &&
+    s.externalComparison.every(p => !p.items.length) &&
     s.recommendations.every(t => !t.title && t.subtopics.every(x => !x.title && !x.text))
   );
 }
