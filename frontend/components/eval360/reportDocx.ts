@@ -191,7 +191,7 @@ function narrativeSection(sections: Report360Sections, key: 'strengths' | 'devel
   if (isHidden(sections, key)) return [];
   const items = sections[key];
   const reason = sections.emptyReasons?.[key];
-  const out = [...bigTitle(title, 'по итогу совокупной оценки окружения')];
+  const out = [...bigTitle(title, 'по итогу средней оценки')];
   if (!items.length) return [...out, para(reason || 'Не выявлены')];
   for (const it of items) {
     out.push(para([run(it.competency ? `${it.competency}. ` : '', { bold: true, underline: true }), run(it.text)]));

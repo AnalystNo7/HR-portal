@@ -164,16 +164,13 @@ function EditCycleModal({ cycle, onClose, onSaved }: { cycle: Cycle360Detail; on
   const [year, setYear] = useState(cycle.year ?? new Date().getFullYear());
   const [half, setHalf] = useState(cycle.half ?? 1);
   const [description, setDescription] = useState(cycle.description ?? '');
-  const [targetLevel, setTargetLevel] = useState(cycle.targetLevel != null ? String(cycle.targetLevel) : '');
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
     if (!name.trim()) { toast('Укажите название'); return; }
     if (!year || (half !== 1 && half !== 2)) { toast('Укажите год и полугодие'); return; }
-    const target = targetLevel.trim() === '' ? null : Number(targetLevel.replace(',', '.'));
-    if (target != null && !Number.isFinite(target)) { toast('Целевой уровень — число, например 3.0'); return; }
     setSaving(true);
-    try { await update360Cycle(cycle.id, { name: name.trim(), description: description.trim() || null, year, half, targetLevel: target }); onSaved(); }
+    try { await update360Cycle(cycle.id, { name: name.trim(), description: description.trim() || null, year, half }); onSaved(); }
     catch (e) { toast((e as Error).message); } finally { setSaving(false); }
   };
 
@@ -192,10 +189,6 @@ function EditCycleModal({ cycle, onClose, onSaved }: { cycle: Cycle360Detail; on
         </div>
       </div>
       <div className="field"><label className="small">Описание (необязательно)</label><input className="inp" value={description} onChange={e => setDescription(e.target.value)} /></div>
-      <div className="field">
-        <label className="small">Целевой уровень компетенций (для интерпретации отчёта)</label>
-        <input className="inp" type="number" step={0.1} placeholder="3.0" value={targetLevel} onChange={e => setTargetLevel(e.target.value)} />
-      </div>
     </Modal>
   );
 }

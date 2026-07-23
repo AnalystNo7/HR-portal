@@ -385,7 +385,7 @@ function NarrativeSection({ sec, listKey, title, ctx }: {
   return (
     <div className="card card-pad" style={{ position: 'relative' }}>
       <BlockControls k={listKey} ctx={ctx} />
-      <BigTitle title={title} subtitle="по итогу совокупной оценки окружения" />
+      <BigTitle title={title} subtitle="по итогу средней оценки" />
       {!editing && items.length === 0 && (reason ? <EmptyReasonView reason={reason} /> : <EmptyHint />)}
       {editing && items.length === 0 && <EmptyReasonEditor reason={reason} listKey={listKey} ctx={ctx} />}
       <div className="stack-4">

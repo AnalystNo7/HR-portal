@@ -161,7 +161,8 @@ export class ResultsService {
     let targetLevel: number | undefined;
     let analytics: ReturnType<typeof buildAnalytics> | undefined;
     if (withAnalytics) {
-      targetLevel = subject.cycle.targetLevel ?? DEFAULT_TARGET_LEVEL;
+      // целевой уровень — константа методики; сохранённые в циклах значения игнорируются
+      targetLevel = DEFAULT_TARGET_LEVEL;
       const indicatorText = new Map<string, string>();
       for (const c of subject.cycle.competencies) {
         for (const i of c.indicators) indicatorText.set(i.id, i.text);

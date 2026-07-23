@@ -1,7 +1,13 @@
 import { EvaluatorRole } from '@prisma/client';
 
-/** Целевой уровень компетенций по методике, если не задан в цикле. */
+/** Целевой уровень компетенций — константа методики (значения циклов игнорируются). */
 export const DEFAULT_TARGET_LEVEL = 3.0;
+
+/** Порог зоны развития по методике v1.2: итоговая (средняя) строго < 3,0. */
+export const DEV_THRESHOLD = 3.0;
+
+/** Порог сильной стороны по методике v1.2: итоговая (средняя) строго > 3,4. */
+export const STRONG_THRESHOLD = 3.4;
 
 /**
  * Порог слепой зоны / скрытой возможности по методике:
@@ -131,13 +137,13 @@ export interface ExternalPairItem {
 /**
  * Готовые составы разделов отчёта (отбор выполнен системой, LLM пишет только тексты).
  * Разделы взаимоисключающие: компетенции с |Δ| ≥ 0,6 попадают ТОЛЬКО в
- * blindSpots/hiddenPotential и исключаются из strengthsTop/developmentAreas.
+ * blindSpots/hiddenPotential и исключаются из strengths/developmentAreas.
  */
 export interface ReportSelection {
-  /** Сильные стороны: топ-3 по оценке окружения среди компетенций без выраженного расхождения. */
-  strengthsTop: { name: string; othersAvg: number }[];
-  /** Зоны развития: окружение ниже целевого уровня, среди компетенций без выраженного расхождения. */
-  developmentAreas: { name: string; othersAvg: number }[];
+  /** Сильные стороны: итоговая (средняя) строго > 3,4, среди компетенций без выраженного расхождения. */
+  strengths: { name: string; total: number }[];
+  /** Зоны развития: итоговая (средняя) строго < 3,0, среди компетенций без выраженного расхождения. */
+  developmentAreas: { name: string; total: number }[];
   /** Слепые зоны: самооценка выше окружения на 0,6 и более (по убыванию Δ). */
   blindSpots: { name: string; delta: number }[];
   /** Скрытые возможности: самооценка ниже окружения на 0,6 и более (по убыванию |Δ|). */
@@ -283,18 +289,19 @@ export function buildAnalytics(input: AnalyticsInput): ReportAnalytics {
 
   // составы разделов отчёта — детерминированный отбор (LLM пишет только тексты);
   // разделы взаимоисключающие: |Δ| ≥ 0,6 уходит только в слепые/скрытые,
-  // в сильные стороны и зоны развития — компетенции без выраженного расхождения
-  const rated = competencies.filter((c): c is CompetencyAnalytics & { othersAvg: number } => c.othersAvg != null);
+  // остальные — по итоговой (средней) v1.2: строго > 3,4 — сильная сторона,
+  // строго < 3,0 — зона развития, 3,0–3,4 — не входит никуда
+  const rated = competencies.filter((c): c is CompetencyAnalytics & { total: number } => c.total != null);
   const eligible = rated.filter(c => c.zoneVsOthers !== 'BLIND_SPOT' && c.zoneVsOthers !== 'HIDDEN_POTENTIAL');
   const selection: ReportSelection = {
-    strengthsTop: [...eligible]
-      .sort((a, b) => b.othersAvg - a.othersAvg)
-      .slice(0, 3)
-      .map(c => ({ name: c.name, othersAvg: c.othersAvg })),
+    strengths: eligible
+      .filter(c => c.total > STRONG_THRESHOLD)
+      .sort((a, b) => b.total - a.total)
+      .map(c => ({ name: c.name, total: c.total })),
     developmentAreas: eligible
-      .filter(c => c.othersAvg < input.targetLevel)
-      .sort((a, b) => a.othersAvg - b.othersAvg)
-      .map(c => ({ name: c.name, othersAvg: c.othersAvg })),
+      .filter(c => c.total < DEV_THRESHOLD)
+      .sort((a, b) => a.total - b.total)
+      .map(c => ({ name: c.name, total: c.total })),
     blindSpots: competencies
       .filter(c => c.zoneVsOthers === 'BLIND_SPOT' && c.selfVsOthers.delta != null)
       .sort((a, b) => (b.selfVsOthers.delta ?? 0) - (a.selfVsOthers.delta ?? 0))
