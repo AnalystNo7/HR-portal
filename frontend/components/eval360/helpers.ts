@@ -120,6 +120,10 @@ export function emptyReport360Sections(): Report360Sections {
       { pair: 'SELF_PEER', title: 'Самооценка и оценка коллег', items: [] },
       { pair: 'SELF_SUBORDINATE', title: 'Самооценка и оценка подчинённых', items: [] },
     ],
+    externalComparison: [
+      { pair: 'MANAGER_SUBORDINATE', title: 'Сравнение оценок руководителя и подчинённых', items: [] },
+      { pair: 'MANAGER_PEER', title: 'Сравнение оценок руководителя и коллег', items: [] },
+    ],
     recommendations: Array.from({ length: 4 }, () => ({
       title: '',
       subtopics: Array.from({ length: 4 }, () => ({ title: '', text: '' })),

@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '@/components/primitives';
 import type {
-  DeltaKind, EvaluatorRole, GroupPairKey, Results360, Report360Sections, ReportGroupPair,
+  DeltaKind, EvaluatorRole, ExternalPairKey, GroupPairKey, Results360, Report360Sections,
+  ReportExternalItem, ReportExternalPair, ReportGroupPair,
   ReportNarrativeItem, ReportOpenAnswers, ReportPairFinding, ReportZoneItem,
 } from '@/lib/api';
 import { CategoryRadarCard } from './CategoryRadarCard';
@@ -86,6 +87,10 @@ const BLOCK_TITLE: Record<string, string> = {
   'chart:SELF_MANAGER': 'Диаграмма: самооценка и оценка руководителя',
   'chart:SELF_SUBORDINATE': 'Диаграмма: самооценка и оценка подчинённых',
   'chart:SELF_PEER': 'Диаграмма: самооценка и оценка коллег',
+  'chart:MANAGER_SUBORDINATE': 'Диаграмма: оценки руководителя и подчинённых',
+  'chart:MANAGER_PEER': 'Диаграмма: оценки руководителя и коллег',
+  'extpair:MANAGER_SUBORDINATE': 'Разбор: оценки руководителя и подчинённых',
+  'extpair:MANAGER_PEER': 'Разбор: оценки руководителя и коллег',
   recommendations: 'Рекомендации по развитию',
 };
 
@@ -493,6 +498,18 @@ const PAIR_BLOCKS: {
   { pair: 'SELF_PEER', role: 'PEER', chartTitle: 'Диаграмма сравнения самооценки и оценки коллег', genitive: 'коллег', keys: ['peers', 'self'] },
 ];
 
+/** Пары внешних групп: диаграмма + разбор «руководитель против группы». */
+const EXT_PAIR_BLOCKS: {
+  pair: ExternalPairKey;
+  role: EvaluatorRole; // роль группы — для авто-скрытия при отсутствии респондентов
+  chartTitle: string;
+  groupLabel: string; // «подчинённые» / «коллеги» — для строки оценок
+  keys: SeriesKey[];
+}[] = [
+  { pair: 'MANAGER_SUBORDINATE', role: 'SUBORDINATE', chartTitle: 'Диаграмма сравнения оценок руководителя и подчиненных', groupLabel: 'подчинённые', keys: ['manager', 'subordinates'] },
+  { pair: 'MANAGER_PEER', role: 'PEER', chartTitle: 'Диаграмма сравнения оценок руководителя и коллег', groupLabel: 'коллеги', keys: ['manager', 'peers'] },
+];
+
 const KIND_HEADING = (genitive: string): Record<DeltaKind, string> => ({
   CONSENSUS: 'Зоны консенсуса (оценки близки):',
   ATTENTION: 'Зона внимания (расхождение 0,4–0,5):',
@@ -564,6 +581,101 @@ function PairFindings({ pair, pairIndex, genitive, blockKey, ctx }: {
         {editing && (
           <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}
             onClick={() => setPair(list => [...list, { kind: 'CONSENSUS', competency: '', delta: null, text: '' }])}>+ Добавить</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Пары внешних групп: руководитель против подчинённых/коллег ──
+
+const DEFAULT_EXT_PAIRS = (): ReportExternalPair[] => [
+  { pair: 'MANAGER_SUBORDINATE', title: 'Сравнение оценок руководителя и подчинённых', items: [] },
+  { pair: 'MANAGER_PEER', title: 'Сравнение оценок руководителя и коллег', items: [] },
+];
+
+/** Строка оценок компетенции: «(руководитель 3,7 | подчинённые 3,1)». */
+function extScoreLine(it: ReportExternalItem, groupLabel: string): string {
+  const parts: string[] = [];
+  if (it.managerScore != null) parts.push(`руководитель ${fmt1(it.managerScore)}`);
+  if (it.groupScore != null) parts.push(`${groupLabel} ${fmt1(it.groupScore)}`);
+  return parts.length ? `(${parts.join(' | ')})` : '';
+}
+
+function ExternalPairFindings({ pair, groupLabel, blockKey, ctx }: {
+  pair: ReportExternalPair; groupLabel: string; blockKey: string; ctx: EditCtx;
+}) {
+  const editing = ctx.isEditing(blockKey);
+  const setPair = (fn: (items: ReportExternalItem[]) => ReportExternalItem[]) =>
+    ctx.update(s => ({
+      ...s,
+      externalComparison: (s.externalComparison?.length ? s.externalComparison : DEFAULT_EXT_PAIRS())
+        .map((p): ReportExternalPair => p.pair === pair.pair ? { ...p, items: fn(p.items) } : p),
+    }));
+  const patch = (i: number, p: Partial<ReportExternalItem>) =>
+    setPair(list => list.map((x, j) => j === i ? { ...x, ...p } : x));
+  if (ctx.isHidden(blockKey)) return ctx.canEdit ? <DeletedBlock k={blockKey} ctx={ctx} /> : null;
+
+  return (
+    <div className="card card-pad" style={{ position: 'relative' }}>
+      <BlockControls k={blockKey} ctx={ctx} />
+      <div className="stack-4" style={{ marginTop: ctx.canEdit ? 26 : 0 }}>
+        {!editing && pair.items.length === 0 && (
+          <div className="small muted" style={{ textAlign: 'center' }}>
+            Значимых расхождений между оценками групп не выявлено
+          </div>
+        )}
+        {pair.items.map((it, i) => (
+          <div key={i}>
+            {editing ? (
+              <div className="stack-2">
+                <div className="row-2" style={{ alignItems: 'center' }}>
+                  <input className="inp" style={{ maxWidth: 360 }} value={it.competency} placeholder="Компетенция"
+                    onChange={e => patch(i, { competency: e.target.value })} />
+                  <button className="btn btn-ghost btn-sm" title="Удалить"
+                    onClick={() => setPair(list => list.filter((_, j) => j !== i))}><Icon name="trash" size={13} /></button>
+                </div>
+                {extScoreLine(it, groupLabel) && <div className="small muted">Оценки: {extScoreLine(it, groupLabel)}</div>}
+                <div className="field"><label className="small">Трактовка расхождения</label>
+                  <textarea className="ta" rows={3} value={it.text} placeholder="Трактовка расхождения и разброса оценок группы"
+                    onChange={e => patch(i, { text: e.target.value })} /></div>
+                <div className="field"><label className="small">Действия</label>
+                  <div className="stack-2">
+                    {it.actions.map((a, ai) => (
+                      <div key={ai} className="row-2" style={{ alignItems: 'flex-start', gap: 8 }}>
+                        <textarea className="ta" rows={2} style={{ flex: 1 }} value={a}
+                          onChange={e => patch(i, { actions: it.actions.map((x, aj) => aj === ai ? e.target.value : x) })} />
+                        <button className="btn btn-ghost btn-sm" title="Удалить пункт"
+                          onClick={() => patch(i, { actions: it.actions.filter((_, aj) => aj !== ai) })}><Icon name="trash" size={13} /></button>
+                      </div>
+                    ))}
+                    <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}
+                      onClick={() => patch(i, { actions: [...it.actions, ''] })}>+ Пункт действий</button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="stack-2">
+                <div>
+                  <b style={{ textDecoration: 'underline' }}>{it.competency}</b>
+                  {extScoreLine(it, groupLabel) ? ` ${extScoreLine(it, groupLabel)}` : ''}
+                </div>
+                {it.text && <div style={{ whiteSpace: 'pre-wrap' }}>{it.text}</div>}
+                {it.actions.length > 0 && (
+                  <div>
+                    <b>Действия:</b>
+                    <ul style={{ margin: '6px 0 0', paddingLeft: 22 }} className="stack-2">
+                      {it.actions.map((a, ai) => <li key={ai} style={{ whiteSpace: 'pre-wrap' }}>{a}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+        {editing && (
+          <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}
+            onClick={() => setPair(list => [...list, { competency: '', managerScore: null, groupScore: null, delta: null, text: '', actions: [] }])}>+ Добавить</button>
         )}
       </div>
     </div>
@@ -703,7 +815,28 @@ export function Report360View({ res, sections, editable = false, onChange, onCom
           </React.Fragment>
         );
       })}
-      {/* 8. Рекомендации */}
+      {/* 8. Пары внешних групп: руководитель против подчинённых/коллег.
+          Диаграммы строятся из результатов и видны сразу; разбор появляется после генерации. */}
+      {EXT_PAIR_BLOCKS.map(block => {
+        const hasManager = (res.progress.find(p => p.role === 'MANAGER')?.total ?? 0) > 0;
+        const hasGroup = (res.progress.find(p => p.role === block.role)?.total ?? 0) > 0;
+        if (!hasManager || !hasGroup) return null; // авто-скрытие: нет одной из групп пары
+        const pair = sections?.externalComparison?.find(p => p.pair === block.pair) ?? null;
+        return (
+          <React.Fragment key={block.pair}>
+            <ChartBlock res={res} title={block.chartTitle} keys={block.keys} blockKey={`chart:${block.pair}`} ctx={ctx} />
+            {sections && (
+              <ExternalPairFindings
+                pair={pair ?? DEFAULT_EXT_PAIRS().find(p => p.pair === block.pair)!}
+                groupLabel={block.groupLabel}
+                blockKey={`extpair:${block.pair}`}
+                ctx={ctx}
+              />
+            )}
+          </React.Fragment>
+        );
+      })}
+      {/* 9. Рекомендации */}
       {sections && <RecommendationsSection sec={sections} ctx={ctx} />}
     </div>
   );

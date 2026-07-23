@@ -537,6 +537,19 @@ export interface ReportZoneItem {
 }
 export interface ReportPairFinding { kind: DeltaKind; competency: string; delta: number | null; text: string; }
 export interface ReportGroupPair { pair: GroupPairKey; title: string; items: ReportPairFinding[]; }
+
+/** Пары внешних групп: разбор «руководитель против группы» (без самооценки). */
+export type ExternalPairKey = 'MANAGER_SUBORDINATE' | 'MANAGER_PEER';
+export interface ReportExternalItem {
+  competency: string;
+  managerScore: number | null;
+  groupScore: number | null;
+  delta: number | null;
+  text: string;
+  /** «Действия» — пункты маркированного списка. */
+  actions: string[];
+}
+export interface ReportExternalPair { pair: ExternalPairKey; title: string; items: ReportExternalItem[]; }
 export interface ReportRecommendationTheme { title: string; subtopics: { title: string; text: string }[]; }
 
 /** Правленая HR копия открытых ответов; null — показывать исходные цитаты из оценки. */
@@ -552,6 +565,8 @@ export interface Report360Sections {
   blindSpots: ReportZoneItem[];
   hiddenPotential: ReportZoneItem[];
   groupComparison: ReportGroupPair[];
+  /** Разборы пар внешних групп; отсутствует у отчётов, сохранённых до появления раздела. */
+  externalComparison?: ReportExternalPair[];
   recommendations: ReportRecommendationTheme[];
   openAnswers?: ReportOpenAnswers | null;
   /** Объяснения, почему раздел пуст (вместо «Не выявлены»). */
