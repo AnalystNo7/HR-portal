@@ -194,11 +194,18 @@
 .wf-flow .arrow { color: var(--gpc-gray-400); }
 
 /* Печать отчёта 360 («Скачать PDF» = печать браузера).
-   Виден только блок .print-area, оболочка портала скрыта. */
+   Виден только блок .print-area, оболочка портала скрыта.
+   Постранично: стартовый лист-картинка + каждый крупный раздел с новой страницы. */
+.print-cover { display: none; }
 @media print {
   body * { visibility: hidden; }
   .print-area, .print-area * { visibility: visible; }
   .print-area { position: absolute; top: 0; left: 0; width: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .print-area .card { break-inside: avoid; box-shadow: none; border: 1px solid #ddd; }
   .print-area .btn, .print-area select, .print-area input[type='range'] { display: none !important; }
+  .print-cover {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; min-height: 90vh;
+  }
+  .print-page { break-before: page; }
 }

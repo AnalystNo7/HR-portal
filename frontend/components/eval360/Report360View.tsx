@@ -781,38 +781,57 @@ export function Report360View({ res, sections, editable = false, onChange, onCom
 
   return (
     <div className="stack-3 print-area">
+      {/* 0. Стартовый лист выгрузки (виден только при печати; в docx добавляется отдельно) */}
+      <div className="print-cover">
+        <div style={{ fontFamily: 'var(--font-head)', fontSize: 34, fontWeight: 700 }}>Результаты оценки 360</div>
+        <div style={{ fontSize: 22, fontWeight: 600, marginTop: 10 }}>{res.subject.name}</div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/report-cover.jpg" alt="" style={{ maxWidth: '85%', marginTop: 36 }} />
+      </div>
       {/* 1–2. Титул, вводный текст, шкала оценок */}
-      <TitleBlock res={res} />
+      <div className="print-page stack-3">
+        <TitleBlock res={res} />
+      </div>
       {/* 3. Сводная таблица (из оценки, только чтение) */}
-      <SummaryTable res={res} />
-      {/* 4. Открытые ответы: исходные цитаты или правленая HR копия */}
-      <OpenAnswersSection res={res} sections={sections ?? null} ctx={ctx} />
+      <div className="print-page stack-3">
+        <SummaryTable res={res} />
+      </div>
+      {/* 4. Открытые ответы (одним листом): исходные цитаты или правленая HR копия */}
+      <div className="print-page stack-3">
+        <OpenAnswersSection res={res} sections={sections ?? null} ctx={ctx} />
+      </div>
       {/* 5. Сводная диаграмма по всем группам (только чтение) */}
-      <ChartBlock res={res} title="Диаграмма сравнительных оценок по всем категориям респондентов"
-        keys={['self', 'manager', 'peers', 'subordinates']} />
+      <div className="print-page stack-3">
+        <ChartBlock res={res} title="Диаграмма сравнительных оценок по всем категориям респондентов"
+          keys={['self', 'manager', 'peers', 'subordinates']} />
+      </div>
       {header}
       {/* 6. Интерпретация по итогам оценки окружения */}
       {sections && (
         <>
-          <NarrativeSection sec={sections} listKey="strengths" title="Сильные стороны" ctx={ctx} />
-          <NarrativeSection sec={sections} listKey="developmentAreas" title="Зоны развития" ctx={ctx} />
-          <ZoneSection sec={sections} listKey="blindSpots" title="Слепые зоны" ctx={ctx} />
-          <ZoneSection sec={sections} listKey="hiddenPotential" title="Скрытые возможности" ctx={ctx} />
+          <div className="print-page stack-3">
+            <NarrativeSection sec={sections} listKey="strengths" title="Сильные стороны" ctx={ctx} />
+            <NarrativeSection sec={sections} listKey="developmentAreas" title="Зоны развития" ctx={ctx} />
+          </div>
+          <div className="print-page stack-3">
+            <ZoneSection sec={sections} listKey="blindSpots" title="Слепые зоны" ctx={ctx} />
+            <ZoneSection sec={sections} listKey="hiddenPotential" title="Скрытые возможности" ctx={ctx} />
+          </div>
         </>
       )}
-      {/* 7. Пары групп: диаграмма + разбор. Нет назначенных респондентов группы — пара не нужна. */}
+      {/* 7. Пары групп: диаграмма + разбор (на одном листе). Нет респондентов группы — пара не нужна. */}
       {PAIR_BLOCKS.map(block => {
         const hasRespondents = (res.progress.find(p => p.role === block.role)?.total ?? 0) > 0;
         if (!hasRespondents) return null; // авто-скрытие: у сотрудника нет этой группы
         const idx = pairIndex(block.pair);
         const pair = sections && idx >= 0 ? sections.groupComparison[idx] : null;
         return (
-          <React.Fragment key={block.pair}>
+          <div className="print-page stack-3" key={block.pair}>
             <ChartBlock res={res} title={block.chartTitle} keys={block.keys} blockKey={`chart:${block.pair}`} ctx={ctx} />
             {pair && (
               <PairFindings pair={pair} pairIndex={idx} genitive={block.genitive} blockKey={`pair:${block.pair}`} ctx={ctx} />
             )}
-          </React.Fragment>
+          </div>
         );
       })}
       {/* 8. Пары внешних групп: руководитель против подчинённых/коллег.
@@ -823,7 +842,7 @@ export function Report360View({ res, sections, editable = false, onChange, onCom
         if (!hasManager || !hasGroup) return null; // авто-скрытие: нет одной из групп пары
         const pair = sections?.externalComparison?.find(p => p.pair === block.pair) ?? null;
         return (
-          <React.Fragment key={block.pair}>
+          <div className="print-page stack-3" key={block.pair}>
             <ChartBlock res={res} title={block.chartTitle} keys={block.keys} blockKey={`chart:${block.pair}`} ctx={ctx} />
             {sections && (
               <ExternalPairFindings
@@ -833,11 +852,15 @@ export function Report360View({ res, sections, editable = false, onChange, onCom
                 ctx={ctx}
               />
             )}
-          </React.Fragment>
+          </div>
         );
       })}
       {/* 9. Рекомендации */}
-      {sections && <RecommendationsSection sec={sections} ctx={ctx} />}
+      {sections && (
+        <div className="print-page stack-3">
+          <RecommendationsSection sec={sections} ctx={ctx} />
+        </div>
+      )}
     </div>
   );
 }
