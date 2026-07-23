@@ -28,6 +28,18 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [printMode, setPrintMode] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
+  const downloadRef = useRef<HTMLDivElement | null>(null);
+
+  // меню «Скачать отчёт» закрывается по клику вне
+  useEffect(() => {
+    if (!downloadOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (downloadRef.current && !downloadRef.current.contains(e.target as Node)) setDownloadOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [downloadOpen]);
   // визуализация генерации: оценочный прогресс/остаток и статус «Отчёт готов»
   const [progress, setProgress] = useState<number | null>(null);
   const [remainingSec, setRemainingSec] = useState<number | null>(null);
@@ -223,10 +235,20 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
               onClick={doPublish}>
               {busy === 'publish' ? 'Публикация...' : 'Опубликовать сотруднику'}
             </button>}
-        <button className="btn btn-ghost btn-sm" onClick={() => setPrintMode(true)}>Скачать PDF</button>
-        <button className="btn btn-ghost btn-sm" disabled={busy === 'docx'} onClick={downloadDocx}>
-          {busy === 'docx' ? 'Сборка...' : 'Скачать DOCX'}
-        </button>
+        <div ref={downloadRef} style={{ position: 'relative' }}>
+          <button className="btn btn-ghost btn-sm" disabled={busy === 'docx'}
+            onClick={() => setDownloadOpen(o => !o)}>
+            {busy === 'docx' ? 'Сборка...' : 'Скачать отчёт ▾'}
+          </button>
+          {downloadOpen && (
+            <div className="card" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 20, minWidth: 120, padding: 4, boxShadow: '0 4px 16px rgba(0,0,0,.12)', display: 'flex', flexDirection: 'column' }}>
+              <button className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}
+                onClick={() => { setDownloadOpen(false); setPrintMode(true); }}>PDF</button>
+              <button className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}
+                onClick={() => { setDownloadOpen(false); void downloadDocx(); }}>DOCX</button>
+            </div>
+          )}
+        </div>
       </div>
       {busy === 'generate' && progress != null && (
         <div className="stack-2">
