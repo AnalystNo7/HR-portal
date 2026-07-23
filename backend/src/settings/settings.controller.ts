@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { KeycloakAuthGuard } from '../auth/auth.guard';
 import { RolesGuard, Roles } from '../auth/roles.guard';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,6 +28,8 @@ export class SettingsController {
 
   // тест до update-роута с :id, чтобы не перехватывался
   @Post('llm/test')
+  // обращение к внешней LLM: не чаще 10 проверок в минуту с одного IP
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   testLlm(@Body() dto: SaveLlmDto) {
     return this.settings.testLlm(dto);
   }

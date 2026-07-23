@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Report360Status } from '@prisma/client';
 import { KeycloakAuthGuard } from '../../auth/auth.guard';
 import { RolesGuard, Roles } from '../../auth/roles.guard';
@@ -22,6 +23,8 @@ export class ReportController {
 
   @Post('cycles/:id/subjects/:sid/report/generate')
   @Roles('hr', 'admin')
+  // дорогая LLM-генерация (платные токены): не чаще 10 запусков в минуту с одного IP
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   async generate(@Req() req: any, @Param('id') id: string, @Param('sid') sid: string) {
     const authorId = await resolveCurrentEmployeeId(this.prisma, req);
     return this.reportService.generate(id, sid, authorId);

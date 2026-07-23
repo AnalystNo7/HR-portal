@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cycle360Report, Report360Status } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { fio } from '../oc360.helpers';
@@ -53,6 +53,8 @@ function toDto(r: Cycle360Report): ReportDto {
 @Injectable()
 export class ReportService {
   private readonly logger = new Logger(ReportService.name);
+  /** Идущие генерации (по subjectId) — защита от двойного запуска и двойного расхода LLM-токенов. */
+  private readonly generating = new Set<string>();
 
   constructor(
     private prisma: PrismaService,
@@ -70,6 +72,20 @@ export class ReportService {
   /** Генерация черновика LLM. Повторный вызов перезаписывает черновик (статус → DRAFT). */
   async generate(cycleId: string, subjectId: string, authorId: string | null): Promise<ReportDto> {
     await this.ensureSubject(cycleId, subjectId);
+    // защита от двойного запуска (двойной клик / параллельный запрос): пока идёт
+    // генерация по этому субъекту — второй вызов отклоняется, а не тратит токены повторно
+    if (this.generating.has(subjectId)) {
+      throw new ConflictException('Генерация отчёта уже выполняется — дождитесь завершения');
+    }
+    this.generating.add(subjectId);
+    try {
+      return await this.runGenerate(cycleId, subjectId, authorId);
+    } finally {
+      this.generating.delete(subjectId);
+    }
+  }
+
+  private async runGenerate(cycleId: string, subjectId: string, authorId: string | null): Promise<ReportDto> {
     // отчёт в READY неизменяем; проверяем ДО обращения к LLM, чтобы не тратить токены
     const current = await this.prisma.cycle360Report.findUnique({ where: { subjectId }, select: { status: true } });
     if (current?.status === 'READY') {
