@@ -36,7 +36,8 @@ services:
     ports:
       - "8180:8080"
     volumes:
-      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      # ПРОД: realm без демо-пользователей (admin1/hr1/... только в realm-export.json для локалки)
+      - ./keycloak/realm-export.prod.json:/opt/keycloak/data/import/realm-export.json:ro
     depends_on:
       postgres:
         condition: service_healthy

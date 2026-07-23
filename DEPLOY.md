@@ -180,11 +180,14 @@ docker exec -it <postgres-container> psql -U hrportal -d hrportal -c "CREATE SCH
 нужно сделать вручную в Dokploy/Keycloak. Отметьте перед выкладкой наружу:
 
 **Критично:**
-- [ ] **Демо-пользователи Keycloak.** `keycloak/realm-export.json` содержит учётки
-  `employee1/employee1`, `manager1/manager1`, `hr1/hr1`, **`admin1/admin1`** (роль admin)
-  с постоянными паролями. Realm импортируется на каждом старте (`--import-realm`).
-  Перед публичным доступом: удалить демо-юзеров из realm-export.json (или удалить их
-  в админке Keycloak и снять `--import-realm`), завести реальных админов.
+- [x] **Демо-пользователи Keycloak — закрыто разделением realm.** Прод-`docker-compose.yml`
+  монтирует `keycloak/realm-export.prod.json` (без демо-юзеров); демо-учётки
+  (`employee1`, `hr1`, `admin1` и т.д.) остались только в `realm-export.json` для локалки
+  (`docker-compose.local.yml`). **Действие оператора:** после первого старта прод-realm
+  пуст на пользователей — завести первого админа вручную: Keycloak admin console
+  (`/auth/admin`, вход под `KEYCLOAK_ADMIN`) → realm `hr-portal` → Users → создать
+  пользователя и назначить realm-роль `admin`; либо импортировать сотрудников
+  (Администрирование → импорт) и назначить роль `admin` нужному сотруднику.
 - [ ] **Keycloak в prod-режиме.** В `docker-compose.yml` сейчас `command: start-dev`.
   Заменить на `start` (production mode). В realm: включить `bruteForceProtected: true`,
   `sslRequired: "external"` (сейчас `none`). Публичный клиент `directAccessGrantsEnabled`
