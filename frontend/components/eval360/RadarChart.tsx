@@ -6,8 +6,8 @@ interface Axis { label: string; value: number | null }
 interface Series { label: string; color: string; values: (number | null)[] }
 
 /** Поле под подписи осей: самая длинная строка после переноса (~«Ответственность») + отступ. */
-const LABEL_MARGIN = 125;
-const LINE_H = 13;
+const LABEL_MARGIN = 140;
+const LINE_H = 15;
 
 /** Перенос длинного названия оси на 2 строки по словам (строки максимально ровные). */
 function wrapLabel(label: string): string[] {
@@ -23,7 +23,7 @@ function wrapLabel(label: string): string[] {
   return best;
 }
 
-export function RadarChart({ axes, series, min, max, size = 600, showValues = false }: {
+export function RadarChart({ axes, series, min, max, size = 630, showValues = false }: {
   axes: Axis[]; series: Series[]; min: number; max: number; size?: number; showValues?: boolean;
 }) {
   const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -92,11 +92,11 @@ export function RadarChart({ axes, series, min, max, size = 600, showValues = fa
           : p.y > cy + 8 ? p.y
           : p.y - ((n - 1) * LINE_H) / 2;
         return (
-          <text key={`a${i}`} textAnchor={anchor} fontSize={11} fill="var(--gpc-gray-700)">
+          <text key={`a${i}`} textAnchor={anchor} fontSize={13} fill="var(--gpc-gray-700)">
             {nameLines.map((ln, j) => (
               <tspan key={j} x={p.x} y={y0 + j * LINE_H} dominantBaseline="middle" fontWeight={600}>{ln}</tspan>
             ))}
-            <tspan x={p.x} y={y0 + nameLines.length * LINE_H} dominantBaseline="middle" fontSize={10} fill="var(--gpc-gray-500)">средний балл {a.value == null ? '—' : a.value.toFixed(1)}</tspan>
+            <tspan x={p.x} y={y0 + nameLines.length * LINE_H} dominantBaseline="middle" fontSize={12} fill="var(--gpc-gray-500)">средний балл {a.value == null ? '—' : a.value.toFixed(1)}</tspan>
           </text>
         );
       })}
@@ -104,8 +104,8 @@ export function RadarChart({ axes, series, min, max, size = 600, showValues = fa
       {/* тултип со значением точки */}
       {hover && (
         <g pointerEvents="none">
-          <rect x={hover.x - 17} y={hover.y - 30} width={34} height={19} rx={4} fill="var(--gpc-blue-800)" />
-          <text x={hover.x} y={hover.y - 20} textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight={600} fill="#fff">{hover.text}</text>
+          <rect x={hover.x - 20} y={hover.y - 33} width={40} height={22} rx={4} fill="var(--gpc-blue-800)" />
+          <text x={hover.x} y={hover.y - 22} textAnchor="middle" dominantBaseline="middle" fontSize={13} fontWeight={600} fill="#fff">{hover.text}</text>
         </g>
       )}
     </svg>
