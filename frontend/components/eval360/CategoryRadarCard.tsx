@@ -9,7 +9,7 @@ import { catLabel, scaleColor } from './helpers';
  * Карточка категории компетенций в стиле вкладки «Дашборд»
  * (как на диаграммах PDF-отчёта): заголовок, пилюля уровня группы, radar.
  */
-export function CategoryRadarCard({ cat, items, series, min, max, size = 420 }: {
+export function CategoryRadarCard({ cat, items, series, min, max, size = 600 }: {
   cat: string;
   items: CompetencyResult[];
   series: { label: string; color: string; values: (number | null)[] }[];

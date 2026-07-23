@@ -103,7 +103,7 @@ function Eval360CyclePage() {
         </div>
       </div>
 
-      <div className="grid-2" style={{ gridTemplateColumns: 'minmax(280px, 360px) 1fr', alignItems: 'start' }}>
+      <div className="grid-2" style={{ gridTemplateColumns: 'minmax(240px, 280px) 1fr', alignItems: 'start' }}>
         {/* Список сотрудников */}
         <div className="card" style={{ padding: 0 }}>
           <div className="card-head" style={{ padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
