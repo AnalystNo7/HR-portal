@@ -1,12 +1,18 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { AppealStatus } from '@prisma/client';
+import { KeycloakAuthGuard } from '../auth/auth.guard';
+import { RolesGuard, Roles } from '../auth/roles.guard';
 import {
   AppealsService,
   CreateAppealDto,
   CreateCommentDto,
 } from './appeals.service';
 
+// анонимный доступ закрыт; смена статуса — только HR/admin. Ограничение видимости
+// чужих обращений сотруднику — в чек-листе безопасности (нужно продуктовое решение).
 @Controller('appeals')
+@UseGuards(KeycloakAuthGuard, RolesGuard)
+@Roles('employee', 'manager', 'hr', 'admin')
 export class AppealsController {
   constructor(private readonly appealsService: AppealsService) {}
 
@@ -38,6 +44,7 @@ export class AppealsController {
   }
 
   @Patch(':id/status')
+  @Roles('hr', 'admin')
   updateStatus(@Param('id') id: string, @Body('status') status: AppealStatus) {
     return this.appealsService.updateStatus(id, status);
   }

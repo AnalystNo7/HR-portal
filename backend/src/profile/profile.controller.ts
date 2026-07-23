@@ -1,7 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { KeycloakAuthGuard } from '../auth/auth.guard';
+import { RolesGuard, Roles } from '../auth/roles.guard';
 import { ProfileService, WorkExperienceDto, EducationDto } from './profile.service';
 
+// сотрудник редактирует свой профиль сам → допускаем все роли, но требуем аутентификацию
+// (анонимный доступ закрыт). Проверка владельца (IDOR) — в чек-листе безопасности.
 @Controller('employees/:employeeId')
+@UseGuards(KeycloakAuthGuard, RolesGuard)
+@Roles('employee', 'manager', 'hr', 'admin')
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
 

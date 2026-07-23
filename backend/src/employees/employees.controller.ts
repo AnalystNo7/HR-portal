@@ -16,6 +16,8 @@ interface CreateEmployeeDto {
 }
 
 @Controller('employees')
+@UseGuards(KeycloakAuthGuard, RolesGuard)
+@Roles('employee', 'manager', 'hr', 'admin')
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Req, UseGuards } from '@nestjs/common';
 import { MeService, Role } from './me.service';
 import { KeycloakAuthGuard } from '../auth/auth.guard';
 import { AuthUser } from '../auth/keycloak.strategy';
@@ -9,20 +9,15 @@ export class MeController {
 
   @Get()
   @UseGuards(KeycloakAuthGuard)
-  get(@Req() req: any, @Query('role') roleParam?: string) {
-    const authUser: AuthUser | null = req.user;
-
-    if (authUser && authUser.roles.length > 0) {
-      const role = this.pickHighestRole(authUser.roles);
-      return this.meService.getByRoleAndEmail(role, authUser.email);
+  get(@Req() req: any) {
+    // guard гарантирует валидный токен; роль берём ТОЛЬКО из токена
+    // (query-параметр ?role= убран — это была mock-заглушка, дававшая impersonation)
+    const authUser: AuthUser = req.user;
+    if (!authUser?.roles?.length) {
+      throw new ForbiddenException('У пользователя нет назначенных ролей');
     }
-
-    const validRoles: Role[] = ['employee', 'manager', 'hr', 'admin'];
-    const r = (roleParam ?? 'employee') as Role;
-    if (!validRoles.includes(r)) {
-      return this.meService.getByRole(r);
-    }
-    return this.meService.getByRole(r);
+    const role = this.pickHighestRole(authUser.roles);
+    return this.meService.getByRoleAndEmail(role, authUser.email);
   }
 
   private pickHighestRole(roles: string[]): Role {
