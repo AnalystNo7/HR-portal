@@ -47,7 +47,6 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
         subject,
         text,
         isAnonymous: anon,
-        authorId: anon ? null : user?.id ?? null,
       });
       setDirection('');
       setSubject('');

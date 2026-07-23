@@ -1,31 +1,44 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AppealStatus } from '@prisma/client';
 import { KeycloakAuthGuard } from '../auth/auth.guard';
 import { RolesGuard, Roles } from '../auth/roles.guard';
-import {
-  AppealsService,
-  CreateAppealDto,
-  CreateCommentDto,
-} from './appeals.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { resolveCurrentEmployeeId, isHrOrAdmin } from '../oc360/oc360.helpers';
+import { AppealsService } from './appeals.service';
+import { CreateAppealDto, CreateCommentDto } from './appeals.dto';
 
-// анонимный доступ закрыт; смена статуса — только HR/admin. Ограничение видимости
-// чужих обращений сотруднику — в чек-листе безопасности (нужно продуктовое решение).
+// анонимный доступ закрыт; сотрудник видит/комментирует только свои обращения,
+// HR/admin — все. Смена статуса — только HR/admin.
 @Controller('appeals')
 @UseGuards(KeycloakAuthGuard, RolesGuard)
 @Roles('employee', 'manager', 'hr', 'admin')
 export class AppealsController {
-  constructor(private readonly appealsService: AppealsService) {}
+  constructor(
+    private readonly appealsService: AppealsService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  private async viewer(req: any) {
+    return {
+      employeeId: await resolveCurrentEmployeeId(this.prisma, req),
+      privileged: isHrOrAdmin(req),
+    };
+  }
 
   @Get()
-  findAll(
+  async findAll(
+    @Req() req: any,
     @Query('authorId') authorId?: string,
     @Query('status') status?: AppealStatus,
     @Query('direction') direction?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    const v = await this.viewer(req);
+    // не-HR: принудительно только свои обращения (клиентский authorId игнорируется)
+    const effectiveAuthorId = v.privileged ? authorId : (v.employeeId ?? '__none__');
     return this.appealsService.findAll({
-      authorId,
+      authorId: effectiveAuthorId,
       status,
       direction,
       page: page ? parseInt(page, 10) : undefined,
@@ -34,13 +47,14 @@ export class AppealsController {
   }
 
   @Get(':id')
-  findById(@Param('id') id: string) {
-    return this.appealsService.findById(id);
+  async findById(@Req() req: any, @Param('id') id: string) {
+    return this.appealsService.findById(id, await this.viewer(req));
   }
 
   @Post()
-  create(@Body() dto: CreateAppealDto) {
-    return this.appealsService.create(dto);
+  async create(@Req() req: any, @Body() dto: CreateAppealDto) {
+    const authorId = await resolveCurrentEmployeeId(this.prisma, req);
+    return this.appealsService.create(dto, authorId);
   }
 
   @Patch(':id/status')
@@ -50,7 +64,10 @@ export class AppealsController {
   }
 
   @Post(':id/comments')
-  addComment(@Param('id') id: string, @Body() dto: CreateCommentDto) {
-    return this.appealsService.addComment(id, dto);
+  async addComment(@Req() req: any, @Param('id') id: string, @Body() dto: CreateCommentDto) {
+    const v = await this.viewer(req);
+    const authorId = v.employeeId;
+    if (!authorId) throw new ForbiddenException('Не определён автор комментария');
+    return this.appealsService.addComment(id, authorId, dto.text, v);
   }
 }

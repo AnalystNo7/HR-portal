@@ -43,8 +43,9 @@ export class ProfileService {
     });
   }
 
-  async updateWorkExperience(id: string, dto: WorkExperienceDto) {
-    const exists = await this.prisma.workExperience.findUnique({ where: { id } });
+  // запись изменяется/удаляется только в рамках своего employeeId (защита от IDOR по :id)
+  async updateWorkExperience(id: string, employeeId: string, dto: WorkExperienceDto) {
+    const exists = await this.prisma.workExperience.findFirst({ where: { id, employeeId } });
     if (!exists) throw new NotFoundException('Work experience not found');
     return this.prisma.workExperience.update({
       where: { id },
@@ -59,8 +60,8 @@ export class ProfileService {
     });
   }
 
-  async deleteWorkExperience(id: string) {
-    const exists = await this.prisma.workExperience.findUnique({ where: { id } });
+  async deleteWorkExperience(id: string, employeeId: string) {
+    const exists = await this.prisma.workExperience.findFirst({ where: { id, employeeId } });
     if (!exists) throw new NotFoundException('Work experience not found');
     await this.prisma.workExperience.delete({ where: { id } });
     return { success: true };
@@ -86,8 +87,8 @@ export class ProfileService {
     });
   }
 
-  async updateEducation(id: string, dto: EducationDto) {
-    const exists = await this.prisma.education.findUnique({ where: { id } });
+  async updateEducation(id: string, employeeId: string, dto: EducationDto) {
+    const exists = await this.prisma.education.findFirst({ where: { id, employeeId } });
     if (!exists) throw new NotFoundException('Education not found');
     return this.prisma.education.update({
       where: { id },
@@ -101,8 +102,8 @@ export class ProfileService {
     });
   }
 
-  async deleteEducation(id: string) {
-    const exists = await this.prisma.education.findUnique({ where: { id } });
+  async deleteEducation(id: string, employeeId: string) {
+    const exists = await this.prisma.education.findFirst({ where: { id, employeeId } });
     if (!exists) throw new NotFoundException('Education not found');
     await this.prisma.education.delete({ where: { id } });
     return { success: true };

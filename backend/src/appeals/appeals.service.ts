@@ -1,19 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AppealStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateAppealDto, CreateCommentDto } from './appeals.dto';
 
-export interface CreateAppealDto {
-  authorId?: string | null;
-  direction: string;
-  subject: string;
-  text: string;
-  isAnonymous?: boolean;
-}
+export { CreateAppealDto, CreateCommentDto };
 
-export interface CreateCommentDto {
-  authorId: string;
-  text: string;
-}
+const MAX_PAGE_SIZE = 100;
 
 export interface AppealListQuery {
   authorId?: string;
@@ -28,7 +20,8 @@ export class AppealsService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(query: AppealListQuery) {
-    const { authorId, status, direction, page = 1, limit = 20 } = query;
+    const { authorId, status, direction, page = 1 } = query;
+    const limit = Math.min(Math.max(query.limit ?? 20, 1), MAX_PAGE_SIZE);
     const where: Prisma.AppealWhereInput = {};
     if (authorId) where.authorId = authorId;
     if (status) where.status = status;
@@ -50,7 +43,8 @@ export class AppealsService {
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async findById(id: string) {
+  /** viewer: null-privileged — доступ только к своим неанонимным обращениям. */
+  async findById(id: string, viewer: { employeeId: string | null; privileged: boolean }) {
     const appeal = await this.prisma.appeal.findUnique({
       where: { id },
       include: {
@@ -65,17 +59,22 @@ export class AppealsService {
       },
     });
     if (!appeal) throw new NotFoundException('Appeal not found');
+    // не-HR видит только своё неанонимное обращение
+    if (!viewer.privileged && (appeal.authorId == null || appeal.authorId !== viewer.employeeId)) {
+      throw new ForbiddenException('Нет доступа к этому обращению');
+    }
     return appeal;
   }
 
-  create(dto: CreateAppealDto) {
+  /** authorId берётся из токена (не из тела); анонимные сохраняются без автора. */
+  create(dto: CreateAppealDto, authorId: string | null) {
     return this.prisma.appeal.create({
       data: {
         direction: dto.direction,
         subject: dto.subject,
         text: dto.text,
         isAnonymous: dto.isAnonymous ?? false,
-        authorId: dto.isAnonymous ? null : dto.authorId ?? null,
+        authorId: dto.isAnonymous ? null : authorId,
         status: 'NEW',
       },
     });
@@ -87,15 +86,15 @@ export class AppealsService {
     return this.prisma.appeal.update({ where: { id }, data: { status } });
   }
 
-  async addComment(id: string, dto: CreateCommentDto) {
-    const exists = await this.prisma.appeal.findUnique({ where: { id } });
+  /** authorId комментария — из токена. Не-HR может комментировать только своё обращение. */
+  async addComment(id: string, authorId: string, text: string, viewer: { employeeId: string | null; privileged: boolean }) {
+    const exists = await this.prisma.appeal.findUnique({ where: { id }, select: { authorId: true } });
     if (!exists) throw new NotFoundException('Appeal not found');
+    if (!viewer.privileged && (exists.authorId == null || exists.authorId !== viewer.employeeId)) {
+      throw new ForbiddenException('Нет доступа к этому обращению');
+    }
     return this.prisma.appealComment.create({
-      data: {
-        appealId: id,
-        authorId: dto.authorId,
-        text: dto.text,
-      },
+      data: { appealId: id, authorId, text },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, middleName: true } },
       },

@@ -222,7 +222,7 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
     if (!reply.trim() || !user) return;
     setSending(true);
     try {
-      await addAppealComment(id, { authorId: user.id, text: reply });
+      await addAppealComment(id, { text: reply });
       setReply('');
       toast('Ответ отправлен');
       load();

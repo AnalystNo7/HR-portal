@@ -17,6 +17,10 @@ function normalizeFio(fio: string): string {
   return fio.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+const MAX_PAGE_SIZE = 100;
+/** Разрешённые поля сортировки (защита от произвольного orderBy). */
+const SORTABLE = new Set(['lastName', 'firstName', 'middleName', 'email', 'hireDate', 'createdAt']);
+
 @Injectable()
 export class EmployeesService {
   private readonly logger = new Logger(EmployeesService.name);
@@ -26,7 +30,6 @@ export class EmployeesService {
   async findAll(query: EmployeeListQuery) {
     const {
       page = 1,
-      limit = 10,
       search,
       department,
       departmentId,
@@ -34,6 +37,9 @@ export class EmployeesService {
       sortField = 'lastName',
       sortOrder = 'asc',
     } = query;
+    const limit = Math.min(Math.max(query.limit ?? 10, 1), MAX_PAGE_SIZE);
+    const safeSortField = SORTABLE.has(sortField) ? sortField : 'lastName';
+    const safeSortOrder = sortOrder === 'desc' ? 'desc' : 'asc';
 
     const where: Prisma.EmployeeWhereInput = {};
 
@@ -52,7 +58,7 @@ export class EmployeesService {
     if (managerId) where.managerId = managerId;
 
     const orderBy: Prisma.EmployeeOrderByWithRelationInput = {
-      [sortField]: sortOrder,
+      [safeSortField]: safeSortOrder,
     };
 
     const [data, total] = await Promise.all([

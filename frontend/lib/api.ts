@@ -221,7 +221,7 @@ export interface AppealComment {
 }
 
 export interface CreateAppealInput {
-  authorId?: string | null;
+  // автор проставляется на сервере из токена; клиент передаёт только флаг анонимности
   direction: string;
   subject: string;
   text: string;
@@ -254,7 +254,8 @@ export function updateAppealStatus(id: string, status: AppealStatus) {
   });
 }
 
-export function addAppealComment(id: string, dto: { authorId: string; text: string }) {
+export function addAppealComment(id: string, dto: { text: string }) {
+  // автор комментария проставляется на сервере из токена
   return fetchApi<AppealComment>(`/appeals/${id}/comments`, {
     method: 'POST',
     body: JSON.stringify(dto),
