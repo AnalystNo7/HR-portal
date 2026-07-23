@@ -117,11 +117,15 @@ export interface CompetencyAnalytics {
   zoneByGroup: Record<ExternalRole, ZoneKind | null>;
 }
 
-/** Готовые составы разделов отчёта (отбор выполнен системой, LLM пишет только тексты). */
+/**
+ * Готовые составы разделов отчёта (отбор выполнен системой, LLM пишет только тексты).
+ * Разделы взаимоисключающие: компетенции с |Δ| ≥ 0,6 попадают ТОЛЬКО в
+ * blindSpots/hiddenPotential и исключаются из strengthsTop/developmentAreas.
+ */
 export interface ReportSelection {
-  /** Сильные стороны: топ-3 по оценке окружения (по убыванию). */
+  /** Сильные стороны: топ-3 по оценке окружения среди компетенций без выраженного расхождения. */
   strengthsTop: { name: string; othersAvg: number }[];
-  /** Зоны развития: оценка окружения ниже целевого уровня (по возрастанию). */
+  /** Зоны развития: окружение ниже целевого уровня, среди компетенций без выраженного расхождения. */
   developmentAreas: { name: string; othersAvg: number }[];
   /** Слепые зоны: самооценка выше окружения на 0,6 и более (по убыванию Δ). */
   blindSpots: { name: string; delta: number }[];
@@ -241,14 +245,17 @@ export function buildAnalytics(input: AnalyticsInput): ReportAnalytics {
   const othersAvg = avg(competencies.map(c => c.othersAvg).filter((v): v is number => v != null));
   const gap = diff(selfAvg, othersAvg);
 
-  // составы разделов отчёта — детерминированный отбор (LLM пишет только тексты)
+  // составы разделов отчёта — детерминированный отбор (LLM пишет только тексты);
+  // разделы взаимоисключающие: |Δ| ≥ 0,6 уходит только в слепые/скрытые,
+  // в сильные стороны и зоны развития — компетенции без выраженного расхождения
   const rated = competencies.filter((c): c is CompetencyAnalytics & { othersAvg: number } => c.othersAvg != null);
+  const eligible = rated.filter(c => c.zoneVsOthers !== 'BLIND_SPOT' && c.zoneVsOthers !== 'HIDDEN_POTENTIAL');
   const selection: ReportSelection = {
-    strengthsTop: [...rated]
+    strengthsTop: [...eligible]
       .sort((a, b) => b.othersAvg - a.othersAvg)
       .slice(0, 3)
       .map(c => ({ name: c.name, othersAvg: c.othersAvg })),
-    developmentAreas: rated
+    developmentAreas: eligible
       .filter(c => c.othersAvg < input.targetLevel)
       .sort((a, b) => a.othersAvg - b.othersAvg)
       .map(c => ({ name: c.name, othersAvg: c.othersAvg })),
