@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, useToast } from '@/components/primitives';
 import { Report360View, emptyReport360Sections, reportPdfTitle, expectedGenMs, recordGenDuration } from '@/components/eval360';
+import { downloadReportDocx } from '@/components/eval360/reportDocx';
 import {
   Report360Envelope, Report360Sections, Report360Status, ReportResetMode, Results360,
   generate360Report, get360Report, save360Report, reset360Report, publish360, unpublish360,
@@ -23,7 +24,7 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
   // для HR разделы видны всегда: пока отчёта нет — пустой шаблон, первое «Готово» создаст отчёт
   const [sections, setSections] = useState<Report360Sections>(emptyReport360Sections());
   const [status, setStatus] = useState<Report360Status>('DRAFT');
-  const [busy, setBusy] = useState<'generate' | 'save' | 'reset' | 'publish' | null>(null);
+  const [busy, setBusy] = useState<'generate' | 'save' | 'reset' | 'publish' | 'docx' | null>(null);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [printMode, setPrintMode] = useState(false);
@@ -117,6 +118,16 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
       setBusy(null);
       resetInFlight.current = false;
     }
+  };
+
+  /** Выгрузка в .docx: собирается из текущего состояния отчёта и отрисованных диаграмм. */
+  const downloadDocx = async () => {
+    const rootEl = document.querySelector('.print-area') as HTMLElement | null;
+    if (!rootEl) { toast('Отчёт ещё не отрисован'); return; }
+    setBusy('docx');
+    try {
+      await downloadReportDocx(res, env?.report ? sections : null, rootEl, reportPdfTitle(res.subject.name));
+    } catch (err) { toast(`Не удалось собрать DOCX: ${(err as Error).message}`); } finally { setBusy(null); }
   };
 
   /** Сохранение — при нажатии «Готово» на блоке (создаёт отчёт при первом сохранении). */
@@ -213,6 +224,9 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
               {busy === 'publish' ? 'Публикация...' : 'Опубликовать сотруднику'}
             </button>}
         <button className="btn btn-ghost btn-sm" onClick={() => setPrintMode(true)}>Скачать PDF</button>
+        <button className="btn btn-ghost btn-sm" disabled={busy === 'docx'} onClick={downloadDocx}>
+          {busy === 'docx' ? 'Сборка...' : 'Скачать DOCX'}
+        </button>
       </div>
       {busy === 'generate' && progress != null && (
         <div className="stack-2">

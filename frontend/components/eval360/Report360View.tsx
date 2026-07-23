@@ -18,7 +18,7 @@ const KIND_LABEL: Record<DeltaKind, string> = {
 };
 
 // Вводный текст титульной части — как в PDF-образце
-const INTRO_LINES = [
+export const INTRO_LINES = [
   'Результаты сводной таблицы основаны на анонимных оценках ваших коллег, руководителей и подчинённых.',
   'Данные представлены в обобщённом виде.',
   'По каждой ценности и каждому поведенческому индикатору рассчитан средний балл.',
@@ -341,7 +341,7 @@ function ChartBlock({ res, title, keys, blockKey, ctx }: {
   const missing = requested.filter(s => !active.includes(s));
   const groups = groupByCategory(res.competencyResults);
   return (
-    <div className="card card-pad" style={{ position: 'relative' }}>
+    <div className="card card-pad" style={{ position: 'relative' }} data-chart-title={title}>
       {blockKey && <DeleteControl k={blockKey} ctx={ctx} />}
       <BigTitle title={title} />
       <SeriesLegend series={active} />

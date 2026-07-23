@@ -21,7 +21,7 @@ export function CategoryRadarCard({ cat, items, series, min, max, size = 420 }: 
   const grp = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : null;
   const axes = items.map(c => ({ label: c.name, value: c.total }));
   return (
-    <div className="card card-pad" style={{ flex: '1 1 0', minWidth: 340 }}>
+    <div className="card card-pad" style={{ flex: '1 1 0', minWidth: 340 }} data-radar-cat={catLabel(cat)}>
       <b>{catLabel(cat)}</b>
       <div className="row-2" style={{ alignItems: 'center', gap: 6, marginTop: 4 }}>
         <span className="small muted">Уровень развития группы компетенций</span>
