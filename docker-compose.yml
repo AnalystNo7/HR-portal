@@ -56,6 +56,8 @@ services:
       KEYCLOAK_CLIENT_ID: hr-portal-app
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Origin фронта для CORS (задаётся в env; без него CORS открыт для всех)
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-}
       # Подключение к LLM для генерации отчётов 360 (опционально —
       # без этих переменных портал работает, генерация отключена)
       LLM_BASE_URL: ${LLM_BASE_URL:-}
