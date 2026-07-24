@@ -32,7 +32,9 @@ services:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       JAVA_OPTS_APPEND: "-Xmx512m -Xms256m"
-    command: start-dev --import-realm
+    # боевой режим (не start-dev). Работает за Traefik благодаря KC_HOSTNAME_URL +
+    # KC_HTTP_ENABLED=true + KC_PROXY_HEADERS=xforwarded (см. переменные выше).
+    command: start --import-realm
     ports:
       - "8180:8080"
     volumes:

@@ -188,10 +188,13 @@ docker exec -it <postgres-container> psql -U hrportal -d hrportal -c "CREATE SCH
   (`/auth/admin`, вход под `KEYCLOAK_ADMIN`) → realm `hr-portal` → Users → создать
   пользователя и назначить realm-роль `admin`; либо импортировать сотрудников
   (Администрирование → импорт) и назначить роль `admin` нужному сотруднику.
-- [ ] **Keycloak в prod-режиме.** В `docker-compose.yml` сейчас `command: start-dev`.
-  Заменить на `start` (production mode). В realm: включить `bruteForceProtected: true`,
-  `sslRequired: "external"` (сейчас `none`). Публичный клиент `directAccessGrantsEnabled`
-  (password-grant) отключить, если не используется.
+- [x] **Keycloak в prod-режиме.** `docker-compose.yml` → `command: start --import-realm`
+  (боевой режим). `bruteForceProtected: true` — включено в realm. **После деплоя проверить
+  вход** (см. ниже); если Keycloak не поднимается/не пускает — откатить на `start-dev`.
+- [ ] **(отдельно, после проверки start) Требование HTTPS в realm.** `sslRequired: "none"`
+  → `"external"` в `realm-export.prod.json` — только когда убедились, что боевой режим за
+  Traefik работает (иначе при неверных прокси-заголовках заблокирует все входы). Публичный
+  клиент `directAccessGrantsEnabled` (password-grant) отключить, если не используется.
 - [ ] **Порты не наружу.** Убрать `ports:` для backend (`4100:4000`), keycloak
   (`8180:8080`), frontend (`3101:3001`) из прод-compose — доступ только через Traefik
   (TLS). Postgres наружу уже не публикуется — оставить так.
