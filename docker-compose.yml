@@ -65,8 +65,7 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-}
-    ports:
-      - "4100:4000"
+    # порт наружу не публикуется — доступ только через Traefik по https://sitehrportal.ru/api
     depends_on:
       postgres:
         condition: service_healthy
@@ -90,8 +89,7 @@ services:
       NEXT_PUBLIC_KEYCLOAK_REALM: hr-portal
       NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: hr-portal-app
       NEXT_PUBLIC_AUTH_MODE: keycloak
-    ports:
-      - "3101:3001"
+    # порт наружу не публикуется — доступ только через Traefik по https://sitehrportal.ru
     depends_on:
       - backend
     restart: unless-stopped

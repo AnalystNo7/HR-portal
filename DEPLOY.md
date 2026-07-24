@@ -195,9 +195,9 @@ docker exec -it <postgres-container> psql -U hrportal -d hrportal -c "CREATE SCH
   → `"external"` в `realm-export.prod.json` — только когда убедились, что боевой режим за
   Traefik работает (иначе при неверных прокси-заголовках заблокирует все входы). Публичный
   клиент `directAccessGrantsEnabled` (password-grant) отключить, если не используется.
-- [ ] **Порты не наружу.** Убрать `ports:` для backend (`4100:4000`), keycloak
-  (`8180:8080`), frontend (`3101:3001`) из прод-compose — доступ только через Traefik
-  (TLS). Postgres наружу уже не публикуется — оставить так.
+- [x] **Порты не наружу.** `ports:` у backend/keycloak/frontend убраны из прод-compose —
+  доступ только через Traefik (TLS) по домену. Postgres наружу и так не публиковался.
+  Проверено: вход по домену работает, прямые `http://IP:8180/4100/3101` закрыты.
 - [ ] **Сильные пароли.** Задать `POSTGRES_PASSWORD`, `KEYCLOAK_ADMIN_PASSWORD`,
   `FRONTEND_ORIGIN` в Environment Dokploy (не полагаться на дефолты `hrportal`/`admin`).
 
