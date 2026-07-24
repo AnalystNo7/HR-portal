@@ -35,8 +35,7 @@ services:
     # боевой режим (не start-dev). Работает за Traefik благодаря KC_HOSTNAME_URL +
     # KC_HTTP_ENABLED=true + KC_PROXY_HEADERS=xforwarded (см. переменные выше).
     command: start --import-realm
-    ports:
-      - "8180:8080"
+    # порт наружу не публикуется — доступ только через Traefik по https://sitehrportal.ru/auth
     volumes:
       # ПРОД: realm без демо-пользователей (admin1/hr1/... только в realm-export.json для локалки)
       - ./keycloak/realm-export.prod.json:/opt/keycloak/data/import/realm-export.json:ro
