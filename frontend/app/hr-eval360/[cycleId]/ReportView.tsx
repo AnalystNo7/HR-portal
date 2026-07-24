@@ -66,10 +66,30 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
   }, [cycleId, subjectId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [load]);
 
+  /**
+   * Ждём готовности отчёта опросом — когда HTTP-запрос генерации оборвался (частый
+   * случай: прокси отдаёт 502 на долгом ответе), но бэкенд генерацию доводит до конца.
+   * Возвращает готовый отчёт (generatedAt новее базового) или null по истечении времени.
+   */
+  const pollUntilGenerated = async (baseGeneratedAt: string | Date | null, expectedMs: number) => {
+    const baseTs = baseGeneratedAt ? new Date(baseGeneratedAt).getTime() : 0;
+    const deadline = Date.now() + Math.max(expectedMs * 2, 600_000); // не меньше 10 минут
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 5_000));
+      try {
+        const e = await get360Report(cycleId, subjectId);
+        const rep = e.report;
+        if (rep?.generatedAt && new Date(rep.generatedAt).getTime() > baseTs) return rep;
+      } catch { /* сеть моргнула — продолжаем опрос */ }
+    }
+    return null;
+  };
+
   const generate = async () => {
     setConfirmRegen(false);
     setBusy('generate');
     setJustDone(false);
+    const baseGeneratedAt = env?.report?.generatedAt ?? null;
     const start = Date.now();
     const expected = expectedGenMs();
     setProgress(1);
@@ -79,9 +99,8 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
       setProgress(Math.min(95, (elapsed / expected) * 100));
       setRemainingSec(Math.max(0, Math.ceil((expected - elapsed) / 1000)));
     }, 500);
-    try {
-      const r = await generate360Report(cycleId, subjectId);
-      recordGenDuration(Date.now() - start); // адаптивная оценка на будущее
+    const showReport = (r: Report360Envelope['report']) => {
+      if (!r) return;
       setEnv(e => (e ? { ...e, report: r } : e));
       setSections(r.sections);
       setStatus(r.status);
@@ -90,10 +109,25 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
       setJustDone(true);
       setTimeout(() => setJustDone(false), 10_000); // «Отчёт готов» держится 10 с
       toast('Черновик отчёта сгенерирован');
+    };
+    try {
+      const r = await generate360Report(cycleId, subjectId);
+      recordGenDuration(Date.now() - start); // адаптивная оценка на будущее
+      showReport(r);
     } catch (err) {
-      toast((err as Error).message);
-      // при обрыве соединения генерация могла успеть завершиться на сервере
-      load();
+      const status = (err as Error & { status?: number }).status;
+      // обрыв длинного запроса (нет статуса — сеть; 408/409/5xx-прокси): бэкенд
+      // генерацию продолжает — ждём готовности опросом, кнопку НЕ разблокируем
+      const dropped = status == null || [408, 409, 500, 502, 503, 504].includes(status);
+      if (dropped) {
+        const r = await pollUntilGenerated(baseGeneratedAt, expected);
+        if (r) { recordGenDuration(Date.now() - start); showReport(r); }
+        else { toast('Генерация затянулась — обновите страницу через минуту'); await load(); }
+      } else {
+        // честная ошибка (нет оценок окружения, отчёт в READY и т.п.) — показываем сразу
+        toast((err as Error).message);
+        await load();
+      }
     } finally {
       clearInterval(timer);
       setBusy(null);

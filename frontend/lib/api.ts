@@ -25,7 +25,11 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
       const parsed = JSON.parse(body);
       if (parsed?.message) message = Array.isArray(parsed.message) ? parsed.message.join('; ') : parsed.message;
     } catch { /* not JSON, keep raw body */ }
-    throw new Error(message || `${res.status} ${res.statusText}`);
+    // HTTP-статус на ошибке — чтобы вызывающий мог отличить обрыв прокси (502/504)
+    // от честной ошибки бэкенда (400/403). Сообщение не меняется.
+    const err = new Error(message || `${res.status} ${res.statusText}`);
+    (err as Error & { status?: number }).status = res.status;
+    throw err;
   }
 
   // пустое тело (204 или 200 с null из NestJS — напр., reset отчёта без снимков)
