@@ -191,10 +191,12 @@ docker exec -it <postgres-container> psql -U hrportal -d hrportal -c "CREATE SCH
 - [x] **Keycloak в prod-режиме.** `docker-compose.yml` → `command: start --import-realm`
   (боевой режим). `bruteForceProtected: true` — включено в realm. **После деплоя проверить
   вход** (см. ниже); если Keycloak не поднимается/не пускает — откатить на `start-dev`.
-- [ ] **(отдельно, после проверки start) Требование HTTPS в realm.** `sslRequired: "none"`
-  → `"external"` в `realm-export.prod.json` — только когда убедились, что боевой режим за
-  Traefik работает (иначе при неверных прокси-заголовках заблокирует все входы). Публичный
-  клиент `directAccessGrantsEnabled` (password-grant) отключить, если не используется.
+- [x] **Требование HTTPS в realm.** `sslRequired: "external"` прописан в
+  `realm-export.prod.json` (действует при чистой установке). На работающем сервере
+  включается в админке: Realm settings → General → **Require SSL** → `External requests`
+  → Save; после — проверить вход; откат — вернуть `None` там же. Публичный клиент
+  `directAccessGrantsEnabled` (password-grant) отключить, если не используется, —
+  отдельный необязательный пункт.
 - [x] **Порты не наружу.** `ports:` у backend/keycloak/frontend убраны из прод-compose —
   доступ только через Traefik (TLS) по домену. Postgres наружу и так не публиковался.
   Проверено: вход по домену работает, прямые `http://IP:8180/4100/3101` закрыты.

@@ -2,7 +2,7 @@
   "realm": "hr-portal",
   "enabled": true,
   "displayName": "HR Portal",
-  "sslRequired": "none",
+  "sslRequired": "external",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
