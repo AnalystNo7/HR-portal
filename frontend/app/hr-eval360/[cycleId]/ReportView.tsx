@@ -110,22 +110,31 @@ export function ReportView({ cycleId, subjectId, res, onPublished }: {
       setTimeout(() => setJustDone(false), 10_000); // «Отчёт готов» держится 10 с
       toast('Черновик отчёта сгенерирован');
     };
+    const pollFlow = async () => {
+      const r = await pollUntilGenerated(baseGeneratedAt, expected);
+      if (r) { recordGenDuration(Date.now() - start); showReport(r); }
+      else { toast('Генерация затянулась — обновите страницу через минуту'); await load(); }
+    };
     try {
       const r = await generate360Report(cycleId, subjectId);
       recordGenDuration(Date.now() - start); // адаптивная оценка на будущее
       showReport(r);
     } catch (err) {
-      const status = (err as Error & { status?: number }).status;
-      // обрыв длинного запроса (нет статуса — сеть; 408/409/5xx-прокси): бэкенд
-      // генерацию продолжает — ждём готовности опросом, кнопку НЕ разблокируем
-      const dropped = status == null || [408, 409, 500, 502, 503, 504].includes(status);
-      if (dropped) {
-        const r = await pollUntilGenerated(baseGeneratedAt, expected);
-        if (r) { recordGenDuration(Date.now() - start); showReport(r); }
-        else { toast('Генерация затянулась — обновите страницу через минуту'); await load(); }
+      const e = err as Error & { status?: number; apiError?: boolean };
+      const status = e.status;
+      if (status === 409) {
+        // генерация уже идёт (замок сервера) — ждём готовности опросом
+        await pollFlow();
+      } else if (e.apiError) {
+        // честная ошибка бэкенда в JSON (нет оценок окружения, отчёт в READY,
+        // «модель вернула только рассуждения без JSON» и т.п.) — показываем сразу
+        toast(e.message);
+        await load();
+      } else if (status == null || [408, 500, 502, 503, 504].includes(status)) {
+        // обрыв прокси/сети (HTML/без тела) — бэкенд генерацию продолжает, ждём опросом
+        await pollFlow();
       } else {
-        // честная ошибка (нет оценок окружения, отчёт в READY и т.п.) — показываем сразу
-        toast((err as Error).message);
+        toast(e.message);
         await load();
       }
     } finally {

@@ -21,14 +21,19 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     let message = body;
+    let apiError = false; // тело — структурированная ошибка нашего API (JSON с message)
     try {
       const parsed = JSON.parse(body);
-      if (parsed?.message) message = Array.isArray(parsed.message) ? parsed.message.join('; ') : parsed.message;
-    } catch { /* not JSON, keep raw body */ }
-    // HTTP-статус на ошибке — чтобы вызывающий мог отличить обрыв прокси (502/504)
-    // от честной ошибки бэкенда (400/403). Сообщение не меняется.
+      if (parsed?.message) {
+        message = Array.isArray(parsed.message) ? parsed.message.join('; ') : parsed.message;
+        apiError = true;
+      }
+    } catch { /* not JSON (напр. HTML «502 Bad Gateway» от прокси) — keep raw body */ }
+    // status + apiError на ошибке — чтобы вызывающий отличил честную ошибку бэкенда
+    // (JSON) от обрыва прокси/сети (HTML/без тела). Сообщение не меняется.
     const err = new Error(message || `${res.status} ${res.statusText}`);
-    (err as Error & { status?: number }).status = res.status;
+    (err as Error & { status?: number; apiError?: boolean }).status = res.status;
+    (err as Error & { status?: number; apiError?: boolean }).apiError = apiError;
     throw err;
   }
 
