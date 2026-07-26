@@ -23,8 +23,8 @@ const ptSansNarrow = PT_Sans_Narrow({
 });
 
 export const metadata: Metadata = {
-  title: 'HR-портал | Газпром ЦПС',
-  description: 'HR-портал для сотрудников Газпром ЦПС',
+  title: 'HR-портал',
+  description: 'Добро пожаловать в сервис оценки 360. Проводите оценку сотрудников и получайте наглядные отчёты.',
 };
 
 export default function RootLayout({
