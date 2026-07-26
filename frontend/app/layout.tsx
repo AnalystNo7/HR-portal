@@ -23,8 +23,8 @@ const ptSansNarrow = PT_Sans_Narrow({
 });
 
 export const metadata: Metadata = {
-  title: 'HR-портал | Газпром ЦПС',
-  description: 'HR-портал для сотрудников Газпром ЦПС',
+  title: 'HR-портал',
+  description: 'HR-портал для сотрудников',
 };
 
 export default function RootLayout({
