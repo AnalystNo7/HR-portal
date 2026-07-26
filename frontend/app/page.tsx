@@ -51,8 +51,8 @@ export default function HomePage() {
         <div className="flex-1">
           <h1>Привет{user ? `, ${user.firstName}` : ''}!</h1>
           <p>
-            Добро пожаловать в сервис оценки 360. Проводите оценку сотрудников
-            и получайте наглядные отчёты.
+            Добро пожаловать в Портал Газпром ЦПС. Здесь можно работать с личным кабинетом,
+            посмотреть карьерный трек, задать вопрос HR или изучить корпоративную культуру.
           </p>
           <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
             <button className="btn btn-primary" onClick={() => router.push('/profile')}>
