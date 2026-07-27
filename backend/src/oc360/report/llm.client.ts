@@ -24,6 +24,10 @@ export class LlmService {
   // (другой HR) успеет освободить слот провайдера
   private static readonly RETRY_429_DELAY_MS = 15_000;
 
+  // пауза перед повтором при ошибке шлюза (5xx): ждать освобождения слота, как при 429,
+  // не нужно — это не лимит параллельности, а обрыв на стороне прокси провайдера
+  private static readonly RETRY_5XX_DELAY_MS = 5_000;
+
   constructor(private prisma: PrismaService) {}
 
   /** Итоговый конфиг: БД → env. null, если не заданы обязательные поля. */
@@ -80,6 +84,15 @@ export class LlmService {
     if (res.status === 429) {
       this.logger.warn(`LLM: 429 (лимит одновременных запросов), пауза ${LlmService.RETRY_429_DELAY_MS / 1000}с и повтор`);
       await new Promise(r => setTimeout(r, LlmService.RETRY_429_DELAY_MS));
+      res = await this.postJson(cfg, body, timeoutMs);
+    }
+    // 1 повтор при ошибке шлюза: перед провайдером стоит прокси (у GonkaRouter —
+    // Cloudflare) со своим таймаутом ~2 мин, короче нашего. Долгая генерация приходит
+    // как 524 HTML-страницей — модель при этом не отказала, и повтор обычно проходит
+    // (наблюдалось: та же часть 125с → 524, а в соседнем прогоне 75с → stop).
+    if (res.status >= 500) {
+      this.logger.warn(`LLM: HTTP ${res.status} от шлюза (не ответ модели), пауза ${LlmService.RETRY_5XX_DELAY_MS / 1000}с и повтор`);
+      await new Promise(r => setTimeout(r, LlmService.RETRY_5XX_DELAY_MS));
       res = await this.postJson(cfg, body, timeoutMs);
     }
     if (!res.ok) {
