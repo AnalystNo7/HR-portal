@@ -10,6 +10,9 @@ import { isEmptySections, normalizeSections, Report360Sections } from './report.
 
 export type ReportResetMode = 'initial' | 'previous';
 
+/** Разделы-массивы, которые могут прийти по частям (по одной паре на запрос). */
+const SPLIT_BY_PAIR_SECTIONS = new Set<string>(['groupComparison', 'externalComparison']);
+
 export interface ReportDto {
   id: string;
   subjectId: string;
@@ -135,9 +138,10 @@ export class ReportService {
       for (const k of part.keys) {
         if (!(k in answer)) continue;
         const value = answer[k];
-        // при 6–7 частях groupComparison приходит кусками (по парам) — куски дописываем,
-        // а не перезаписываем; порядок пар в отчёте расставит normalizeSections
-        if (k === 'groupComparison' && Array.isArray(value) && Array.isArray(raw[k])) {
+        // при дроблении по парам groupComparison (6–7 частей) и externalComparison
+        // (8 частей) приходят кусками — куски дописываем, а не перезаписываем;
+        // порядок пар в отчёте расставит normalizeSections
+        if (SPLIT_BY_PAIR_SECTIONS.has(k) && Array.isArray(value) && Array.isArray(raw[k])) {
           raw[k] = [...(raw[k] as unknown[]), ...value];
         } else {
           raw[k] = value;

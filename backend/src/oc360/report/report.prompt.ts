@@ -1,5 +1,5 @@
 import { ReportAnalytics } from '../results/analytics';
-import { GROUP_PAIR_TITLES, GroupPairKey } from './report.types';
+import { EXTERNAL_PAIR_TITLES, ExternalPairKey, GROUP_PAIR_TITLES, GroupPairKey } from './report.types';
 
 /** Лимит суммарного текста методических документов в промпте (символы). */
 export const MAX_CONTEXT_CHARS = 150_000;
@@ -84,12 +84,15 @@ export type ReportSectionKey =
   | 'emptyReasons' | 'groupComparison' | 'externalComparison' | 'recommendations';
 
 /**
- * Часть генерации: какие разделы просим в этом запросе и (только для groupComparison)
- * какие пары. `pairs` не задан — все три пары, как в цельной схеме.
+ * Часть генерации: какие разделы просим в этом запросе и — для разделов, которые
+ * дробятся по парам, — какие именно пары. Не задано = все пары, как в цельной схеме.
  */
 export interface ReportPart {
   keys: ReportSectionKey[];
+  /** Пары сравнения с группами (groupComparison). */
   pairs?: GroupPairKey[];
+  /** Разборы внешних пар (externalComparison). */
+  externalPairs?: ExternalPairKey[];
 }
 
 export const ALL_SECTION_KEYS: ReportSectionKey[] = [
@@ -99,6 +102,9 @@ export const ALL_SECTION_KEYS: ReportSectionKey[] = [
 
 /** Порядок пар сравнения с группами в схеме ответа. */
 export const ALL_GROUP_PAIRS: GroupPairKey[] = ['SELF_MANAGER', 'SELF_SUBORDINATE', 'SELF_PEER'];
+
+/** Порядок разборов внешних пар в схеме ответа. */
+export const ALL_EXTERNAL_PAIRS: ExternalPairKey[] = ['MANAGER_SUBORDINATE', 'MANAGER_PEER'];
 
 /**
  * Фрагмент схемы groupComparison по списку пар. При дроблении части несут по одной-две
@@ -115,6 +121,17 @@ function groupComparisonFragment(pairs: GroupPairKey[]): string {
   return `  "groupComparison": [\n${rows.join(',\n')}\n  ]`;
 }
 
+/** Фрагмент схемы externalComparison по списку пар — то же, что для groupComparison. */
+function externalComparisonFragment(pairs: ExternalPairKey[]): string {
+  const rows = pairs.map((p, i) =>
+    i === 0
+      ? `    { "pair": "${p}", "title": "${EXTERNAL_PAIR_TITLES[p]}",\n` +
+        `      "items": [ { "competency": "название", "managerScore": 3.7, "groupScore": 3.1, "delta": 0.6, "text": "трактовка расхождения и разброса оценок группы", "actions": [ "пункт действия 1", "пункт действия 2" ] } ] }`
+      : `    { "pair": "${p}", "title": "${EXTERNAL_PAIR_TITLES[p]}", "items": [ ... ] }`,
+  );
+  return `  "externalComparison": [\n${rows.join(',\n')}\n  ]`;
+}
+
 /** Фрагменты схемы ответа по разделам (собираются в блок «Верни СТРОГО JSON…»). */
 const SCHEMA_FRAGMENTS: Record<ReportSectionKey, string> = {
   strengths: `  "strengths": [ { "competency": "название", "text": "абзац интерпретации с цифрами и опорой на комментарии" } ]`,
@@ -122,20 +139,22 @@ const SCHEMA_FRAGMENTS: Record<ReportSectionKey, string> = {
   blindSpots: `  "blindSpots": [ { "competency": "название", "selfScore": 3.8, "othersScore": 3.0, "delta": 0.8, "text": "подтверждение из комментариев", "conclusion": "вывод одним абзацем" } ]`,
   hiddenPotential: `  "hiddenPotential": [ { "competency": "название", "selfScore": 2.3, "othersScore": 3.1, "delta": -0.8, "text": "подтверждение из комментариев", "conclusion": "вывод" } ]`,
   groupComparison: groupComparisonFragment(ALL_GROUP_PAIRS),
-  externalComparison: `  "externalComparison": [
-    { "pair": "MANAGER_SUBORDINATE", "title": "Сравнение оценок руководителя и подчинённых",
-      "items": [ { "competency": "название", "managerScore": 3.7, "groupScore": 3.1, "delta": 0.6, "text": "трактовка расхождения и разброса оценок группы", "actions": [ "пункт действия 1", "пункт действия 2" ] } ] },
-    { "pair": "MANAGER_PEER", "title": "Сравнение оценок руководителя и коллег", "items": [ ... ] }
-  ]`,
+  externalComparison: externalComparisonFragment(ALL_EXTERNAL_PAIRS),
   recommendations: `  "recommendations": [
     { "title": "Тема развития", "subtopics": [ { "title": "подтема", "text": "1–2 предложения, что и как развивать" } ] }
   ]`,
   emptyReasons: `  "emptyReasons": { "strengths": "абзац-объяснение (ТОЛЬКО если раздел пуст)", "developmentAreas": "...", "blindSpots": "...", "hiddenPotential": "..." }`,
 };
 
-function schemaBlock(keys: ReportSectionKey[], pairs: GroupPairKey[] = ALL_GROUP_PAIRS): string {
+function schemaBlock(
+  keys: ReportSectionKey[],
+  pairs: GroupPairKey[] = ALL_GROUP_PAIRS,
+  externalPairs: ExternalPairKey[] = ALL_EXTERNAL_PAIRS,
+): string {
   const fragment = (k: ReportSectionKey) =>
-    k === 'groupComparison' ? groupComparisonFragment(pairs) : SCHEMA_FRAGMENTS[k];
+    k === 'groupComparison' ? groupComparisonFragment(pairs)
+    : k === 'externalComparison' ? externalComparisonFragment(externalPairs)
+    : SCHEMA_FRAGMENTS[k];
   return `Верни СТРОГО JSON без пояснений и без markdown, по схеме:\n{\n${keys.map(fragment).join(',\n')}\n}`;
 }
 
@@ -161,8 +180,19 @@ export function partsForCount(n: number): ReportPart[] {
   const narrativeA: ReportSectionKey[] = ['strengths', 'developmentAreas', 'emptyReasons'];
   const narrativeB: ReportSectionKey[] = ['blindSpots', 'hiddenPotential'];
   const groups = (pairs: GroupPairKey[]): ReportPart => ({ keys: ['groupComparison'], pairs });
+  const external = (externalPairs: ExternalPairKey[]): ReportPart => ({ keys: ['externalComparison'], externalPairs });
 
-  if (n >= 7) return [
+  if (n >= 8) return [
+    { keys: narrativeA },
+    { keys: narrativeB },
+    groups(['SELF_MANAGER']),
+    groups(['SELF_SUBORDINATE']),
+    groups(['SELF_PEER']),
+    external(['MANAGER_SUBORDINATE']),
+    external(['MANAGER_PEER']),
+    { keys: ['recommendations'] },
+  ];
+  if (n === 7) return [
     { keys: narrativeA },
     { keys: narrativeB },
     groups(['SELF_MANAGER']),
@@ -232,24 +262,29 @@ export function buildSystemPrompt(
   docs: KnowledgeDocInput[] = [],
   part: ReportPart = { keys: ALL_SECTION_KEYS },
 ): string {
-  const { keys, pairs } = part;
+  const { keys, pairs, externalPairs } = part;
   const blocks = [fillMethodology(methodology, a)];
   const docsBlock = buildDocsBlock(docs);
   if (docsBlock) blocks.push(docsBlock);
   if (keys.length >= ALL_SECTION_KEYS.length) {
     blocks.push(TECHNICAL_PROMPT);
   } else {
-    // при дроблении groupComparison по парам называем нужные явно: схема их и так
-    // ограничивает, но правило «включи ВСЕ компетенции каждой пары» без этого
-    // читается как требование вернуть все три пары
+    // при дроблении разделов по парам называем нужные явно: схема их и так ограничивает,
+    // но правила «включи ВСЕ компетенции каждой пары» и «составы заданы в selection»
+    // без этого читаются как требование вернуть все пары раздела
+    const note = (
+      names: string[],
+    ) => `\nВ этой части нужны ТОЛЬКО пары: ${names.join(', ')}. Другие пары НЕ включай.\n`;
     const pairsNote =
       keys.includes('groupComparison') && pairs && pairs.length < ALL_GROUP_PAIRS.length
-        ? `\nВ этой части нужны ТОЛЬКО пары: ${pairs.map(p => `${p} (${GROUP_PAIR_TITLES[p]})`).join(', ')}. Другие пары НЕ включай.\n`
+        ? note(pairs.map(p => `${p} (${GROUP_PAIR_TITLES[p]})`))
+        : keys.includes('externalComparison') && externalPairs && externalPairs.length < ALL_EXTERNAL_PAIRS.length
+        ? note(externalPairs.map(p => `${p} (${EXTERNAL_PAIR_TITLES[p]})`))
         : '';
     blocks.push(
       `${TECHNICAL_RULES}\n\n` +
       `Сейчас генерируется ЧАСТЬ отчёта — верни ТОЛЬКО разделы из схемы ниже, другие разделы НЕ включай.\n${pairsNote}\n` +
-      schemaBlock(keys, pairs ?? ALL_GROUP_PAIRS),
+      schemaBlock(keys, pairs ?? ALL_GROUP_PAIRS, externalPairs ?? ALL_EXTERNAL_PAIRS),
     );
   }
   return blocks.join('\n\n');
