@@ -7,6 +7,9 @@ import {
   getLlmPresets, createLlmPreset, updateLlmPreset, activateLlmPreset, deleteLlmPreset, testLlmConnection,
 } from '@/lib/api';
 
+/** Потолок числа частей генерации — совпадает с MAX_SPLIT_PARTS на бэкенде. */
+const MAX_SPLIT_PARTS = 5;
+
 const SOURCE_LABEL: Record<LlmPresetList['source'], string> = {
   db: 'Генерация использует активную настройку',
   env: 'Генерация использует переменные окружения (активной настройки нет)',
@@ -126,7 +129,7 @@ function PresetModal({ preset, onClose, onSaved }: {
   // генерация по частям: каждой части — свой лимит вывода (обход потолка провайдера)
   const [splitParts, setSplitParts] = useState(String(preset?.splitParts ?? 1));
   // таймауты попыток по частям (сек), по полю на запрос; '' = дефолт 300
-  const [partTimeouts, setPartTimeouts] = useState<string[]>([0, 1, 2].map(i => {
+  const [partTimeouts, setPartTimeouts] = useState<string[]>(Array.from({ length: MAX_SPLIT_PARTS }, (_, i) => {
     const v = preset?.partTimeouts?.[i];
     return v != null ? String(v) : '';
   }));
@@ -224,9 +227,12 @@ function PresetModal({ preset, onClose, onSaved }: {
             <option value="1">Одним запросом</option>
             <option value="2">2 запроса</option>
             <option value="3">3 запроса</option>
+            <option value="4">4 запроса</option>
+            <option value="5">5 запросов</option>
           </select>
           <div className="small muted">
             По частям — когда отчёт не помещается в лимит вывода провайдера: каждая часть получает свой лимит.
+            Чем ниже потолок вывода у провайдера, тем больше частей нужно (при потолке 4096 — пять).
           </div>
         </div>
         {Array.from({ length: Number(splitParts) || 1 }, (_, i) => (

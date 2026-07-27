@@ -40,10 +40,17 @@ export function clampMaxTokens(v: number | null | undefined): number | null {
   return Math.min(MAX_MAX_TOKENS, Math.max(MIN_MAX_TOKENS, Math.round(v)));
 }
 
-/** Число частей генерации: только 1..3; null/NaN → null (дефолт 1). */
+/**
+ * Потолок числа частей генерации. Пять — минимум, при котором отчёт собирается на
+ * шлюзе с лимитом вывода 4096 (GonkaRouter): четвёртая часть разгружает либо блок
+ * сильных/слепых сторон, либо блок пар и рекомендаций, но не оба сразу.
+ */
+export const MAX_SPLIT_PARTS = 5;
+
+/** Число частей генерации: только 1..MAX_SPLIT_PARTS; null/NaN → null (дефолт 1). */
 export function clampSplitParts(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v)) return null;
-  return Math.min(3, Math.max(1, Math.round(v)));
+  return Math.min(MAX_SPLIT_PARTS, Math.max(1, Math.round(v)));
 }
 
 export const MIN_TIMEOUT_S = 30;
@@ -63,11 +70,11 @@ export function isValidPartTimeouts(v: unknown): boolean {
 /**
  * Таймауты попыток по частям при ЧТЕНИИ конфига: не-массив → []; элемент-число —
  * округлить и клампнуть 30–600 с (страховка от старых/кривых данных в БД),
- * прочее → null (дефолт); максимум 3 элемента.
+ * прочее → null (дефолт); максимум MAX_SPLIT_PARTS элементов.
  */
 export function clampPartTimeouts(v: unknown): (number | null)[] {
   if (!Array.isArray(v)) return [];
-  return v.slice(0, 3).map(x =>
+  return v.slice(0, MAX_SPLIT_PARTS).map(x =>
     typeof x === 'number' && Number.isFinite(x)
       ? Math.min(MAX_TIMEOUT_S, Math.max(MIN_TIMEOUT_S, Math.round(x)))
       : null,

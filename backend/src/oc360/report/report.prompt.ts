@@ -122,11 +122,24 @@ export const TECHNICAL_PROMPT = `${TECHNICAL_RULES}\n\n${schemaBlock(ALL_SECTION
 
 /**
  * Разбивка генерации на части (splitParts пресета): каждой части — свой запрос
- * со своим лимитом вывода. Части независимы, запускаются параллельно.
+ * со своим лимитом вывода; части выполняются последовательно (см. report.service.ts).
+ *
+ * Чем больше частей, тем меньше вывода в каждом запросе — это способ уложиться в
+ * потолок вывода провайдера. Составы для 1/2/3 менять нельзя: по ним настроены
+ * существующие пресеты. Дробление 4 и 5 разгружает те два блока, которые упирались
+ * в потолок 4096 у GonkaRouter: сильные/развитие/слепые/скрытые и пары+рекомендации.
  */
 export function partsForCount(n: number): ReportSectionKey[][] {
   const sections: ReportSectionKey[] = ['strengths', 'developmentAreas', 'blindSpots', 'hiddenPotential', 'emptyReasons'];
-  if (n >= 3) return [sections, ['groupComparison'], ['externalComparison', 'recommendations']];
+  if (n >= 5) return [
+    ['strengths', 'developmentAreas', 'emptyReasons'],
+    ['blindSpots', 'hiddenPotential'],
+    ['groupComparison'],
+    ['externalComparison'],
+    ['recommendations'],
+  ];
+  if (n === 4) return [sections, ['groupComparison'], ['externalComparison'], ['recommendations']];
+  if (n === 3) return [sections, ['groupComparison'], ['externalComparison', 'recommendations']];
   if (n === 2) return [sections, ['groupComparison', 'externalComparison', 'recommendations']];
   return [ALL_SECTION_KEYS];
 }
