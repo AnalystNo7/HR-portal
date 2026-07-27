@@ -124,15 +124,25 @@ export class ReportService {
     const parts = partsForCount(cfg?.splitParts ?? 1);
     if (parts.length > 1) this.logger.log(`LLM: генерация отчёта из ${parts.length} частей (последовательно)`);
     const raw: Record<string, unknown> = {};
-    for (const [i, keys] of parts.entries()) {
-      const rawPart = await this.llm.completeJson(
-        buildSystemPrompt(analytics, ctx.methodology, ctx.docs, keys),
+    for (const [i, part] of parts.entries()) {
+      const rawAnswer = await this.llm.completeJson(
+        buildSystemPrompt(analytics, ctx.methodology, ctx.docs, part),
         userPrompt,
         { timeoutSec: cfg?.partTimeouts[i] ?? null }, // таймаут попытки из пресета (своё поле у каждой части)
       );
       // из ответа каждой части берём ТОЛЬКО её разделы (модель могла вернуть лишние)
-      const part = (rawPart ?? {}) as Record<string, unknown>;
-      for (const k of keys) if (k in part) raw[k] = part[k];
+      const answer = (rawAnswer ?? {}) as Record<string, unknown>;
+      for (const k of part.keys) {
+        if (!(k in answer)) continue;
+        const value = answer[k];
+        // при 6–7 частях groupComparison приходит кусками (по парам) — куски дописываем,
+        // а не перезаписываем; порядок пар в отчёте расставит normalizeSections
+        if (k === 'groupComparison' && Array.isArray(value) && Array.isArray(raw[k])) {
+          raw[k] = [...(raw[k] as unknown[]), ...value];
+        } else {
+          raw[k] = value;
+        }
+      }
     }
     const sections = normalizeSections(raw);
     if (isEmptySections(sections)) {

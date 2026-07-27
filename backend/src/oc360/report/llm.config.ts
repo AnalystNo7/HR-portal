@@ -41,11 +41,11 @@ export function clampMaxTokens(v: number | null | undefined): number | null {
 }
 
 /**
- * Потолок числа частей генерации. Пять — минимум, при котором отчёт собирается на
- * шлюзе с лимитом вывода 4096 (GonkaRouter): четвёртая часть разгружает либо блок
- * сильных/слепых сторон, либо блок пар и рекомендаций, но не оба сразу.
+ * Потолок числа частей генерации. Семь — раскладка, при которой на шлюзе с лимитом
+ * вывода 4096 (GonkaRouter) дробится и самый объёмный раздел: сравнение по группам
+ * идёт по одной паре на запрос. На пяти частях он оставался целым и не влезал.
  */
-export const MAX_SPLIT_PARTS = 5;
+export const MAX_SPLIT_PARTS = 7;
 
 /** Число частей генерации: только 1..MAX_SPLIT_PARTS; null/NaN → null (дефолт 1). */
 export function clampSplitParts(v: number | null | undefined): number | null {

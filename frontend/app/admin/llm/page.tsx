@@ -8,7 +8,25 @@ import {
 } from '@/lib/api';
 
 /** Потолок числа частей генерации — совпадает с MAX_SPLIT_PARTS на бэкенде. */
-const MAX_SPLIT_PARTS = 5;
+const MAX_SPLIT_PARTS = 7;
+
+/**
+ * Ориентир «число частей → потолок вывода провайдера», по замерам самой объёмной части
+ * каждой раскладки плюс запас на многословные модели. Не гарантия: у модели, пишущей
+ * длиннее замеренной, часть может не влезть и в эти цифры.
+ */
+const CEILING_BY_PARTS: Record<number, number> = {
+  1: 16000, // весь отчёт одним ответом
+  2: 9000,
+  3: 6000,
+  4: 5000,
+  5: 5000, // самая объёмная часть — сравнение по группам целиком
+  6: 4000, // сравнение по группам дробится на две части
+  7: 3000, // …и на три, по паре на запрос
+};
+
+const partsLabel = (n: number) =>
+  `${n === 1 ? 'Одним запросом' : `${n} запрос${n < 5 ? 'а' : 'ов'}`} — потолок от ${CEILING_BY_PARTS[n].toLocaleString('ru-RU')}`;
 
 const SOURCE_LABEL: Record<LlmPresetList['source'], string> = {
   db: 'Генерация использует активную настройку',
@@ -224,15 +242,14 @@ function PresetModal({ preset, onClose, onSaved }: {
         <div className="field">
           <label className="small">Генерация отчёта</label>
           <select className="inp" value={splitParts} onChange={e => setSplitParts(e.target.value)}>
-            <option value="1">Одним запросом</option>
-            <option value="2">2 запроса</option>
-            <option value="3">3 запроса</option>
-            <option value="4">4 запроса</option>
-            <option value="5">5 запросов</option>
+            {Array.from({ length: MAX_SPLIT_PARTS }, (_, i) => i + 1).map(n => (
+              <option key={n} value={n}>{partsLabel(n)}</option>
+            ))}
           </select>
           <div className="small muted">
             По частям — когда отчёт не помещается в лимит вывода провайдера: каждая часть получает свой лимит.
-            Чем ниже потолок вывода у провайдера, тем больше частей нужно (при потолке 4096 — пять).
+            Нужен потолок вывода примерно от {(CEILING_BY_PARTS[Number(splitParts) || 1]).toLocaleString('ru-RU')} токенов:
+            если ответ провайдера обрывается — увеличьте число запросов.
           </div>
         </div>
         {Array.from({ length: Number(splitParts) || 1 }, (_, i) => (

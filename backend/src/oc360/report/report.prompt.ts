@@ -1,4 +1,5 @@
 import { ReportAnalytics } from '../results/analytics';
+import { GROUP_PAIR_TITLES, GroupPairKey } from './report.types';
 
 /** Лимит суммарного текста методических документов в промпте (символы). */
 export const MAX_CONTEXT_CHARS = 150_000;
@@ -82,10 +83,37 @@ export type ReportSectionKey =
   | 'strengths' | 'developmentAreas' | 'blindSpots' | 'hiddenPotential'
   | 'emptyReasons' | 'groupComparison' | 'externalComparison' | 'recommendations';
 
+/**
+ * Часть генерации: какие разделы просим в этом запросе и (только для groupComparison)
+ * какие пары. `pairs` не задан — все три пары, как в цельной схеме.
+ */
+export interface ReportPart {
+  keys: ReportSectionKey[];
+  pairs?: GroupPairKey[];
+}
+
 export const ALL_SECTION_KEYS: ReportSectionKey[] = [
   'strengths', 'developmentAreas', 'blindSpots', 'hiddenPotential',
   'groupComparison', 'externalComparison', 'recommendations', 'emptyReasons',
 ];
+
+/** Порядок пар сравнения с группами в схеме ответа. */
+export const ALL_GROUP_PAIRS: GroupPairKey[] = ['SELF_MANAGER', 'SELF_SUBORDINATE', 'SELF_PEER'];
+
+/**
+ * Фрагмент схемы groupComparison по списку пар. При дроблении части несут по одной-две
+ * пары (обход низкого потолка вывода), поэтому схема собирается, а не задана строкой.
+ * Порядок пар в готовом отчёте определяет normalizeSections, а не этот список.
+ */
+function groupComparisonFragment(pairs: GroupPairKey[]): string {
+  const rows = pairs.map((p, i) =>
+    i === 0
+      ? `    { "pair": "${p}", "title": "${GROUP_PAIR_TITLES[p]}",\n` +
+        `      "items": [ { "kind": "CONSENSUS|ATTENTION|BLIND_SPOT|HIDDEN_POTENTIAL", "competency": "название", "delta": 0.4, "text": "интерпретация" } ] }`
+      : `    { "pair": "${p}", "title": "${GROUP_PAIR_TITLES[p]}", "items": [ ... ] }`,
+  );
+  return `  "groupComparison": [\n${rows.join(',\n')}\n  ]`;
+}
 
 /** Фрагменты схемы ответа по разделам (собираются в блок «Верни СТРОГО JSON…»). */
 const SCHEMA_FRAGMENTS: Record<ReportSectionKey, string> = {
@@ -93,12 +121,7 @@ const SCHEMA_FRAGMENTS: Record<ReportSectionKey, string> = {
   developmentAreas: `  "developmentAreas": [ { "competency": "название", "text": "абзац интерпретации" } ]`,
   blindSpots: `  "blindSpots": [ { "competency": "название", "selfScore": 3.8, "othersScore": 3.0, "delta": 0.8, "text": "подтверждение из комментариев", "conclusion": "вывод одним абзацем" } ]`,
   hiddenPotential: `  "hiddenPotential": [ { "competency": "название", "selfScore": 2.3, "othersScore": 3.1, "delta": -0.8, "text": "подтверждение из комментариев", "conclusion": "вывод" } ]`,
-  groupComparison: `  "groupComparison": [
-    { "pair": "SELF_MANAGER", "title": "Самооценка и оценка руководителя",
-      "items": [ { "kind": "CONSENSUS|ATTENTION|BLIND_SPOT|HIDDEN_POTENTIAL", "competency": "название", "delta": 0.4, "text": "интерпретация" } ] },
-    { "pair": "SELF_SUBORDINATE", "title": "Самооценка и оценка подчинённых", "items": [ ... ] },
-    { "pair": "SELF_PEER", "title": "Самооценка и оценка коллег", "items": [ ... ] }
-  ]`,
+  groupComparison: groupComparisonFragment(ALL_GROUP_PAIRS),
   externalComparison: `  "externalComparison": [
     { "pair": "MANAGER_SUBORDINATE", "title": "Сравнение оценок руководителя и подчинённых",
       "items": [ { "competency": "название", "managerScore": 3.7, "groupScore": 3.1, "delta": 0.6, "text": "трактовка расхождения и разброса оценок группы", "actions": [ "пункт действия 1", "пункт действия 2" ] } ] },
@@ -110,8 +133,10 @@ const SCHEMA_FRAGMENTS: Record<ReportSectionKey, string> = {
   emptyReasons: `  "emptyReasons": { "strengths": "абзац-объяснение (ТОЛЬКО если раздел пуст)", "developmentAreas": "...", "blindSpots": "...", "hiddenPotential": "..." }`,
 };
 
-function schemaBlock(keys: ReportSectionKey[]): string {
-  return `Верни СТРОГО JSON без пояснений и без markdown, по схеме:\n{\n${keys.map(k => SCHEMA_FRAGMENTS[k]).join(',\n')}\n}`;
+function schemaBlock(keys: ReportSectionKey[], pairs: GroupPairKey[] = ALL_GROUP_PAIRS): string {
+  const fragment = (k: ReportSectionKey) =>
+    k === 'groupComparison' ? groupComparisonFragment(pairs) : SCHEMA_FRAGMENTS[k];
+  return `Верни СТРОГО JSON без пояснений и без markdown, по схеме:\n{\n${keys.map(fragment).join(',\n')}\n}`;
 }
 
 /**
@@ -128,20 +153,43 @@ export const TECHNICAL_PROMPT = `${TECHNICAL_RULES}\n\n${schemaBlock(ALL_SECTION
  * потолок вывода провайдера. Составы для 1/2/3 менять нельзя: по ним настроены
  * существующие пресеты. Дробление 4 и 5 разгружает те два блока, которые упирались
  * в потолок 4096 у GonkaRouter: сильные/развитие/слепые/скрытые и пары+рекомендации.
+ * При 6 и 7 дробится сам groupComparison — самый объёмный раздел (все компетенции
+ * по каждой паре), который при 5 частях всё ещё не влезал в 4096 у многословных моделей.
  */
-export function partsForCount(n: number): ReportSectionKey[][] {
+export function partsForCount(n: number): ReportPart[] {
   const sections: ReportSectionKey[] = ['strengths', 'developmentAreas', 'blindSpots', 'hiddenPotential', 'emptyReasons'];
-  if (n >= 5) return [
-    ['strengths', 'developmentAreas', 'emptyReasons'],
-    ['blindSpots', 'hiddenPotential'],
-    ['groupComparison'],
-    ['externalComparison'],
-    ['recommendations'],
+  const narrativeA: ReportSectionKey[] = ['strengths', 'developmentAreas', 'emptyReasons'];
+  const narrativeB: ReportSectionKey[] = ['blindSpots', 'hiddenPotential'];
+  const groups = (pairs: GroupPairKey[]): ReportPart => ({ keys: ['groupComparison'], pairs });
+
+  if (n >= 7) return [
+    { keys: narrativeA },
+    { keys: narrativeB },
+    groups(['SELF_MANAGER']),
+    groups(['SELF_SUBORDINATE']),
+    groups(['SELF_PEER']),
+    { keys: ['externalComparison'] },
+    { keys: ['recommendations'] },
   ];
-  if (n === 4) return [sections, ['groupComparison'], ['externalComparison'], ['recommendations']];
-  if (n === 3) return [sections, ['groupComparison'], ['externalComparison', 'recommendations']];
-  if (n === 2) return [sections, ['groupComparison', 'externalComparison', 'recommendations']];
-  return [ALL_SECTION_KEYS];
+  if (n === 6) return [
+    { keys: narrativeA },
+    { keys: narrativeB },
+    groups(['SELF_MANAGER']),
+    groups(['SELF_SUBORDINATE', 'SELF_PEER']),
+    { keys: ['externalComparison'] },
+    { keys: ['recommendations'] },
+  ];
+  if (n === 5) return [
+    { keys: narrativeA },
+    { keys: narrativeB },
+    { keys: ['groupComparison'] },
+    { keys: ['externalComparison'] },
+    { keys: ['recommendations'] },
+  ];
+  if (n === 4) return [{ keys: sections }, { keys: ['groupComparison'] }, { keys: ['externalComparison'] }, { keys: ['recommendations'] }];
+  if (n === 3) return [{ keys: sections }, { keys: ['groupComparison'] }, { keys: ['externalComparison', 'recommendations'] }];
+  if (n === 2) return [{ keys: sections }, { keys: ['groupComparison', 'externalComparison', 'recommendations'] }];
+  return [{ keys: ALL_SECTION_KEYS }];
 }
 
 export interface KnowledgeDocInput {
@@ -182,18 +230,26 @@ export function buildSystemPrompt(
   a: ReportAnalytics,
   methodology: string = DEFAULT_METHODOLOGY,
   docs: KnowledgeDocInput[] = [],
-  keys: ReportSectionKey[] = ALL_SECTION_KEYS,
+  part: ReportPart = { keys: ALL_SECTION_KEYS },
 ): string {
+  const { keys, pairs } = part;
   const blocks = [fillMethodology(methodology, a)];
   const docsBlock = buildDocsBlock(docs);
   if (docsBlock) blocks.push(docsBlock);
   if (keys.length >= ALL_SECTION_KEYS.length) {
     blocks.push(TECHNICAL_PROMPT);
   } else {
+    // при дроблении groupComparison по парам называем нужные явно: схема их и так
+    // ограничивает, но правило «включи ВСЕ компетенции каждой пары» без этого
+    // читается как требование вернуть все три пары
+    const pairsNote =
+      keys.includes('groupComparison') && pairs && pairs.length < ALL_GROUP_PAIRS.length
+        ? `\nВ этой части нужны ТОЛЬКО пары: ${pairs.map(p => `${p} (${GROUP_PAIR_TITLES[p]})`).join(', ')}. Другие пары НЕ включай.\n`
+        : '';
     blocks.push(
       `${TECHNICAL_RULES}\n\n` +
-      `Сейчас генерируется ЧАСТЬ отчёта — верни ТОЛЬКО разделы из схемы ниже, другие разделы НЕ включай.\n\n` +
-      schemaBlock(keys),
+      `Сейчас генерируется ЧАСТЬ отчёта — верни ТОЛЬКО разделы из схемы ниже, другие разделы НЕ включай.\n${pairsNote}\n` +
+      schemaBlock(keys, pairs ?? ALL_GROUP_PAIRS),
     );
   }
   return blocks.join('\n\n');
