@@ -169,7 +169,15 @@ export class LlmService {
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (e: any) {
-      const reason = e?.name === 'TimeoutError' ? 'таймаут запроса' : e?.message || 'сетевая ошибка';
+      // fetch кладёт в message только «fetch failed», а настоящую причину (ENOTFOUND —
+      // не резолвится домен, ETIMEDOUT/UND_ERR_CONNECT_TIMEOUT — не доходит соединение,
+      // ECONNREFUSED — порт закрыт) прячет в e.cause. Без кода по логу не отличить
+      // «провайдер лежит» от «сеть до провайдера закрыта» (см. LESSONS 2026-07-28).
+      // Текст таймаута НЕ трогаем: по нему ветка автоповтора в completeJson узнаёт таймаут.
+      const code = e?.cause?.code ?? e?.code ?? null;
+      const reason = e?.name === 'TimeoutError'
+        ? 'таймаут запроса'
+        : `${e?.message || 'сетевая ошибка'}${code ? ` (${code})` : ''}`;
       this.logger.error(`LLM недоступен: ${reason}`);
       throw new BadGatewayException(`Сервис генерации недоступен: ${reason}`);
     }
