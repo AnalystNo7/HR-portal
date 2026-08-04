@@ -7,13 +7,15 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const SCALE_NAME = 'Стандартная 1–5';
+// Утверждённая шкала компании; 0 — служебный пункт «нет наблюдения»,
+// в расчёты не входит (NO_OBSERVATION_SCORE в oc360/results/analytics.ts)
+const SCALE_NAME = 'Утверждённая 0–4';
 const scalePoints = [
-  { value: 1, label: 'Не проявляется' },
-  { value: 2, label: 'Проявляется редко' },
-  { value: 3, label: 'Проявляется чаще всего' },
-  { value: 4, label: 'Проявляется стабильно' },
-  { value: 5, label: 'Эталон' },
+  { value: 0, label: 'Не могу оценить / не наблюдал ситуаций для проявления поведения' },
+  { value: 1, label: 'Почти никогда не демонстрирует описанное поведение' },
+  { value: 2, label: 'В некоторых рабочих ситуациях' },
+  { value: 3, label: 'В большинстве рабочих ситуаций' },
+  { value: 4, label: 'Во всех, даже в сверхсложных ситуациях' },
 ];
 
 const competencies = [
@@ -67,7 +69,11 @@ const competencies = [
 ];
 
 export async function seedOc360(db: PrismaClient = prisma) {
-  // Шкала
+  // Шкала (default ровно один — как в template.service)
+  await db.scaleTemplate.updateMany({
+    where: { name: { not: SCALE_NAME } },
+    data: { isDefault: false },
+  });
   const scale = await db.scaleTemplate.upsert({
     where: { name: SCALE_NAME },
     update: { isDefault: true },

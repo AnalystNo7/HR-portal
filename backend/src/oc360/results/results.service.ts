@@ -9,6 +9,7 @@ import {
   zoneOfDelta,
   AnalyticsInput,
   DEFAULT_TARGET_LEVEL,
+  NO_OBSERVATION_SCORE,
 } from './analytics';
 
 @Injectable()
@@ -97,6 +98,8 @@ export class ResultsService {
       let laneMap = perLane.get(r.role);
       if (!laneMap) { laneMap = new Map(); perLane.set(r.role, laneMap); }
       for (const resp of r.responses) {
+        // 0 — «не могу оценить/не наблюдал»: не оценка, в расчёты не входит
+        if (resp.score === NO_OBSERVATION_SCORE) continue;
         const compId = indicatorToComp.get(resp.indicatorId);
         if (!compId) continue;
         if (!laneMap.has(compId)) laneMap.set(compId, []);
@@ -173,6 +176,8 @@ export class ResultsService {
       for (const r of completed) {
         const perComp = new Map<string, number[]>();
         for (const resp of r.responses) {
+          // 0 — «не наблюдал»: не входит ни в средние респондента, ни в выбросы
+          if (resp.score === NO_OBSERVATION_SCORE) continue;
           const compId = indicatorToComp.get(resp.indicatorId);
           if (!compId) continue;
           if (!perComp.has(compId)) perComp.set(compId, []);
@@ -192,7 +197,11 @@ export class ResultsService {
         }
       }
       const roles = ['SELF', 'MANAGER', 'PEER', 'SUBORDINATE'] as EvaluatorRole[];
-      const scaleValues = subject.cycle.scalePoints.map(p => p.value);
+      // мин шкалы — младшая содержательная оценка: пункт 0 служебный,
+      // иначе порог «низких баллов» (scaleMin+1) и шкала в промпте съедут
+      const scaleValues = subject.cycle.scalePoints
+        .map(p => p.value)
+        .filter(v => v !== NO_OBSERVATION_SCORE);
       const input: AnalyticsInput = {
         targetLevel,
         scaleMin: scaleValues.length ? Math.min(...scaleValues) : 1,

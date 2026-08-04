@@ -162,7 +162,8 @@ function DashboardView({ res }: { res: Results360 }) {
   const [expanded, setExpanded] = useState<number | null>(null);
   const toggle = (k: SeriesKey) => setActive(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
-  const vals = res.scalePoints.map(p => p.value);
+  // пункт 0 «не наблюдал» служебный — ось начинается с младшей содержательной оценки
+  const vals = res.scalePoints.map(p => p.value).filter(v => v !== 0);
   const min = vals.length ? Math.min(...vals) : 0;
   const max = vals.length ? Math.max(...vals) : 4;
   const hasData = (k: SeriesKey) => res.competencyResults.some(c => c[k] != null);

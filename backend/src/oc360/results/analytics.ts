@@ -37,6 +37,18 @@ export const DELTA_CATEGORY_LABEL: Record<DeltaCategory, string> = {
   EXTREME: 'критический разрыв (>1.2)',
 };
 
+/**
+ * Служебный балл шкалы «не могу оценить / не наблюдал» — отказ от оценки,
+ * а не оценка: исключается из всех расчётов (средние, ГЭП, разброс, выбросы,
+ * данные для LLM). Респондент, поставивший 0, как будто не оценивал индикатор.
+ */
+export const NO_OBSERVATION_SCORE = 0;
+
+/** Содержательные баллы: без служебного 0 («не наблюдал»). */
+export function meaningfulScores(nums: number[]): number[] {
+  return nums.filter(n => n !== NO_OBSERVATION_SCORE);
+}
+
 export function avg(nums: number[]): number | null {
   if (!nums.length) return null;
   return round2(nums.reduce((a, b) => a + b, 0) / nums.length);

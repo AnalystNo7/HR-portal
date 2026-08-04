@@ -333,7 +333,8 @@ function ChartBlock({ res, title, keys, blockKey, ctx }: {
   res: Results360; title: string; keys: SeriesKey[]; blockKey?: string; ctx?: EditCtx;
 }) {
   if (blockKey && ctx?.isHidden(blockKey)) return ctx.canEdit ? <DeletedBlock k={blockKey} ctx={ctx} /> : null;
-  const vals = res.scalePoints.map(p => p.value);
+  // пункт 0 «не наблюдал» служебный — ось начинается с младшей содержательной оценки
+  const vals = res.scalePoints.map(p => p.value).filter(v => v !== 0);
   const min = vals.length ? Math.min(...vals) : 0;
   const max = vals.length ? Math.max(...vals) : 4;
   const requested = SERIES.filter(s => keys.includes(s.key));
