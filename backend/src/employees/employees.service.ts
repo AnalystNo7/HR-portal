@@ -110,11 +110,20 @@ export class EmployeesService {
     firstName: string;
     middleName?: string;
     email: string;
-    departmentId: string;
-    positionId: string;
+    departmentId?: string;
+    positionId?: string;
     hireDate?: string;
     managerId?: string;
   }) {
+    // минимум проверяется на сервере — UI-валидация обходится прямым запросом
+    const missing: string[] = [];
+    if (!data.personnelNumber?.trim()) missing.push('табельный номер');
+    if (!data.lastName?.trim()) missing.push('фамилия');
+    if (!data.firstName?.trim()) missing.push('имя');
+    if (!data.email?.trim()) missing.push('email');
+    if (missing.length) {
+      throw new BadRequestException(`Не заполнены обязательные поля: ${missing.join(', ')}`);
+    }
     let employee;
     try {
       employee = await this.prisma.employee.create({
@@ -124,8 +133,8 @@ export class EmployeesService {
           firstName: data.firstName,
           middleName: data.middleName ?? null,
           email: data.email,
-          departmentId: data.departmentId,
-          positionId: data.positionId,
+          departmentId: data.departmentId || null,
+          positionId: data.positionId || null,
           hireDate: data.hireDate ? new Date(data.hireDate) : null,
           managerId: data.managerId ?? null,
         },
@@ -183,8 +192,9 @@ export class EmployeesService {
     if (data.firstName !== undefined) updateData.firstName = data.firstName;
     if (data.middleName !== undefined) updateData.middleName = data.middleName;
     if (data.email !== undefined) updateData.email = data.email;
-    if (data.departmentId !== undefined) updateData.departmentId = data.departmentId;
-    if (data.positionId !== undefined) updateData.positionId = data.positionId;
+    // пустая строка из формы = «очистить поле» → NULL (поля опциональные)
+    if (data.departmentId !== undefined) updateData.departmentId = data.departmentId || null;
+    if (data.positionId !== undefined) updateData.positionId = data.positionId || null;
     if (data.hireDate !== undefined) updateData.hireDate = new Date(data.hireDate);
     if (data.managerId !== undefined) updateData.managerId = data.managerId;
 

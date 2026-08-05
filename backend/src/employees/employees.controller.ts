@@ -9,8 +9,9 @@ interface CreateEmployeeDto {
   firstName: string;
   middleName?: string;
   email: string;
-  departmentId: string;
-  positionId: string;
+  // минимум для внесения в БД — табельный, фамилия, имя, email; остальное опционально
+  departmentId?: string;
+  positionId?: string;
   hireDate?: string;
   managerId?: string;
 }

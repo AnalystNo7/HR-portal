@@ -59,7 +59,7 @@ export class CycleService {
     ]);
     const data = rows.map(({ subjects, ...rest }) => ({
       ...rest,
-      departments: [...new Set(subjects.map(s => s.employee.department.name))],
+      departments: [...new Set(subjects.map(s => s.employee.department?.name ?? '—'))],
     }));
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }

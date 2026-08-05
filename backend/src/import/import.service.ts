@@ -13,13 +13,18 @@ export interface ParsedRow {
   department: string;
   hireDate: Date | null;
   managerFio: string | null;
+  /** Жёсткие ошибки (нет минимума: табельный, фамилия, имя, email) — строка не импортируется. */
   errors: string[];
+  /** Незаполненные опциональные поля — строка импортируется после подтверждения. */
+  warnings: string[];
 }
 
 export interface ImportResult {
   total: number;
   created: number;
   updated: number;
+  /** Импортировано строк с незаполненными опциональными полями. */
+  importedWithWarnings: number;
   errors: { row: number; personnelNumber: string; error: string }[];
   managerLinked: number;
   managerNotFound: { row: number; personnelNumber: string; managerFio: string }[];
@@ -93,13 +98,16 @@ export class ImportService {
         }
       }
 
-      // Validate
+      // Минимум для внесения в БД: табельный, фамилия, имя, email (логин Keycloak)
       const errors: string[] = [];
       if (!personnelNumber) errors.push('Нет табельного номера');
-      if (!lastName || !firstName) errors.push('Нет ФИО');
+      if (!lastName) errors.push('Нет фамилии');
+      if (!firstName) errors.push('Нет имени');
       if (!email) errors.push('Нет email');
-      if (!position) errors.push('Нет должности');
-      if (!department) errors.push('Нет подразделения');
+      // Остальное опционально — предупреждение, импортируется после подтверждения
+      const warnings: string[] = [];
+      if (!position) warnings.push('Не заполнена должность');
+      if (!department) warnings.push('Не заполнено подразделение');
 
       // Skip completely empty rows
       if (!personnelNumber && !fio && !email) continue;
@@ -116,6 +124,7 @@ export class ImportService {
         hireDate,
         managerFio,
         errors,
+        warnings,
       });
     }
 
@@ -127,6 +136,7 @@ export class ImportService {
       total: rows.length,
       created: 0,
       updated: 0,
+      importedWithWarnings: 0,
       errors: [],
       managerLinked: 0,
       managerNotFound: [],
@@ -171,20 +181,21 @@ export class ImportService {
           where: { personnelNumber: row.personnelNumber },
         });
 
-        const departmentId = deptMap[row.department];
-        const positionId = posMap[row.position];
+        const departmentId = row.department ? deptMap[row.department] : undefined;
+        const positionId = row.position ? posMap[row.position] : undefined;
 
         await this.prisma.employee.upsert({
           where: { personnelNumber: row.personnelNumber },
           update: {
             lastName: row.lastName,
             firstName: row.firstName,
-            middleName: row.middleName,
             email: row.email,
-            departmentId,
-            positionId,
-            hireDate: row.hireDate,
-            managerFio: row.managerFio,
+            // пустое опциональное поле в файле НЕ затирает значение в базе
+            ...(row.middleName ? { middleName: row.middleName } : {}),
+            ...(departmentId ? { departmentId } : {}),
+            ...(positionId ? { positionId } : {}),
+            ...(row.hireDate ? { hireDate: row.hireDate } : {}),
+            ...(row.managerFio ? { managerFio: row.managerFio } : {}),
           },
           create: {
             personnelNumber: row.personnelNumber,
@@ -192,8 +203,8 @@ export class ImportService {
             firstName: row.firstName,
             middleName: row.middleName,
             email: row.email,
-            departmentId,
-            positionId,
+            departmentId: departmentId ?? null,
+            positionId: positionId ?? null,
             hireDate: row.hireDate,
             managerFio: row.managerFio,
           },
@@ -204,6 +215,7 @@ export class ImportService {
         } else {
           result.created++;
         }
+        if (row.warnings.length > 0) result.importedWithWarnings++;
       } catch (e: any) {
         const msg = e.code === 'P2002'
           ? `Дубль уникального поля (${e.meta?.target?.join(', ') || 'unknown'})`

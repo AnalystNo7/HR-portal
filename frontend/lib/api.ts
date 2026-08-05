@@ -61,10 +61,10 @@ export interface Employee {
   firstName: string;
   middleName: string | null;
   email: string;
-  departmentId: string;
-  positionId: string;
-  department: Department;
-  position: Position;
+  departmentId: string | null;
+  positionId: string | null;
+  department: Department | null;
+  position: Position | null;
   hireDate: string | null;
   managerId: string | null;
   managerFio: string | null;
@@ -285,12 +285,14 @@ export interface ImportPreviewRow {
   hireDate: string | null;
   managerFio: string | null;
   errors: string[];
+  warnings: string[];
 }
 
 export interface ImportResult {
   total: number;
   created: number;
   updated: number;
+  importedWithWarnings: number;
   errors: { row: number; personnelNumber: string; error: string }[];
   managerLinked: number;
   managerNotFound: { row: number; personnelNumber: string; managerFio: string }[];
@@ -352,8 +354,8 @@ export interface CreateEmployeeInput {
   firstName: string;
   middleName?: string;
   email: string;
-  departmentId: string;
-  positionId: string;
+  departmentId?: string;
+  positionId?: string;
   hireDate?: string;
   managerId?: string;
 }

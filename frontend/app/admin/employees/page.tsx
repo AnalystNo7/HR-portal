@@ -29,6 +29,7 @@ export default function AdminEmployeesPage() {
   const [deleteAccount, setDeleteAccount] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmEmpty, setConfirmEmpty] = useState<string[] | null>(null);
   const [credTarget, setCredTarget] = useState<Employee | null>(null);
   const [credPassword, setCredPassword] = useState('');
   const [credSaving, setCredSaving] = useState(false);
@@ -82,8 +83,8 @@ export default function AdminEmployeesPage() {
       firstName: emp.firstName,
       middleName: emp.middleName || '',
       email: emp.email,
-      departmentId: emp.departmentId,
-      positionId: emp.positionId,
+      departmentId: emp.departmentId || '',
+      positionId: emp.positionId || '',
       hireDate: emp.hireDate ? emp.hireDate.slice(0, 10) : '',
       managerId: emp.managerId || '',
     });
@@ -91,7 +92,31 @@ export default function AdminEmployeesPage() {
     setModalOpen(true);
   };
 
-  const handleSave = async () => {
+  // Минимум для внесения в БД: табельный, фамилия, имя, email. Остальное опционально,
+  // но перед сохранением с пустыми опциональными полями — окно «продолжить?».
+  const handleSave = () => {
+    setError(null);
+    const missing: string[] = [];
+    if (!form.personnelNumber.trim()) missing.push('табельный номер');
+    if (!form.lastName.trim()) missing.push('фамилия');
+    if (!form.firstName.trim()) missing.push('имя');
+    if (!form.email.trim()) missing.push('email');
+    if (missing.length) {
+      setError(`Не заполнены обязательные поля: ${missing.join(', ')}`);
+      return;
+    }
+    const empty: string[] = [];
+    if (!form.departmentId) empty.push('подразделение');
+    if (!form.positionId) empty.push('должность');
+    if (!form.middleName) empty.push('отчество');
+    if (!form.hireDate) empty.push('дата приёма');
+    if (!form.managerId) empty.push('руководитель');
+    if (empty.length) { setConfirmEmpty(empty); return; }
+    void doSave();
+  };
+
+  const doSave = async () => {
+    setConfirmEmpty(null);
     setSaving(true);
     setError(null);
     try {
@@ -237,12 +262,12 @@ export default function AdminEmployeesPage() {
                       <div className={`av av-${avColorFor(fullName)}`}>{initials(fullName)}</div>
                       <div>
                         <div style={{ fontWeight: 600 }}>{fullName}</div>
-                        <div className="small muted">{p.position?.name ?? ''}</div>
+                        <div className="small muted">{p.position?.name ?? '—'}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="small">{p.department?.name ?? ''}</td>
-                  <td className="small">{p.position?.name ?? ''}</td>
+                  <td className="small">{p.department?.name ?? '—'}</td>
+                  <td className="small">{p.position?.name ?? '—'}</td>
                   <td className="small">
                     {p.manager ? (
                       <a
@@ -303,10 +328,10 @@ export default function AdminEmployeesPage() {
       >
         {error && <div style={{ marginBottom: 12, padding: 8, background: 'var(--gpc-red-50, #fef2f2)', border: '1px solid var(--gpc-red-200, #fca5a5)', borderRadius: 6, color: 'var(--gpc-red-700, #b91c1c)', fontSize: 13 }}>{error}</div>}
         <div className="grid-2">
-          <div className="field"><label className="small">Табельный номер</label><input className="inp" value={form.personnelNumber} onChange={e => setField('personnelNumber', e.target.value)} /></div>
-          <div className="field"><label className="small">Email</label><input className="inp" type="email" value={form.email} onChange={e => setField('email', e.target.value)} /></div>
-          <div className="field"><label className="small">Фамилия</label><input className="inp" value={form.lastName} onChange={e => setField('lastName', e.target.value)} /></div>
-          <div className="field"><label className="small">Имя</label><input className="inp" value={form.firstName} onChange={e => setField('firstName', e.target.value)} /></div>
+          <div className="field"><label className="small">Табельный номер *</label><input className="inp" value={form.personnelNumber} onChange={e => setField('personnelNumber', e.target.value)} /></div>
+          <div className="field"><label className="small">Email *</label><input className="inp" type="email" value={form.email} onChange={e => setField('email', e.target.value)} /></div>
+          <div className="field"><label className="small">Фамилия *</label><input className="inp" value={form.lastName} onChange={e => setField('lastName', e.target.value)} /></div>
+          <div className="field"><label className="small">Имя *</label><input className="inp" value={form.firstName} onChange={e => setField('firstName', e.target.value)} /></div>
           <div className="field"><label className="small">Отчество</label><input className="inp" value={form.middleName} onChange={e => setField('middleName', e.target.value)} /></div>
           <div className="field"><label className="small">Дата приёма</label><input className="inp" type="date" value={form.hireDate} onChange={e => setField('hireDate', e.target.value)} /></div>
           <div className="field">
@@ -334,6 +359,20 @@ export default function AdminEmployeesPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Подтверждение сохранения с пустыми опциональными полями */}
+      {confirmEmpty && (
+        <Modal open onClose={() => setConfirmEmpty(null)} title="Не все поля заполнены"
+          footer={
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={() => setConfirmEmpty(null)}>Вернуться к форме</button>
+              <button className="btn btn-primary btn-sm" onClick={doSave} disabled={saving}>{saving ? 'Сохранение...' : 'Продолжить'}</button>
+            </>
+          }>
+          <p style={{ fontSize: 13, marginBottom: 8 }}>Не заполнено: {confirmEmpty.join(', ')}.</p>
+          <p className="small muted">Сотрудник будет сохранён с пустыми полями — их можно заполнить позже.</p>
+        </Modal>
+      )}
 
       {/* Delete Confirmation */}
       <Modal

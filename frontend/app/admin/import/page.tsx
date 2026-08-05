@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef } from 'react';
-import { Icon } from '@/components/primitives';
+import { Icon, Modal } from '@/components/primitives';
 import {
   previewImport,
   executeImport,
@@ -26,6 +26,7 @@ export default function AdminImportPage() {
   const [mapping, setMapping] = useState<ManagerMappingEntry[]>([]);
   const [selection, setSelection] = useState<Record<string, Set<string>>>({});
   const [savingMapping, setSavingMapping] = useState(false);
+  const [confirmWarnings, setConfirmWarnings] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (f: File) => {
@@ -52,6 +53,7 @@ export default function AdminImportPage() {
 
   const handleImport = useCallback(async () => {
     if (!file) return;
+    setConfirmWarnings(false);
     setPhase('importing');
     setError(null);
     try {
@@ -105,6 +107,14 @@ export default function AdminImportPage() {
 
   const validCount = rows.filter(r => r.errors.length === 0).length;
   const errorCount = rows.filter(r => r.errors.length > 0).length;
+  // строки без жёстких ошибок, но с незаполненными опциональными полями
+  const warnRows = rows.filter(r => r.errors.length === 0 && (r.warnings?.length ?? 0) > 0);
+  // сводка для окна подтверждения: «должность (7), подразделение (5)»
+  const warnSummary = (() => {
+    const counts = new Map<string, number>();
+    for (const r of warnRows) for (const w of r.warnings) counts.set(w, (counts.get(w) ?? 0) + 1);
+    return Array.from(counts.entries()).map(([w, n]) => `${w.replace(/^Не заполнен[оа]? /, '').toLowerCase()} (${n})`).join(', ');
+  })();
 
   return (
     <div>
@@ -171,6 +181,7 @@ export default function AdminImportPage() {
               <b>{file?.name}</b>
               <span className="muted" style={{ marginLeft: 8 }}>
                 {rows.length} строк, из них {validCount} валидных
+                {warnRows.length > 0 && <span style={{ color: 'var(--gpc-orange-600, #ea580c)' }}>, {warnRows.length} с незаполненными полями</span>}
                 {errorCount > 0 && <span style={{ color: 'var(--gpc-red-600, #dc2626)' }}>, {errorCount} с ошибками</span>}
               </span>
             </div>
@@ -179,7 +190,7 @@ export default function AdminImportPage() {
             <button
               className="btn btn-primary btn-sm"
               disabled={validCount === 0}
-              onClick={handleImport}
+              onClick={() => (warnRows.length > 0 ? setConfirmWarnings(true) : handleImport())}
             >
               <Icon name="check" size={14} /> Импортировать ({validCount})
             </button>
@@ -202,21 +213,24 @@ export default function AdminImportPage() {
               <tbody>
                 {rows.map(row => {
                   const hasErr = row.errors.length > 0;
+                  const hasWarn = !hasErr && (row.warnings?.length ?? 0) > 0;
                   const fio = [row.lastName, row.firstName, row.middleName].filter(Boolean).join(' ');
                   return (
-                    <tr key={row.rowNum} style={hasErr ? { background: 'var(--gpc-red-50, #fef2f2)' } : undefined}>
+                    <tr key={row.rowNum} style={hasErr ? { background: 'var(--gpc-red-50, #fef2f2)' } : hasWarn ? { background: 'var(--gpc-orange-50, #fff7ed)' } : undefined}>
                       <td className="small muted">{row.rowNum}</td>
                       <td className="small"><b>{row.personnelNumber}</b></td>
                       <td className="small">{fio}</td>
-                      <td className="small">{row.position}</td>
-                      <td className="small">{row.department}</td>
+                      <td className="small">{row.position || '—'}</td>
+                      <td className="small">{row.department || '—'}</td>
                       <td className="small">{row.email}</td>
                       <td className="small">{row.hireDate ? new Date(row.hireDate).toLocaleDateString('ru-RU') : '—'}</td>
                       <td className="small">{row.managerFio || '—'}</td>
                       <td className="small">
                         {hasErr
                           ? <span style={{ color: 'var(--gpc-red-600, #dc2626)' }}>{row.errors.join('; ')}</span>
-                          : <span style={{ color: 'var(--gpc-green-600, #16a34a)' }}>OK</span>
+                          : hasWarn
+                            ? <span style={{ color: 'var(--gpc-orange-600, #ea580c)' }}>{row.warnings.join('; ')}</span>
+                            : <span style={{ color: 'var(--gpc-green-600, #16a34a)' }}>OK</span>
                         }
                       </td>
                     </tr>
@@ -226,6 +240,26 @@ export default function AdminImportPage() {
             </table>
           </div>
         </>
+      )}
+
+      {/* Подтверждение импорта строк с незаполненными опциональными полями */}
+      {confirmWarnings && (
+        <Modal open onClose={() => setConfirmWarnings(false)} title="Не все поля заполнены"
+          footer={
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={() => setConfirmWarnings(false)}>Отмена</button>
+              <button className="btn btn-primary btn-sm" onClick={handleImport}>Продолжить импорт</button>
+            </>
+          }>
+          <p style={{ fontSize: 13, marginBottom: 8 }}>
+            В {warnRows.length} {warnRows.length === 1 ? 'строке' : 'строках'} не заполнено: {warnSummary}.
+          </p>
+          <p className="small muted">
+            Эти сотрудники будут созданы с пустыми полями — их можно заполнить позже
+            вручную или повторным импортом. Обязательный минимум (табельный номер,
+            фамилия, имя, email) во всех этих строках есть.
+          </p>
+        </Modal>
       )}
 
       {/* Importing phase */}
