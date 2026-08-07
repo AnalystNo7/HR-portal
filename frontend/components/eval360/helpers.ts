@@ -83,10 +83,11 @@ export const SERIES: { key: SeriesKey; label: string; color: string }[] = [
   { key: 'self', label: 'Самооценка', color: 'var(--gpc-orange)' },
 ];
 
+// fill — hex фона плашки в DOCX-выгрузке; совпадает с цветами ячеек scaleBg()
 export const SCALE = [
-  { label: 'менее 2', cls: 'pill-red', desc: 'компетенция на этапе развития, требуется обучение и поддержка' },
-  { label: '2,0 – 3,5', cls: 'pill-yellow', desc: 'в целом соответствует ожиданиям, есть потенциал для роста' },
-  { label: 'более 3,5', cls: 'pill-green', desc: 'высокий уровень развития, лучшие практики' },
+  { label: 'менее 2', cls: 'pill-red', fill: 'fbdcdc', desc: 'компетенция на этапе развития, требуется обучение и поддержка' },
+  { label: '2,0 – 3,5', cls: 'pill-yellow', fill: 'fdf3b3', desc: 'в целом соответствует ожиданиям, есть потенциал для роста' },
+  { label: 'более 3,5', cls: 'pill-green', fill: 'cdf2cd', desc: 'высокий уровень развития, лучшие практики' },
 ];
 
 export function scaleColor(v: number | null): string {

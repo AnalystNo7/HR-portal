@@ -8,8 +8,8 @@
 // ровно те, что на экране), скрытые крестиком блоки не выгружаются.
 
 import {
-  AlignmentType, Document, HeadingLevel, ImageRun, LevelFormat, Packer, PageBreak,
-  Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType,
+  AlignmentType, BorderStyle, Document, HeadingLevel, ImageRun, LevelFormat, Packer, PageBreak,
+  Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, VerticalAlign, WidthType,
 } from 'docx';
 import type { Report360Sections, ReportExternalPair, ReportGroupPair, Results360 } from '@/lib/api';
 import { SCALE, catLabel, groupByCategory, scaleBg } from './helpers';
@@ -105,19 +105,55 @@ const para = (children: TextRun[] | string, opts: { bullet?: boolean; spacingAft
 const run = (text: string, o: { bold?: boolean; underline?: boolean } = {}) =>
   new TextRun({ text, size: 22, bold: o.bold, ...(o.underline ? { underline: {} } : {}) });
 
-function chartParagraphs(images: ChartImage[]): Paragraph[] {
-  const out: Paragraph[] = [];
-  for (const im of images) {
-    const maxW = 620; // ширина контентной области A4 в пикселях docx
-    const w = Math.min(maxW, im.png.width);
-    const h = Math.round(im.png.height * (w / im.png.width));
-    out.push(new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 120 },
-      children: [new ImageRun({ type: 'png', data: im.png.data, transformation: { width: w, height: h } })],
-    }));
+function chartImageParagraph(im: ChartImage, maxW: number): Paragraph {
+  const w = Math.min(maxW, im.png.width);
+  const h = Math.round(im.png.height * (w / im.png.width));
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 120 },
+    children: [new ImageRun({ type: 'png', data: im.png.data, transformation: { width: w, height: h } })],
+  });
+}
+
+/**
+ * Диаграммы блока: одна — во всю ширину; две и больше — парами в ряд
+ * (таблица без границ), чтобы блок умещался на одном листе, как в PDF.
+ * Название категории — вне SVG, поэтому подписывается над каждой картинкой.
+ */
+function chartParagraphs(images: ChartImage[]): (Paragraph | Table)[] {
+  if (images.length <= 1) return images.map(im => chartImageParagraph(im, 620));
+
+  const NONE = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  const noBorders = { top: NONE, bottom: NONE, left: NONE, right: NONE, insideHorizontal: NONE, insideVertical: NONE };
+  const CELL_W = 4675; // половина контентной области A4 в DXA
+  const catCell = (im: ChartImage) => new TableCell({
+    width: { size: CELL_W, type: WidthType.DXA },
+    verticalAlign: VerticalAlign.TOP,
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 60 },
+        children: [new TextRun({ text: im.cat, bold: true, size: 22 })],
+      }),
+      chartImageParagraph(im, 300),
+    ],
+  });
+  const emptyCell = () => new TableCell({
+    width: { size: CELL_W, type: WidthType.DXA },
+    children: [new Paragraph({ children: [] })],
+  });
+
+  const rows: TableRow[] = [];
+  for (let i = 0; i < images.length; i += 2) {
+    const pair = images.slice(i, i + 2);
+    rows.push(new TableRow({ children: [catCell(pair[0]), pair[1] ? catCell(pair[1]) : emptyCell()] }));
   }
-  return out;
+  return [new Table({
+    width: { size: CELL_W * 2, type: WidthType.DXA },
+    columnWidths: [CELL_W, CELL_W],
+    borders: noBorders,
+    rows,
+  })];
 }
 
 function summaryTable(res: Results360): Table {
@@ -311,12 +347,17 @@ export async function downloadReportDocx(
   ];
   for (const line of intro) children.push(para(line));
   children.push(...bigTitle('Шкала оценок'));
-  for (const s of SCALE) children.push(para([run(`${s.label} — `, { bold: true }), run(s.desc)]));
+  // плашка диапазона с тем же фоном, что у ячеек сводной таблицы
+  for (const s of SCALE) {
+    children.push(para([
+      new TextRun({ text: ` ${s.label} `, size: 22, bold: true, shading: { type: ShadingType.CLEAR, fill: s.fill } }),
+      run(` — ${s.desc}`),
+    ]));
+  }
   children.push(pageBreak());
 
   // 3. Сводная таблица
   children.push(...bigTitle('Сводная таблица оценки'), summaryTable(res));
-  children.push(para(`Шкала: ${res.scalePoints.map(p => `${p.value} — ${p.label}`).join(' · ')}`, { spacingAfter: 0 }));
   children.push(pageBreak());
 
   // 4. Открытые ответы (одним листом)

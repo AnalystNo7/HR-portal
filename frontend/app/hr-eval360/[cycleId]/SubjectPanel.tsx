@@ -122,7 +122,6 @@ function ResultsView({ res }: { res: Results360 }) {
           ))}
         </tbody>
       </table>
-      <div className="small muted" style={{ marginTop: 8 }}>Шкала: {res.scalePoints.map(p => `${p.value} — ${p.label}`).join(' · ')}</div>
       <div style={{ marginTop: 20 }}>
         <b style={{ fontSize: 15 }}>Открытые ответы</b>
         <div style={{ marginTop: 8 }}><OpenAnswersView res={res} /></div>

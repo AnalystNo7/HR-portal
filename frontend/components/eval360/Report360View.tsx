@@ -260,9 +260,6 @@ function SummaryTable({ res }: { res: Results360 }) {
           ))}
         </tbody>
       </table>
-      <div className="small muted" style={{ marginTop: 8 }}>
-        Шкала: {res.scalePoints.map(p => `${p.value} — ${p.label}`).join(' · ')}
-      </div>
     </div>
   );
 }
