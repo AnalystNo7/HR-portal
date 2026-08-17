@@ -29,6 +29,7 @@ const NAV: Record<UserRole, NavSection[]> = {
     { group: 'Обучение и развитие', items: [
       { id: '/learn', label: 'Обучение', icon: 'graduation' },
       { id: '/eval360', label: 'Моя оценка', icon: 'chart' },
+      { id: '/surveys', label: 'Опросы', icon: 'clipboard' },
       { id: '/appeals', label: 'Мои обращения', icon: 'chat', badge: 2 },
     ]},
   ],
@@ -42,6 +43,7 @@ const NAV: Record<UserRole, NavSection[]> = {
     ]},
     { group: 'Управление', items: [
       { id: '/manager', label: 'Кабинет руководителя', icon: 'briefcase' },
+      { id: '/surveys', label: 'Опросы', icon: 'clipboard' },
       { id: '/appeals', label: 'Обращения', icon: 'chat' },
     ]},
   ],
@@ -54,7 +56,7 @@ const NAV: Record<UserRole, NavSection[]> = {
     { group: 'HR', items: [
       { id: '/hr', label: 'Все сотрудники', icon: 'users' },
       { id: '/hr-vacancies', label: 'Отклики', icon: 'clipboard', badge: 7 },
-      { id: '/hr-surveys', label: 'Опросы', icon: 'chart' },
+      { id: '/surveys', label: 'Опросы', icon: 'clipboard' },
       { id: '/hr-eval360', label: 'Оценка 360', icon: 'compass' },
       { id: '/appeals', label: 'Обращения', icon: 'chat', badge: 5 },
     ]},
@@ -69,6 +71,7 @@ const NAV: Record<UserRole, NavSection[]> = {
       { id: '/admin/departments', label: 'Подразделения', icon: 'building' },
       { id: '/admin/positions', label: 'Должности', icon: 'briefcase' },
       { id: '/hr-eval360', label: 'Оценка 360', icon: 'compass' },
+      { id: '/surveys', label: 'Опросы', icon: 'clipboard' },
       { id: '/admin/import', label: 'Импорт', icon: 'upload' },
       { id: '/admin/llm', label: 'Настройка LLM', icon: 'settings' },
     ]},
@@ -85,7 +88,7 @@ const NAV_LABELS: Record<string, string> = {
   '/manager': 'Кабинет руководителя',
   '/hr': 'Все сотрудники',
   '/hr-vacancies': 'Отклики на вакансии',
-  '/hr-surveys': 'Опросы и рассылки',
+  '/surveys': 'Опросы',
   '/hr-eval360': 'Оценка 360',
   '/eval360': 'Моя оценка',
   '/admin/employees': 'Сотрудники',
