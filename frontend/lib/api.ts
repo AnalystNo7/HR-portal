@@ -726,3 +726,72 @@ export const updateLlmPreset = (id: string, dto: SaveLlmDto) => fetchApi<LlmPres
 export const activateLlmPreset = (id: string) => fetchApi<LlmPresetList>(`/settings/llm/${id}/activate`, { method: 'POST' });
 export const deleteLlmPreset = (id: string) => fetchApi<LlmPresetList>(`/settings/llm/${id}`, { method: 'DELETE' });
 export const testLlmConnection = (dto: SaveLlmDto = {}) => fetchApi<{ ok: boolean; error?: string }>('/settings/llm/test', { method: 'POST', body: JSON.stringify(dto) });
+
+// ─── Опросы: выгорание (MBI) ─────────────────────────────────
+
+export type BurnoutLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface BurnoutResult {
+  id: string;
+  employeeId: string;
+  takenAt: string;
+  exhaustion: number;
+  depersonalization: number;
+  reduction: number;
+  sourceUrl: string | null;
+  source: string;
+  levels: { exhaustion: BurnoutLevel; depersonalization: BurnoutLevel; reduction: BurnoutLevel };
+  isp: number;
+}
+
+export interface BurnoutOverviewRow {
+  employeeId: string;
+  name: string;
+  department: string;
+  last: BurnoutResult | null;
+}
+
+export interface BurnoutTeamRow {
+  employeeId: string;
+  name: string;
+  takenAt: string | null;
+  levels: BurnoutResult['levels'] | null;
+}
+
+export interface BurnoutImportRow {
+  rowNum: number;
+  personnelNumber: string;
+  email: string;
+  employeeName: string | null;
+  takenAt: string | null;
+  exhaustion: number | null;
+  depersonalization: number | null;
+  reduction: number | null;
+  errors: string[];
+}
+
+export interface BurnoutCreateInput {
+  takenAt: string;
+  exhaustion: number;
+  depersonalization: number;
+  reduction: number;
+  sourceUrl?: string;
+  employeeId?: string;
+}
+
+export const getMyBurnout = () => fetchApi<BurnoutResult[]>('/surveys/burnout/my');
+export const createBurnout = (dto: BurnoutCreateInput) =>
+  fetchApi<BurnoutResult>('/surveys/burnout', { method: 'POST', body: JSON.stringify(dto) });
+export const updateBurnout = (id: string, dto: Partial<BurnoutCreateInput>) =>
+  fetchApi<BurnoutResult>(`/surveys/burnout/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const deleteBurnout = (id: string) =>
+  fetchApi<{ success: boolean }>(`/surveys/burnout/${id}`, { method: 'DELETE' });
+export const getBurnoutOverview = (departmentId?: string) =>
+  fetchApi<BurnoutOverviewRow[]>(`/surveys/burnout${departmentId ? `?departmentId=${departmentId}` : ''}`);
+export const getBurnoutHistory = (employeeId: string) =>
+  fetchApi<BurnoutResult[]>(`/surveys/burnout/employee/${employeeId}`);
+export const getBurnoutTeam = () => fetchApi<BurnoutTeamRow[]>('/surveys/burnout/team');
+export const previewBurnoutImport = (file: File) =>
+  uploadFile<BurnoutImportRow[]>('/surveys/burnout/import/preview', file);
+export const executeBurnoutImport = (file: File) =>
+  uploadFile<{ total: number; created: number; errors: { row: number; error: string }[] }>('/surveys/burnout/import/execute', file);

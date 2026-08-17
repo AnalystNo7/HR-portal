@@ -79,6 +79,7 @@ model Employee {
   evaluations360   Cycle360Respondent[] @relation("Evaluator360")
   conclusions360   Cycle360Conclusion[] @relation("Conclusion360Author")
   reports360       Cycle360Report[]     @relation("Report360Author")
+  burnoutResults   BurnoutResult[]      @relation("BurnoutSubject")
   keycloakId     String?          @unique @map("keycloak_id")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
@@ -449,4 +450,24 @@ model Cycle360Report {
   updatedAt   DateTime        @updatedAt @map("updated_at")
 
   @@map("cycle360_reports")
+}
+
+// Замер выгорания по Маслач (MBI). Хранятся только сырые баллы трёх шкал:
+// уровни и системный индекс перегорания (ИСП) вычисляются кодом
+// (surveys/burnout.methodology.ts) — производные в БД не дублируются.
+model BurnoutResult {
+  id                String   @id @default(uuid())
+  employeeId        String   @map("employee_id")
+  employee          Employee @relation("BurnoutSubject", fields: [employeeId], references: [id], onDelete: Cascade)
+  takenAt           DateTime @map("taken_at")
+  exhaustion        Int
+  depersonalization Int
+  reduction         Int
+  sourceUrl         String?  @map("source_url")
+  source            String   @default("MANUAL")
+  createdById       String?  @map("created_by_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([employeeId, takenAt])
+  @@map("burnout_results")
 }

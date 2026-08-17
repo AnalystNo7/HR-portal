@@ -13,6 +13,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { PositionsModule } from './positions/positions.module';
 import { Oc360Module } from './oc360/oc360.module';
 import { SettingsModule } from './settings/settings.module';
+import { SurveysModule } from './surveys/surveys.module';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { SettingsModule } from './settings/settings.module';
     // счёт по реальному IP — благодаря trust proxy в main.ts (за Traefik).
     // Точечные жёсткие лимиты см. @Throttle на дорогих эндпоинтах.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
-    PrismaModule, AuthModule, EmployeesModule, ProfileModule, AppealsModule, MeModule, ImportModule, DepartmentsModule, PositionsModule, Oc360Module, SettingsModule,
+    PrismaModule, AuthModule, EmployeesModule, ProfileModule, AppealsModule, MeModule, ImportModule, DepartmentsModule, PositionsModule, Oc360Module, SettingsModule, SurveysModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
