@@ -78,6 +78,54 @@ async function captureChart(root: HTMLElement, title: string): Promise<ChartImag
   return out;
 }
 
+interface ChartLegend { items: { label: string; color: string }[]; note: string | null }
+
+/** rgb(a)-строка computed-стиля → hex без решётки. */
+function rgbToHex(rgb: string): string {
+  const m = rgb.match(/\d+/g);
+  if (!m || m.length < 3) return '000000';
+  return m.slice(0, 3).map(n => Number(n).toString(16).padStart(2, '0')).join('');
+}
+
+/** Легенда серий блока диаграмм и примечание о пустых группах — из отрендеренного DOM. */
+function captureLegend(root: HTMLElement, title: string): ChartLegend {
+  const block = root.querySelector(`[data-chart-title="${CSS.escape(title)}"]`);
+  const items: ChartLegend['items'] = [];
+  let note: string | null = null;
+  if (block) {
+    for (const el of Array.from(block.querySelectorAll('[data-series-label]'))) {
+      const square = el.querySelector('span');
+      const color = square ? rgbToHex(getComputedStyle(square).backgroundColor) : '000000';
+      items.push({ label: el.getAttribute('data-series-label') ?? '', color });
+    }
+    note = block.querySelector('[data-chart-note]')?.textContent?.trim() || null;
+  }
+  return { items, note };
+}
+
+/** Легенда «■ Самооценка ■ Руководитель…» + примечание — как в вебе/PDF. */
+function legendParagraphs(legend: ChartLegend): Paragraph[] {
+  const out: Paragraph[] = [];
+  if (legend.items.length) {
+    out.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 120 },
+      children: legend.items.flatMap((s, i) => [
+        new TextRun({ text: (i ? '    ' : '') + '■ ', size: 22, color: s.color }),
+        new TextRun({ text: s.label, size: 22 }),
+      ]),
+    }));
+  }
+  if (legend.note) {
+    out.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 120 },
+      children: [new TextRun({ text: legend.note, size: 20, italics: true, color: '666666' })],
+    }));
+  }
+  return out;
+}
+
 // ─── Кирпичи документа ───────────────────────────────────────
 
 const pageBreak = () => new Paragraph({ children: [new PageBreak()] });
@@ -368,7 +416,7 @@ export async function downloadReportDocx(
   const overallTitle = 'Диаграмма сравнительных оценок по всем категориям респондентов';
   const overall = await captureChart(root, overallTitle);
   if (overall.length) {
-    children.push(...bigTitle(overallTitle), ...chartParagraphs(overall));
+    children.push(...bigTitle(overallTitle), ...legendParagraphs(captureLegend(root, overallTitle)), ...chartParagraphs(overall));
     children.push(pageBreak());
   }
 
@@ -395,7 +443,7 @@ export async function downloadReportDocx(
       const pair = sections.groupComparison.find(p => p.pair === b.pair);
       const showPair = pair && !isHidden(sections, `pair:${b.pair}`) && pair.items.length > 0;
       if (!images.length && !showPair) continue;
-      if (images.length) children.push(...bigTitle(b.chartTitle), ...chartParagraphs(images));
+      if (images.length) children.push(...bigTitle(b.chartTitle), ...legendParagraphs(captureLegend(root, b.chartTitle)), ...chartParagraphs(images));
       if (showPair) children.push(...pairFindings(pair, b.genitive));
       children.push(pageBreak());
     }
@@ -410,7 +458,7 @@ export async function downloadReportDocx(
       const pair = sections.externalComparison?.find(p => p.pair === b.pair);
       const showPair = !!pair && !isHidden(sections, `extpair:${b.pair}`);
       if (!images.length && !showPair) continue;
-      if (images.length) children.push(...bigTitle(b.chartTitle), ...chartParagraphs(images));
+      if (images.length) children.push(...bigTitle(b.chartTitle), ...legendParagraphs(captureLegend(root, b.chartTitle)), ...chartParagraphs(images));
       if (showPair && pair) children.push(...externalFindings(pair, b.groupLabel));
       children.push(pageBreak());
     }

@@ -44,7 +44,8 @@ function SeriesLegend({ series }: { series: { label: string; color: string }[] }
   return (
     <div className="row-2" style={{ gap: 14, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10 }}>
       {series.map(s => (
-        <span key={s.label} className="row-2" style={{ alignItems: 'center', gap: 6 }}>
+        // data-series-label читает DOCX-выгрузка (легенда с вычисленным цветом квадратика)
+        <span key={s.label} className="row-2" data-series-label={s.label} style={{ alignItems: 'center', gap: 6 }}>
           <span style={{ width: 12, height: 12, borderRadius: 3, background: s.color, flex: '0 0 12px' }} />
           <span className="small">{s.label}</span>
         </span>
@@ -344,7 +345,7 @@ function ChartBlock({ res, title, keys, blockKey, ctx }: {
       <BigTitle title={title} />
       <SeriesLegend series={active} />
       {missing.length > 0 && (
-        <div className="small muted" style={{ textAlign: 'center', marginBottom: 10 }}>
+        <div className="small muted" data-chart-note="" style={{ textAlign: 'center', marginBottom: 10 }}>
           {missing.map(s => s.label).join(', ')}: нет завершённых оценок этой группы
         </div>
       )}
