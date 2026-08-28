@@ -1,0 +1,140 @@
+{
+  "realm": "hr-portal",
+  "enabled": true,
+  "displayName": "HR Portal",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "employee",
+        "description": "Regular employee"
+      },
+      {
+        "name": "manager",
+        "description": "Department manager"
+      },
+      {
+        "name": "hr",
+        "description": "HR specialist"
+      },
+      {
+        "name": "admin",
+        "description": "System administrator"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "hr-portal-app",
+      "name": "HR Portal Application",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "http://localhost:3001/*",
+        "http://localhost/*",
+        "https://sitehrportal.ru/*",
+        "https://www.sitehrportal.ru/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3001",
+        "http://localhost",
+        "https://sitehrportal.ru",
+        "https://www.sitehrportal.ru"
+      ],
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "web-origins",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "protocolMappers": [
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "employee1",
+      "enabled": true,
+      "email": "employee1@gazprom-cps.ru",
+      "firstName": "Иван",
+      "lastName": "Петров",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "employee1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["employee"]
+    },
+    {
+      "username": "manager1",
+      "enabled": true,
+      "email": "manager1@gazprom-cps.ru",
+      "firstName": "Сергей",
+      "lastName": "Козлов",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "manager1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["manager", "employee"]
+    },
+    {
+      "username": "hr1",
+      "enabled": true,
+      "email": "hr1@gazprom-cps.ru",
+      "firstName": "Елена",
+      "lastName": "Сидорова",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "hr1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["hr", "employee"]
+    },
+    {
+      "username": "admin1",
+      "enabled": true,
+      "email": "admin1@gazprom-cps.ru",
+      "firstName": "Админ",
+      "lastName": "Системный",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["admin"]
+    }
+  ]
+}

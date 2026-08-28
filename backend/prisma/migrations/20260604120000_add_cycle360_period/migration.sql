@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "cycle360" ADD COLUMN "year" INTEGER;
+ALTER TABLE "cycle360" ADD COLUMN "half" INTEGER;

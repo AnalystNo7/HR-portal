@@ -1,0 +1,98 @@
+services:
+  postgres:
+    image: mirror.gcr.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hrportal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hrportal}
+      POSTGRES_DB: ${POSTGRES_DB:-hrportal}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hrportal}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-hrportal}
+      KC_DB_USERNAME: ${POSTGRES_USER:-hrportal}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-hrportal}
+      KC_DB_SCHEMA: keycloak
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_HOSTNAME_URL: https://sitehrportal.ru/auth
+      KC_HOSTNAME_ADMIN_URL: https://sitehrportal.ru/auth
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      JAVA_OPTS_APPEND: "-Xmx512m -Xms256m"
+    # боевой режим (не start-dev). Работает за Traefik благодаря KC_HOSTNAME_URL +
+    # KC_HTTP_ENABLED=true + KC_PROXY_HEADERS=xforwarded (см. переменные выше).
+    command: start --import-realm
+    # порт наружу не публикуется — доступ только через Traefik по https://sitehrportal.ru/auth
+    volumes:
+      # ПРОД: realm без демо-пользователей (admin1/hr1/... только в realm-export.json для локалки)
+      - ./keycloak/realm-export.prod.json:/opt/keycloak/data/import/realm-export.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hrportal}:${POSTGRES_PASSWORD:-hrportal}@postgres:5432/${POSTGRES_DB:-hrportal}?schema=public
+      PORT: "4000"
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KEYCLOAK_PUBLIC_URL: ${KEYCLOAK_PUBLIC_URL}
+      KEYCLOAK_REALM: hr-portal
+      KEYCLOAK_CLIENT_ID: hr-portal-app
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Origin фронта для CORS (задаётся в env; без него CORS открыт для всех)
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-}
+      # Подключение к LLM для генерации отчётов 360 (опционально —
+      # без этих переменных портал работает, генерация отключена)
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-}
+    # порт наружу не публикуется — доступ только через Traefik по https://sitehrportal.ru/api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://sitehrportal.ru/api
+        NEXT_PUBLIC_KEYCLOAK_URL: https://sitehrportal.ru/auth
+        NEXT_PUBLIC_KEYCLOAK_REALM: hr-portal
+        NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: hr-portal-app
+        NEXT_PUBLIC_AUTH_MODE: keycloak
+    environment:
+      NEXT_PUBLIC_API_URL: https://sitehrportal.ru/api
+      NEXT_PUBLIC_KEYCLOAK_URL: https://sitehrportal.ru/auth
+      NEXT_PUBLIC_KEYCLOAK_REALM: hr-portal
+      NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: hr-portal-app
+      NEXT_PUBLIC_AUTH_MODE: keycloak
+    # порт наружу не публикуется — доступ только через Traefik по https://sitehrportal.ru
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
