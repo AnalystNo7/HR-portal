@@ -144,8 +144,7 @@ export function Sidebar() {
       <div className="sb-brand">
         <div className="logo-cube"><LogoCube size={30} /></div>
         <div className="brand-text">
-          <b>Газпром ЦПС</b>
-          <span>Портал</span>
+          <b>HR-портал</b>
         </div>
       </div>
 

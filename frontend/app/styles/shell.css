@@ -28,9 +28,8 @@
   min-height: var(--header-h);
 }
 .sb-brand .logo-cube { width: 30px; height: 30px; flex: 0 0 30px; }
-.sb-brand .brand-text { display: flex; flex-direction: column; gap: 1px; line-height: 1.05; }
-.sb-brand .brand-text b { font-family: var(--font-head); font-size: 15px; letter-spacing: .02em; color: #fff; }
-.sb-brand .brand-text span { font-size: 10px; color: rgba(255,255,255,.7); letter-spacing: .14em; text-transform: uppercase; }
+.sb-brand .brand-text { display: flex; align-items: center; line-height: 1.1; }
+.sb-brand .brand-text b { font-family: var(--font-head); font-size: 19px; letter-spacing: .02em; color: #fff; }
 .app[data-sidebar="collapsed"] .sb-brand .brand-text { display: none; }
 
 .sb-nav { padding: 12px 8px; flex: 1 1 auto; overflow-y: auto; }
