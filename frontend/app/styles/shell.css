@@ -27,7 +27,6 @@
   height: var(--header-h);
   min-height: var(--header-h);
 }
-.sb-brand .logo-cube { width: 30px; height: 30px; flex: 0 0 30px; }
 .sb-brand .brand-text { display: flex; align-items: center; line-height: 1.1; }
 .sb-brand .brand-text b { font-family: var(--font-head); font-size: 19px; letter-spacing: .02em; color: #fff; }
 .app[data-sidebar="collapsed"] .sb-brand .brand-text { display: none; }

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Icon, Avatar, avColorFor, initials } from '@/components/primitives';
-import { PeopleTalk, Team, PersonProfile, CubePattern, Lightbulb, Book } from '@/components/illustrations/Illustrations';
+import { PeopleTalk, Team, PersonProfile, Lightbulb, Book } from '@/components/illustrations/Illustrations';
 
 const SECTIONS = [
   { id: 'mission', label: 'Миссия', icon: 'flag' },
@@ -62,7 +62,6 @@ function CultureMission() {
           <h2>Трансформируем сложные задачи в простые решения</h2>
           <p>Мы объединяем отраслевую экспертизу и современные ИТ-практики.</p>
         </div>
-        <CubePattern w={200} opacity={0.25} />
       </div>
 
       <div className="section-label" style={{ marginTop: 24 }}>Коротко о компании</div>

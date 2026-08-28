@@ -3,7 +3,6 @@
 import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Icon } from '@/components/primitives';
-import { LogoCube } from '@/components/illustrations/Illustrations';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 
 interface NavItem {
@@ -142,7 +141,6 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sb-brand">
-        <div className="logo-cube"><LogoCube size={30} /></div>
         <div className="brand-text">
           <b>HR-портал</b>
         </div>
