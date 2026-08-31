@@ -222,16 +222,23 @@ function TemplateTab() {
   const [overId, setOverId] = useState<string | null>(null);
 
   // targetVid: сохранить выбранную версию между перезагрузками; иначе — версия по умолчанию.
+  // Токен поколения: конкурентные load (напр. blur-добавления подряд) не перетирают
+  // свежие данные устаревшим ответом. Лоадер — только на первую загрузку: гейт
+  // «Загрузка...» размонтировал бы инпуты и терял несохранённый текст в них.
+  const loadGen = useRef(0);
   const load = useCallback(async (targetVid?: string) => {
-    setLoading(true);
+    const gen = ++loadGen.current;
     try {
       const v = await get360Versions();
+      if (gen !== loadGen.current) return;
       setVersions(v);
       const vid = (targetVid && v.some(x => x.id === targetVid)) ? targetVid
         : (v.find(x => x.isDefault)?.id ?? v[0]?.id ?? '');
       setVersionId(vid);
-      setComps(vid ? await get360Competencies(vid) : []);
-    } catch {} finally { setLoading(false); }
+      const list = vid ? await get360Competencies(vid) : [];
+      if (gen !== loadGen.current) return;
+      setComps(list);
+    } catch {} finally { if (gen === loadGen.current) setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -259,38 +266,57 @@ function TemplateTab() {
     catch (e) { toast((e as Error).message); }
   };
 
-  // замки от двойного срабатывания: blur поля и клик по кнопке приходят подряд
-  const addingComp = useRef(false);
-  const addingInd = useRef<Set<string>>(new Set());
+  // Промисы-замки: blur поля и клик по кнопке приходят подряд — повторный вызов
+  // возвращает уже идущее добавление, а finishEdit может его дождаться.
+  const addingComp = useRef<Promise<boolean> | null>(null);
+  const addingInd = useRef<Map<string, Promise<boolean>>>(new Map());
 
-  const addComp = async () => {
-    if (!newComp.trim() || addingComp.current) return;
-    addingComp.current = true;
-    try {
-      await create360Competency({ name: newComp.trim(), category: newCompCat.trim(), order: comps.length, versionId });
-      setNewComp(''); toast('Компетенция добавлена'); load(versionId);
-    } finally { addingComp.current = false; }
+  const addComp = (): Promise<boolean> => {
+    if (addingComp.current) return addingComp.current;
+    const name = newComp.trim();
+    if (!name) return Promise.resolve(true);
+    setNewComp(''); // синхронно до запроса: blur+клик не создадут дубль
+    const job = (async () => {
+      try {
+        await create360Competency({ name, category: newCompCat.trim(), order: comps.length, versionId });
+        toast('Компетенция добавлена'); await load(versionId); return true;
+      } catch (e) {
+        setNewComp(prev => prev.trim() ? prev : name); // вернуть текст, если поле не заняли новым
+        toast(`Компетенция не сохранена: ${(e as Error).message}`); return false;
+      } finally { addingComp.current = null; }
+    })();
+    addingComp.current = job;
+    return job;
   };
   const patchComp = async (c: CompetencyTpl, dto: { name?: string; category?: string }) => { await update360Competency(c.id, dto); load(versionId); };
   const removeComp = async (id: string) => { await delete360Competency(id); toast('Удалено'); load(versionId); };
-  const addInd = async (cid: string) => {
+  const addInd = (cid: string): Promise<boolean> => {
+    const inflight = addingInd.current.get(cid);
+    if (inflight) return inflight;
     const text = (newInd[cid] || '').trim();
-    if (!text || addingInd.current.has(cid)) return;
-    addingInd.current.add(cid);
-    try {
-      const order = comps.find(c => c.id === cid)?.indicators.length ?? 0;
-      await add360Indicator(cid, { text, order });
-      setNewInd(p => ({ ...p, [cid]: '' }));
-      load(versionId);
-    } finally { addingInd.current.delete(cid); }
+    if (!text) return Promise.resolve(true);
+    setNewInd(p => ({ ...p, [cid]: '' })); // синхронно: не стирает набранное позже и закрывает окно дубля
+    const job = (async () => {
+      try {
+        await add360Indicator(cid, { text }); // order не шлём — бэкенд ставит в конец (max+1)
+        await load(versionId); return true;
+      } catch (e) {
+        setNewInd(p => (p[cid] || '').trim() ? p : { ...p, [cid]: text });
+        toast(`Индикатор не сохранён: ${(e as Error).message}`); return false;
+      } finally { addingInd.current.delete(cid); }
+    })();
+    addingInd.current.set(cid, job);
+    return job;
   };
   const removeInd = async (id: string) => { await delete360Indicator(id); load(versionId); };
 
-  // «Готово»: сперва зафиксировать недобавленные поля — текст в них не должен молча пропадать
+  // «Готово»: зафиксировать недобавленные поля и дождаться уже идущих blur-добавлений.
+  // При ошибке сохранения остаёмся в редактировании — текст не должен молча пропадать.
   const finishEdit = async () => {
-    for (const c of comps) if ((newInd[c.id] || '').trim()) await addInd(c.id);
-    if (newComp.trim()) await addComp();
-    setEditMode(false);
+    const jobs = comps.map(c => addInd(c.id));
+    jobs.push(addComp());
+    const ok = (await Promise.all(jobs)).every(Boolean);
+    if (ok) setEditMode(false);
   };
 
   // ── Drag-and-drop компетенций (только в edit-режиме, внутри своей категории) ──
