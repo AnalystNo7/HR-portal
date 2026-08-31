@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Modal, useToast } from '@/components/primitives';
 import {
@@ -259,18 +259,39 @@ function TemplateTab() {
     catch (e) { toast((e as Error).message); }
   };
 
+  // замки от двойного срабатывания: blur поля и клик по кнопке приходят подряд
+  const addingComp = useRef(false);
+  const addingInd = useRef<Set<string>>(new Set());
+
   const addComp = async () => {
-    if (!newComp.trim()) return;
-    await create360Competency({ name: newComp.trim(), category: newCompCat.trim(), order: comps.length, versionId });
-    setNewComp(''); toast('Компетенция добавлена'); load(versionId);
+    if (!newComp.trim() || addingComp.current) return;
+    addingComp.current = true;
+    try {
+      await create360Competency({ name: newComp.trim(), category: newCompCat.trim(), order: comps.length, versionId });
+      setNewComp(''); toast('Компетенция добавлена'); load(versionId);
+    } finally { addingComp.current = false; }
   };
   const patchComp = async (c: CompetencyTpl, dto: { name?: string; category?: string }) => { await update360Competency(c.id, dto); load(versionId); };
   const removeComp = async (id: string) => { await delete360Competency(id); toast('Удалено'); load(versionId); };
   const addInd = async (cid: string) => {
-    const text = (newInd[cid] || '').trim(); if (!text) return;
-    await add360Indicator(cid, { text }); setNewInd(p => ({ ...p, [cid]: '' })); load(versionId);
+    const text = (newInd[cid] || '').trim();
+    if (!text || addingInd.current.has(cid)) return;
+    addingInd.current.add(cid);
+    try {
+      const order = comps.find(c => c.id === cid)?.indicators.length ?? 0;
+      await add360Indicator(cid, { text, order });
+      setNewInd(p => ({ ...p, [cid]: '' }));
+      load(versionId);
+    } finally { addingInd.current.delete(cid); }
   };
   const removeInd = async (id: string) => { await delete360Indicator(id); load(versionId); };
+
+  // «Готово»: сперва зафиксировать недобавленные поля — текст в них не должен молча пропадать
+  const finishEdit = async () => {
+    for (const c of comps) if ((newInd[c.id] || '').trim()) await addInd(c.id);
+    if (newComp.trim()) await addComp();
+    setEditMode(false);
+  };
 
   // ── Drag-and-drop компетенций (только в edit-режиме, внутри своей категории) ──
   const sameCat = (a: CompetencyTpl, b: CompetencyTpl) => (a.category || '') === (b.category || '');
@@ -338,6 +359,7 @@ function TemplateTab() {
       <div className="row-2" style={{ alignItems: 'center' }}>
         <input className="inp flex-1" defaultValue={c.name} readOnly={!editMode} onBlur={e => e.target.value !== c.name && patchComp(c, { name: e.target.value })} />
         <input className="inp" style={{ width: 200 }} list={CAT_LIST_ID} placeholder="Категория" defaultValue={c.category} readOnly={!editMode} onBlur={e => e.target.value !== c.category && patchComp(c, { category: e.target.value })} />
+        <span className="small muted" style={{ whiteSpace: 'nowrap' }}>{c.indicators.length} инд.</span>
         {editMode && <button className="btn btn-ghost btn-sm" onClick={() => removeComp(c.id)}><Icon name="trash" size={14} /></button>}
       </div>
       <div className="stack-2" style={{ marginTop: 8, paddingLeft: 28 }}>
@@ -349,7 +371,7 @@ function TemplateTab() {
         ))}
         {editMode && (
           <div className="row-2" style={{ alignItems: 'center' }}>
-            <input className="inp flex-1" placeholder="Новый индикатор..." value={newInd[c.id] || ''} onChange={e => setNewInd(p => ({ ...p, [c.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addInd(c.id)} />
+            <input className="inp flex-1" placeholder="Новый индикатор..." value={newInd[c.id] || ''} onChange={e => setNewInd(p => ({ ...p, [c.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addInd(c.id)} onBlur={() => addInd(c.id)} />
             <button className="btn btn-secondary btn-sm" onClick={() => addInd(c.id)}>Добавить</button>
           </div>
         )}
@@ -364,7 +386,7 @@ function TemplateTab() {
       <div className="mgr-toolbar">
         <div className="flex-1" />
         {editMode
-          ? <button className="btn btn-primary btn-sm" onClick={() => setEditMode(false)}>Готово</button>
+          ? <button className="btn btn-primary btn-sm" onClick={finishEdit}>Готово</button>
           : <button className="btn btn-ghost btn-sm" onClick={() => setEditMode(true)}><Icon name="edit" size={14} /> Редактировать</button>}
       </div>
 

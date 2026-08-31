@@ -180,8 +180,12 @@ export class TemplateService implements OnModuleInit {
   // ─── Индикаторы ────────────────────────────────
   async addIndicator(competencyId: string, dto: IndicatorDto) {
     await this.ensureCompetency(competencyId);
+    // без явного order — в конец списка (order=0 ставил новый индикатор в непредсказуемое место)
+    const order = dto.order ?? (((await this.prisma.indicatorTemplate.aggregate({
+      where: { competencyId }, _max: { order: true },
+    }))._max.order ?? -1) + 1);
     return this.prisma.indicatorTemplate.create({
-      data: { competencyId, text: dto.text, order: dto.order ?? 0 },
+      data: { competencyId, text: dto.text, order },
     });
   }
 
