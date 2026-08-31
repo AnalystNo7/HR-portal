@@ -352,6 +352,15 @@ function TemplateTab() {
     await delete360Indicator(id);
     setComps(prev => prev.map(c => ({ ...c, indicators: c.indicators.filter(i => i.id !== id) })));
   };
+  // Обратный вопрос: балл респондента инвертируется при сохранении (методика v1.3)
+  const toggleIndReverse = async (cid: string, iid: string, isReverse: boolean) => {
+    try {
+      await update360Indicator(iid, { isReverse });
+      setComps(prev => prev.map(c => c.id === cid
+        ? { ...c, indicators: c.indicators.map(i => i.id === iid ? { ...i, isReverse } : i) }
+        : c));
+    } catch (e) { toast(`Не сохранено: ${(e as Error).message}`); }
+  };
   // Пояснение индикатора (подсказка оценщику) — автосохранение по blur, без reload
   const saveIndDescription = async (cid: string, iid: string, value: string) => {
     const text = value.trim() || null;
@@ -448,6 +457,13 @@ function TemplateTab() {
           <div key={i.id}>
             <div className="row-2" style={{ alignItems: 'center' }}>
               <input className="inp flex-1" defaultValue={i.text} readOnly={!editMode} onBlur={e => e.target.value !== i.text && update360Indicator(i.id, { text: e.target.value }).then(() => load(versionId))} />
+              {editMode ? (
+                <label className="small row-2" style={{ alignItems: 'center', gap: 4, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  title="Балл респондента инвертируется при расчёте (1↔4, 2↔3)">
+                  <input type="checkbox" checked={!!i.isReverse} onChange={e => toggleIndReverse(c.id, i.id, e.target.checked)} />
+                  обратный
+                </label>
+              ) : i.isReverse && <span className="pill pill-gray" title="Балл инвертируется при расчёте (1↔4, 2↔3)">обратный</span>}
               {editMode && <button className="btn btn-ghost btn-sm" onClick={() => removeInd(i.id)}><Icon name="close" size={12} /></button>}
             </div>
             {editMode ? (

@@ -246,6 +246,8 @@ model IndicatorTemplate {
   text         String
   // пояснение — методическая подсказка оценщику («Как оценивать?» в опроснике)
   description  String?
+  // обратный вопрос: балл инвертируется при сохранении ответа (invertScore в analytics.ts)
+  isReverse    Boolean            @default(false) @map("is_reverse")
   order        Int                @default(0)
   createdAt    DateTime           @default(now()) @map("created_at")
   updatedAt    DateTime           @updatedAt @map("updated_at")
@@ -321,6 +323,9 @@ model Cycle360Indicator {
   sourceId     String?             @map("source_id")
   text         String
   description  String?
+  // снапшот признака обратного вопроса; в запущенном цикле не меняется —
+  // ответы уже сохранены с учётом инверсии
+  isReverse    Boolean             @default(false) @map("is_reverse")
   order        Int                 @default(0)
   responses    IndicatorResponse[]
 

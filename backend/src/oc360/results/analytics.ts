@@ -49,6 +49,19 @@ export function meaningfulScores(nums: number[]): number[] {
   return nums.filter(n => n !== NO_OBSERVATION_SCORE);
 }
 
+/**
+ * Инверсия балла обратного вопроса (методика v1.3): 1↔4, 2↔3 для шкалы 1–4;
+ * формула (min+max)−score универсальна для любой шкалы. Служебный 0 не инвертируется.
+ * Функция симметрична: invert(invert(x)) === x — respondent.service применяет её
+ * и при записи ответа, и при отдаче формы обратно.
+ */
+export function invertScore(score: number, scaleValues: number[]): number {
+  if (score === NO_OBSERVATION_SCORE) return score;
+  const meaningful = meaningfulScores(scaleValues);
+  if (!meaningful.length) return score;
+  return Math.min(...meaningful) + Math.max(...meaningful) - score;
+}
+
 export function avg(nums: number[]): number | null {
   if (!nums.length) return null;
   return round2(nums.reduce((a, b) => a + b, 0) / nums.length);

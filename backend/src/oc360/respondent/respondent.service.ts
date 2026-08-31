@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { fio } from '../oc360.helpers';
+import { invertScore } from '../results/analytics';
 
 export interface SubmitDto {
   scores: { indicatorId: string; score: number }[];
@@ -75,8 +76,16 @@ export class RespondentService {
       throw new ForbiddenException('Нет доступа к этой оценке');
     }
 
+    // Обратные индикаторы хранятся инвертированными (методика v1.3) — для формы
+    // возвращаем балл, который респондент реально нажимал (функция симметрична)
+    const reverseIds = new Set(
+      respondent.subject.cycle.competencies.flatMap(c => c.indicators.filter(i => i.isReverse).map(i => i.id)),
+    );
+    const scaleValues = respondent.subject.cycle.scalePoints.map(p => p.value);
     const scores: Record<string, number> = {};
-    for (const r of respondent.responses) scores[r.indicatorId] = r.score;
+    for (const r of respondent.responses) {
+      scores[r.indicatorId] = reverseIds.has(r.indicatorId) ? invertScore(r.score, scaleValues) : r.score;
+    }
 
     return {
       id: respondent.id,
@@ -103,7 +112,19 @@ export class RespondentService {
   async submit(respondentId: string, employeeId: string | null, isHrAdmin: boolean, dto: SubmitDto) {
     const respondent = await this.prisma.cycle360Respondent.findUnique({
       where: { id: respondentId },
-      include: { subject: { include: { cycle: { select: { status: true } } } } },
+      include: {
+        subject: {
+          include: {
+            cycle: {
+              select: {
+                status: true,
+                scalePoints: { select: { value: true } },
+                competencies: { select: { indicators: { select: { id: true, isReverse: true } } } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!respondent) throw new NotFoundException('Assignment not found');
     if (!isHrAdmin && respondent.evaluatorId !== employeeId) {
@@ -113,12 +134,20 @@ export class RespondentService {
       throw new BadRequestException('Оценка доступна только в активном запуске');
     }
 
+    // Обратные вопросы (методика v1.3): в БД хранится инвертированный балл —
+    // все расчёты и отчёты работают с ним без специальной обработки
+    const reverseIds = new Set(
+      respondent.subject.cycle.competencies.flatMap(c => c.indicators.filter(i => i.isReverse).map(i => i.id)),
+    );
+    const scaleValues = respondent.subject.cycle.scalePoints.map(p => p.value);
+
     await this.prisma.$transaction(async tx => {
       for (const s of dto.scores ?? []) {
+        const score = reverseIds.has(s.indicatorId) ? invertScore(s.score, scaleValues) : s.score;
         await tx.indicatorResponse.upsert({
           where: { respondentId_indicatorId: { respondentId, indicatorId: s.indicatorId } },
-          update: { score: s.score },
-          create: { respondentId, indicatorId: s.indicatorId, score: s.score },
+          update: { score },
+          create: { respondentId, indicatorId: s.indicatorId, score },
         });
       }
       if (dto.openAnswer) {
