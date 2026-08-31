@@ -352,6 +352,18 @@ function TemplateTab() {
     await delete360Indicator(id);
     setComps(prev => prev.map(c => ({ ...c, indicators: c.indicators.filter(i => i.id !== id) })));
   };
+  // Пояснение индикатора (подсказка оценщику) — автосохранение по blur, без reload
+  const saveIndDescription = async (cid: string, iid: string, value: string) => {
+    const text = value.trim() || null;
+    const current = comps.find(c => c.id === cid)?.indicators.find(i => i.id === iid)?.description ?? null;
+    if ((current ?? '') === (text ?? '')) return;
+    try {
+      await update360Indicator(iid, { description: text });
+      setComps(prev => prev.map(c => c.id === cid
+        ? { ...c, indicators: c.indicators.map(i => i.id === iid ? { ...i, description: text } : i) }
+        : c));
+    } catch (e) { toast(`Пояснение не сохранено: ${(e as Error).message}`); }
+  };
 
   // «Готово»: зафиксировать недобавленные поля и дождаться уже идущих blur-добавлений.
   // При ошибке сохранения остаёмся в редактировании — текст не должен молча пропадать.
@@ -433,9 +445,18 @@ function TemplateTab() {
       </div>
       <div className="stack-2" style={{ marginTop: 8, paddingLeft: 28 }}>
         {c.indicators.map(i => (
-          <div key={i.id} className="row-2" style={{ alignItems: 'center' }}>
-            <input className="inp flex-1" defaultValue={i.text} readOnly={!editMode} onBlur={e => e.target.value !== i.text && update360Indicator(i.id, { text: e.target.value }).then(() => load(versionId))} />
-            {editMode && <button className="btn btn-ghost btn-sm" onClick={() => removeInd(i.id)}><Icon name="close" size={12} /></button>}
+          <div key={i.id}>
+            <div className="row-2" style={{ alignItems: 'center' }}>
+              <input className="inp flex-1" defaultValue={i.text} readOnly={!editMode} onBlur={e => e.target.value !== i.text && update360Indicator(i.id, { text: e.target.value }).then(() => load(versionId))} />
+              {editMode && <button className="btn btn-ghost btn-sm" onClick={() => removeInd(i.id)}><Icon name="close" size={12} /></button>}
+            </div>
+            {editMode ? (
+              <textarea className="ta" rows={2} placeholder="Пояснение — подсказка оценщику «Как оценивать?» (необязательно)"
+                style={{ marginTop: 4, fontSize: 12, color: 'var(--gpc-gray-600)' }}
+                defaultValue={i.description ?? ''} onBlur={e => saveIndDescription(c.id, i.id, e.target.value)} />
+            ) : i.description && (
+              <div className="small muted" style={{ marginTop: 2, padding: '0 4px' }}>{i.description}</div>
+            )}
           </div>
         ))}
         {editMode && (

@@ -447,7 +447,7 @@ export type SubjectStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'PUBLISHED
 export type RespondentStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 export type EvalZone = 'CONSENSUS' | 'ATTENTION' | 'BLIND_SPOT' | 'HIDDEN_POTENTIAL' | null;
 
-export interface IndicatorTpl { id: string; competencyId: string; text: string; order: number; }
+export interface IndicatorTpl { id: string; competencyId: string; text: string; description?: string | null; order: number; }
 export interface CompetencyTpl { id: string; versionId: string | null; name: string; description: string | null; category: string; order: number; isActive: boolean; indicators: IndicatorTpl[]; }
 export interface OpenQuestions { strengths?: string | null; toChange?: string | null; toDevelop?: string | null; }
 // Дефолтные формулировки открытых вопросов опроса 360 (утверждены методикой);
@@ -472,7 +472,7 @@ export interface Cycle360ListItem {
 
 export const halfLabel = (h: number | null) => h === 1 ? '1 полугодие' : h === 2 ? '2 полугодие' : '';
 
-export interface Cycle360Competency { id: string; name: string; description: string | null; category: string; order: number; indicators: { id: string; text: string; order: number }[]; }
+export interface Cycle360Competency { id: string; name: string; description: string | null; category: string; order: number; indicators: { id: string; text: string; description?: string | null; order: number }[]; }
 export interface Cycle360SubjectSummary {
   id: string; status: SubjectStatus; resultsPublishedAt: string | null;
   managerEditsPeers: boolean;
@@ -631,7 +631,7 @@ export const create360Competency = (dto: { name: string; description?: string | 
 export const update360Competency = (id: string, dto: { name?: string; description?: string | null; category?: string; order?: number; isActive?: boolean }) => fetchApi<CompetencyTpl>(`/oc360/template/competencies/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const delete360Competency = (id: string) => fetchApi<{ success: boolean }>(`/oc360/template/competencies/${id}`, { method: 'DELETE' });
 export const add360Indicator = (competencyId: string, dto: { text: string; order?: number }) => fetchApi<IndicatorTpl>(`/oc360/template/competencies/${competencyId}/indicators`, { method: 'POST', body: JSON.stringify(dto) });
-export const update360Indicator = (id: string, dto: { text?: string; order?: number }) => fetchApi<IndicatorTpl>(`/oc360/template/indicators/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const update360Indicator = (id: string, dto: { text?: string; description?: string | null; order?: number }) => fetchApi<IndicatorTpl>(`/oc360/template/indicators/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const delete360Indicator = (id: string) => fetchApi<{ success: boolean }>(`/oc360/template/indicators/${id}`, { method: 'DELETE' });
 export const get360Scales = () => fetchApi<ScaleTpl[]>('/oc360/template/scales');
 export const create360Scale = (dto: { name: string; description?: string | null; isDefault?: boolean; points: ScalePoint[] }) => fetchApi<ScaleTpl>('/oc360/template/scales', { method: 'POST', body: JSON.stringify(dto) });

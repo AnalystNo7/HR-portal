@@ -180,6 +180,11 @@ function FillForm({ respondentId, employeeId, onBack }: { respondentId: string; 
   const [scores, setScores] = useState<Record<string, number>>({});
   const [open, setOpen] = useState({ strengths: '', toChange: '', toDevelop: '' });
   const [saving, setSaving] = useState(false);
+  // раскрытые подсказки «Как оценивать?» (по id индикатора)
+  const [hintsOpen, setHintsOpen] = useState<Set<string>>(new Set());
+  const toggleHint = (id: string) => setHintsOpen(prev => {
+    const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
+  });
 
   useEffect(() => {
     get360Assignment(respondentId, employeeId).then(f => {
@@ -226,7 +231,20 @@ function FillForm({ respondentId, employeeId, onBack }: { respondentId: string; 
             <div className="stack-3" style={{ marginTop: 10 }}>
               {c.indicators.map(i => (
                 <div key={i.id}>
-                  <div style={{ marginBottom: 6 }}>{i.text}</div>
+                  <div style={{ marginBottom: 6 }}>
+                    {i.text}
+                    {i.description && (
+                      <button className="btn btn-ghost btn-sm" style={{ marginLeft: 6, padding: '0 6px', fontSize: 12, color: 'var(--gpc-blue-700)' }}
+                        onClick={() => toggleHint(i.id)}>
+                        <Icon name="info" size={13} /> Как оценивать?
+                      </button>
+                    )}
+                  </div>
+                  {i.description && hintsOpen.has(i.id) && (
+                    <div className="small" style={{ marginBottom: 8, padding: '8px 10px', background: 'var(--gpc-gray-50)', border: '1px solid var(--line)', borderRadius: 8, color: 'var(--gpc-gray-600)' }}>
+                      {i.description}
+                    </div>
+                  )}
                   <div className="row-2" style={{ flexWrap: 'wrap', gap: 6, ...(readonly ? { pointerEvents: 'none' as const, opacity: 0.6 } : {}) }}>
                     {form.scalePoints.map(p => (
                       <button key={p.value}

@@ -21,6 +21,7 @@ export interface VersionDto {
 
 export interface IndicatorDto {
   text: string;
+  description?: string | null;
   order?: number;
 }
 
@@ -101,7 +102,7 @@ export class TemplateService implements OnModuleInit {
               category: c.category,
               order: c.order,
               isActive: c.isActive,
-              indicators: { create: c.indicators.map(i => ({ text: i.text, order: i.order })) },
+              indicators: { create: c.indicators.map(i => ({ text: i.text, description: i.description, order: i.order })) },
             },
           });
         }
@@ -203,7 +204,7 @@ export class TemplateService implements OnModuleInit {
         where: { competencyId }, _max: { order: true },
       }))._max.order ?? -1) + 1);
       return tx.indicatorTemplate.create({
-        data: { competencyId, text: dto.text, order },
+        data: { competencyId, text: dto.text, description: dto.description ?? null, order },
       });
     });
   }
@@ -213,7 +214,7 @@ export class TemplateService implements OnModuleInit {
     if (!exists) throw new NotFoundException('Indicator not found');
     return this.prisma.indicatorTemplate.update({
       where: { id },
-      data: { text: dto.text, order: dto.order },
+      data: { text: dto.text, description: dto.description, order: dto.order },
     });
   }
 

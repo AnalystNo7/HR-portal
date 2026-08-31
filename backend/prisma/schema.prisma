@@ -244,6 +244,8 @@ model IndicatorTemplate {
   competencyId String             @map("competency_id")
   competency   CompetencyTemplate @relation(fields: [competencyId], references: [id], onDelete: Cascade)
   text         String
+  // пояснение — методическая подсказка оценщику («Как оценивать?» в опроснике)
+  description  String?
   order        Int                @default(0)
   createdAt    DateTime           @default(now()) @map("created_at")
   updatedAt    DateTime           @updatedAt @map("updated_at")
@@ -318,6 +320,7 @@ model Cycle360Indicator {
   competency   Cycle360Competency  @relation(fields: [competencyId], references: [id], onDelete: Cascade)
   sourceId     String?             @map("source_id")
   text         String
+  description  String?
   order        Int                 @default(0)
   responses    IndicatorResponse[]
 

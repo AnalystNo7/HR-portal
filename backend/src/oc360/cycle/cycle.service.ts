@@ -129,7 +129,7 @@ export class CycleService {
             category: c.category,
             order: c.order,
             indicators: {
-              create: c.indicators.map(i => ({ sourceId: i.id, text: i.text, order: i.order })),
+              create: c.indicators.map(i => ({ sourceId: i.id, text: i.text, description: i.description, order: i.order })),
             },
           })),
         },
