@@ -271,15 +271,21 @@ function TemplateTab() {
   const addingComp = useRef<Promise<boolean> | null>(null);
   const addingInd = useRef<Map<string, Promise<boolean>>>(new Map());
 
-  const addComp = (): Promise<boolean> => {
+  // Добавление/удаление обновляют список локально из ответа сервера, без полной
+  // перезагрузки: reload схлопывал высоту страницы и скролл прыгал вверх.
+  const addComp = (refocus = false): Promise<boolean> => {
     if (addingComp.current) return addingComp.current;
     const name = newComp.trim();
     if (!name) return Promise.resolve(true);
+    const doFocus = () => { if (refocus) document.getElementById('tpl-new-comp')?.focus(); };
     setNewComp(''); // синхронно до запроса: blur+клик не создадут дубль
     const job = (async () => {
       try {
-        await create360Competency({ name, category: newCompCat.trim(), order: comps.length, versionId });
-        toast('Компетенция добавлена'); await load(versionId); return true;
+        const created = await create360Competency({ name, category: newCompCat.trim(), order: comps.length, versionId });
+        setComps(prev => [...prev, { ...created, indicators: created.indicators ?? [] }]);
+        toast('Компетенция добавлена');
+        doFocus();
+        return true;
       } catch (e) {
         setNewComp(prev => prev.trim() ? prev : name); // вернуть текст, если поле не заняли новым
         toast(`Компетенция не сохранена: ${(e as Error).message}`); return false;
@@ -289,17 +295,30 @@ function TemplateTab() {
     return job;
   };
   const patchComp = async (c: CompetencyTpl, dto: { name?: string; category?: string }) => { await update360Competency(c.id, dto); load(versionId); };
-  const removeComp = async (id: string) => { await delete360Competency(id); toast('Удалено'); load(versionId); };
-  const addInd = (cid: string): Promise<boolean> => {
+  const removeComp = async (id: string) => {
+    await delete360Competency(id);
+    setComps(prev => prev.filter(c => c.id !== id));
+    toast('Удалено');
+  };
+  // refocus — вернуть курсор в поле после добавления: только при явном действии
+  // (Enter/кнопка), не при blur-автосохранении — иначе перехватывали бы фокус,
+  // когда пользователь кликнул в другое поле.
+  const addInd = (cid: string, refocus = false): Promise<boolean> => {
+    const doFocus = () => document.getElementById(`tpl-new-ind-${cid}`)?.focus();
     const inflight = addingInd.current.get(cid);
-    if (inflight) return inflight;
+    if (inflight) { // добавление уже запустил blur — при клике по кнопке лишь дождаться и вернуть курсор
+      if (refocus) inflight.then(ok => ok && doFocus());
+      return inflight;
+    }
     const text = (newInd[cid] || '').trim();
     if (!text) return Promise.resolve(true);
     setNewInd(p => ({ ...p, [cid]: '' })); // синхронно: не стирает набранное позже и закрывает окно дубля
     const job = (async () => {
       try {
-        await add360Indicator(cid, { text }); // order не шлём — бэкенд ставит в конец (max+1)
-        await load(versionId); return true;
+        const created = await add360Indicator(cid, { text }); // order не шлём — бэкенд ставит в конец (max+1)
+        setComps(prev => prev.map(c => c.id === cid ? { ...c, indicators: [...c.indicators, created] } : c));
+        if (refocus) doFocus();
+        return true;
       } catch (e) {
         setNewInd(p => (p[cid] || '').trim() ? p : { ...p, [cid]: text });
         toast(`Индикатор не сохранён: ${(e as Error).message}`); return false;
@@ -308,7 +327,10 @@ function TemplateTab() {
     addingInd.current.set(cid, job);
     return job;
   };
-  const removeInd = async (id: string) => { await delete360Indicator(id); load(versionId); };
+  const removeInd = async (id: string) => {
+    await delete360Indicator(id);
+    setComps(prev => prev.map(c => ({ ...c, indicators: c.indicators.filter(i => i.id !== id) })));
+  };
 
   // «Готово»: зафиксировать недобавленные поля и дождаться уже идущих blur-добавлений.
   // При ошибке сохранения остаёмся в редактировании — текст не должен молча пропадать.
@@ -397,8 +419,8 @@ function TemplateTab() {
         ))}
         {editMode && (
           <div className="row-2" style={{ alignItems: 'center' }}>
-            <input className="inp flex-1" placeholder="Новый индикатор..." value={newInd[c.id] || ''} onChange={e => setNewInd(p => ({ ...p, [c.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addInd(c.id)} onBlur={() => addInd(c.id)} />
-            <button className="btn btn-secondary btn-sm" onClick={() => addInd(c.id)}>Добавить</button>
+            <input id={`tpl-new-ind-${c.id}`} className="inp flex-1" placeholder="Новый индикатор..." value={newInd[c.id] || ''} onChange={e => setNewInd(p => ({ ...p, [c.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addInd(c.id, true)} onBlur={() => addInd(c.id)} />
+            <button className="btn btn-secondary btn-sm" onClick={() => addInd(c.id, true)}>Добавить</button>
           </div>
         )}
       </div>
@@ -448,9 +470,9 @@ function TemplateTab() {
           ))}
           {editMode && (
             <div className="row-2" style={{ alignItems: 'center' }}>
-              <input className="inp flex-1" placeholder="Новая компетенция..." value={newComp} onChange={e => setNewComp(e.target.value)} onKeyDown={e => e.key === 'Enter' && addComp()} />
+              <input id="tpl-new-comp" className="inp flex-1" placeholder="Новая компетенция..." value={newComp} onChange={e => setNewComp(e.target.value)} onKeyDown={e => e.key === 'Enter' && addComp(true)} />
               <input className="inp" style={{ width: 200 }} list={CAT_LIST_ID} placeholder="Категория" value={newCompCat} onChange={e => setNewCompCat(e.target.value)} />
-              <button className="btn btn-primary btn-sm" onClick={addComp}><Icon name="plus" size={14} /> Категория</button>
+              <button className="btn btn-primary btn-sm" onClick={() => addComp(true)}><Icon name="plus" size={14} /> Категория</button>
             </div>
           )}
         </div>
