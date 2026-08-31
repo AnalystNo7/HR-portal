@@ -212,6 +212,9 @@ model CompetencyVersion {
   id           String               @id @default(uuid())
   name         String
   isDefault    Boolean              @default(false) @map("is_default")
+  // Переопределения формулировок трёх открытых вопросов опроса
+  // {strengths, toChange, toDevelop}; null = дефолтные тексты (константа фронта)
+  openQuestions Json?               @map("open_questions")
   competencies CompetencyTemplate[]
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
@@ -280,6 +283,8 @@ model Cycle360 {
   status       Cycle360Status       @default(DRAFT)
   // Целевой уровень компетенций по методике; null = 3.0 (DEFAULT_TARGET_LEVEL в коде)
   targetLevel  Float?               @map("target_level")
+  // Снапшот формулировок открытых вопросов из версии шаблона на момент создания
+  openQuestions Json?               @map("open_questions")
   startedAt    DateTime?            @map("started_at")
   closedAt     DateTime?            @map("closed_at")
   createdById  String?              @map("created_by_id")

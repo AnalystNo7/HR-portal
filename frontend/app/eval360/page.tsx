@@ -7,6 +7,7 @@ import {
   get360Assignments, Assignment, get360Assignment, AssignmentForm, submit360Assignment,
   get360MyResults, MySubject360, get360MyResult, Results360, RespondentStatus,
   listPeers, addPeer, removePeer, confirmPeers, PeerRespondent, getEmployees, Employee,
+  DEFAULT_OPEN_QUESTIONS,
 } from '@/lib/api';
 import { Report360View, reportPdfTitle } from '@/components/eval360';
 
@@ -246,9 +247,11 @@ function FillForm({ respondentId, employeeId, onBack }: { respondentId: string; 
         ))}
 
         <div className="card card-pad stack-3">
-          <div className="field"><label className="small">Сильные стороны</label><textarea className="ta" rows={2} value={open.strengths} onChange={e => setOpen(o => ({ ...o, strengths: e.target.value }))} disabled={readonly} /></div>
-          <div className="field"><label className="small">Что стоит изменить</label><textarea className="ta" rows={2} value={open.toChange} onChange={e => setOpen(o => ({ ...o, toChange: e.target.value }))} disabled={readonly} /></div>
-          <div className="field"><label className="small">Что развивать</label><textarea className="ta" rows={2} value={open.toDevelop} onChange={e => setOpen(o => ({ ...o, toDevelop: e.target.value }))} disabled={readonly} /></div>
+          <b>Открытые вопросы</b>
+          {/* формулировки — из снапшота цикла (версия шаблона); null = дефолтные */}
+          <div className="field"><label className="small">{form.openQuestions?.strengths || DEFAULT_OPEN_QUESTIONS.strengths}</label><textarea className="ta" rows={2} value={open.strengths} onChange={e => setOpen(o => ({ ...o, strengths: e.target.value }))} disabled={readonly} /></div>
+          <div className="field"><label className="small">{form.openQuestions?.toChange || DEFAULT_OPEN_QUESTIONS.toChange}</label><textarea className="ta" rows={2} value={open.toChange} onChange={e => setOpen(o => ({ ...o, toChange: e.target.value }))} disabled={readonly} /></div>
+          <div className="field"><label className="small">{form.openQuestions?.toDevelop || DEFAULT_OPEN_QUESTIONS.toDevelop}</label><textarea className="ta" rows={2} value={open.toDevelop} onChange={e => setOpen(o => ({ ...o, toDevelop: e.target.value }))} disabled={readonly} /></div>
         </div>
 
         <div className="row-2">

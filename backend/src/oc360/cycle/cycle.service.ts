@@ -117,6 +117,8 @@ export class CycleService {
         year: dto.year,
         half: dto.half,
         targetLevel: dto.targetLevel ?? null,
+        // снапшот формулировок открытых вопросов версии (null = дефолтные тексты)
+        ...(version.openQuestions != null ? { openQuestions: version.openQuestions } : {}),
         createdById: createdById ?? null,
         scalePoints: { create: scale.points.map(p => ({ value: p.value, label: p.label })) },
         competencies: {

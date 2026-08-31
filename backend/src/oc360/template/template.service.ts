@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface CompetencyDto {
@@ -14,6 +15,8 @@ export interface VersionDto {
   name: string;
   isDefault?: boolean;
   sourceVersionId?: string;
+  // переопределения формулировок открытых вопросов; null — вернуть дефолтные
+  openQuestions?: { strengths?: string | null; toChange?: string | null; toDevelop?: string | null } | null;
 }
 
 export interface IndicatorDto {
@@ -72,8 +75,16 @@ export class TemplateService implements OnModuleInit {
       if (dto.isDefault) {
         await tx.competencyVersion.updateMany({ data: { isDefault: false } });
       }
+      // клон переносит и формулировки открытых вопросов исходной версии
+      const sourceVersion = dto.sourceVersionId
+        ? await tx.competencyVersion.findUnique({ where: { id: dto.sourceVersionId } })
+        : null;
       const version = await tx.competencyVersion.create({
-        data: { name: dto.name, isDefault: dto.isDefault ?? false },
+        data: {
+          name: dto.name,
+          isDefault: dto.isDefault ?? false,
+          ...(sourceVersion?.openQuestions != null ? { openQuestions: sourceVersion.openQuestions } : {}),
+        },
       });
       if (dto.sourceVersionId) {
         const source = await tx.competencyTemplate.findMany({
@@ -110,7 +121,12 @@ export class TemplateService implements OnModuleInit {
       }
       return tx.competencyVersion.update({
         where: { id },
-        data: { name: dto.name, isDefault: dto.isDefault === true ? true : undefined },
+        data: {
+          name: dto.name,
+          isDefault: dto.isDefault === true ? true : undefined,
+          // undefined — не трогать; null — сбросить к дефолтным текстам
+          openQuestions: dto.openQuestions === undefined ? undefined : dto.openQuestions ?? Prisma.DbNull,
+        },
         include: { _count: { select: { competencies: true } } },
       });
     });

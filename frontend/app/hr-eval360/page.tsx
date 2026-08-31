@@ -9,6 +9,7 @@ import {
   add360Indicator, update360Indicator, delete360Indicator, CompetencyTpl,
   get360Scales, create360Scale, update360Scale, delete360Scale, ScaleTpl, ScalePoint,
   get360Versions, create360Version, update360Version, delete360Version, CompetencyVersion,
+  OpenQuestions, DEFAULT_OPEN_QUESTIONS,
 } from '@/lib/api';
 import { MethodDocsTab, SettingsTab } from './KnowledgeTab';
 import { useAuth } from '@/contexts/AuthContext';
@@ -205,6 +206,12 @@ function CyclesTab() {
 // ─── Шаблон ────────────────────────────────────────────
 const CAT_LIST_ID = 'oc360-categories';
 
+const OPEN_Q_FIELDS = [
+  { key: 'strengths' as const, label: 'Вопрос 1 — сильные стороны' },
+  { key: 'toChange' as const, label: 'Вопрос 2 — что изменить' },
+  { key: 'toDevelop' as const, label: 'Вопрос 3 — что развивать' },
+];
+
 function TemplateTab() {
   const toast = useToast();
   const [comps, setComps] = useState<CompetencyTpl[]>([]);
@@ -252,6 +259,20 @@ function TemplateTab() {
     if (!nm.trim() || nm.trim() === currentVersion?.name) return;
     try { await update360Version(versionId, { name: nm.trim() }); load(versionId); }
     catch (e) { toast((e as Error).message); }
+  };
+  // Формулировка открытого вопроса: пустая или дефолтная = не хранить переопределение
+  const saveOpenQuestion = async (key: keyof OpenQuestions, value: string) => {
+    const text = value.trim();
+    const effective = currentVersion?.openQuestions?.[key] || DEFAULT_OPEN_QUESTIONS[key];
+    if (text === effective) return; // не изменилось
+    const next: OpenQuestions = { ...(currentVersion?.openQuestions ?? {}) };
+    if (!text || text === DEFAULT_OPEN_QUESTIONS[key]) delete next[key];
+    else next[key] = text;
+    try {
+      const updated = await update360Version(versionId, { openQuestions: Object.keys(next).length ? next : null });
+      setVersions(prev => prev.map(v => v.id === versionId ? { ...v, openQuestions: updated.openQuestions ?? null } : v));
+      toast('Формулировка сохранена');
+    } catch (e) { toast(`Вопрос не сохранён: ${(e as Error).message}`); }
   };
   const createVersion = async () => {
     if (!verName.trim()) return;
@@ -475,6 +496,24 @@ function TemplateTab() {
               <button className="btn btn-primary btn-sm" onClick={() => addComp(true)}><Icon name="plus" size={14} /> Категория</button>
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="card card-pad">
+        <b>Открытые вопросы</b>
+        <div className="small muted" style={{ margin: '4px 0 10px' }}>
+          Задаются каждому респонденту в конце опроса, ответ — свободный текст (необязательный).
+          Формулировки сохраняются в версии шаблона; уже запущенные оценки не меняются.
+        </div>
+        <div className="stack-2">
+          {OPEN_Q_FIELDS.map(f => (
+            <div className="field" key={f.key}>
+              <label className="small">{f.label}</label>
+              <textarea key={`${versionId}:${f.key}`} className="ta" rows={2} readOnly={!editMode}
+                defaultValue={currentVersion?.openQuestions?.[f.key] || DEFAULT_OPEN_QUESTIONS[f.key]}
+                onBlur={e => saveOpenQuestion(f.key, e.target.value)} />
+            </div>
+          ))}
         </div>
       </div>
 

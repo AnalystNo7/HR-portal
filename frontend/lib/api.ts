@@ -449,7 +449,15 @@ export type EvalZone = 'CONSENSUS' | 'ATTENTION' | 'BLIND_SPOT' | 'HIDDEN_POTENT
 
 export interface IndicatorTpl { id: string; competencyId: string; text: string; order: number; }
 export interface CompetencyTpl { id: string; versionId: string | null; name: string; description: string | null; category: string; order: number; isActive: boolean; indicators: IndicatorTpl[]; }
-export interface CompetencyVersion { id: string; name: string; isDefault: boolean; _count?: { competencies: number }; }
+export interface OpenQuestions { strengths?: string | null; toChange?: string | null; toDevelop?: string | null; }
+// Дефолтные формулировки открытых вопросов опроса 360 (утверждены методикой);
+// версия шаблона может переопределить их (CompetencyVersion.openQuestions)
+export const DEFAULT_OPEN_QUESTIONS: Required<{ [K in keyof OpenQuestions]: string }> = {
+  strengths: 'Какие сильные стороны вы можете отметить в работе сотрудника, заметно отличающие его от других?',
+  toChange: 'Что, на ваш взгляд, необходимо изменить сотруднику в своём поведении, чтобы повысить свою профессиональную эффективность?',
+  toDevelop: 'Какие качества необходимо развивать сотруднику в первую очередь?',
+};
+export interface CompetencyVersion { id: string; name: string; isDefault: boolean; openQuestions?: OpenQuestions | null; _count?: { competencies: number }; }
 export interface ScalePoint { id?: string; value: number; label: string; }
 export interface ScaleTpl { id: string; name: string; description: string | null; isDefault: boolean; points: ScalePoint[]; }
 
@@ -502,6 +510,7 @@ export interface AssignmentForm {
   cycle: { id: string; name: string }; subject: { id: string; name: string };
   competencies: Cycle360Competency[]; scalePoints: ScalePoint[];
   scores: Record<string, number>;
+  openQuestions?: OpenQuestions | null;
   openAnswer: { strengths: string | null; toChange: string | null; toDevelop: string | null };
 }
 export interface SubmitAssignmentDto {
@@ -613,7 +622,7 @@ export interface Report360Envelope { configured: boolean; report: Report360 | nu
 // Template — versions
 export const get360Versions = () => fetchApi<CompetencyVersion[]>('/oc360/template/versions');
 export const create360Version = (dto: { name: string; sourceVersionId?: string; isDefault?: boolean }) => fetchApi<CompetencyVersion>('/oc360/template/versions', { method: 'POST', body: JSON.stringify(dto) });
-export const update360Version = (id: string, dto: { name?: string; isDefault?: boolean }) => fetchApi<CompetencyVersion>(`/oc360/template/versions/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
+export const update360Version = (id: string, dto: { name?: string; isDefault?: boolean; openQuestions?: OpenQuestions | null }) => fetchApi<CompetencyVersion>(`/oc360/template/versions/${id}`, { method: 'PUT', body: JSON.stringify(dto) });
 export const delete360Version = (id: string) => fetchApi<{ success: boolean }>(`/oc360/template/versions/${id}`, { method: 'DELETE' });
 
 // Template

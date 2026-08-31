@@ -87,6 +87,7 @@ export class RespondentService {
       subject: { id: respondent.subject.employee.id, name: fio(respondent.subject.employee) },
       competencies: respondent.subject.cycle.competencies,
       scalePoints: respondent.subject.cycle.scalePoints,
+      openQuestions: respondent.subject.cycle.openQuestions ?? null,
       scores,
       openAnswer: respondent.openAnswer
         ? {
